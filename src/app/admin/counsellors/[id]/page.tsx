@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,7 +22,7 @@ export default async function CounsellorDetailPage({
 }) {
   const { id } = await params
   const user = await requireAdmin()
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [
     { data: counsellor },
