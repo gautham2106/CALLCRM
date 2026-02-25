@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/components/ui/use-toast'
 import { UserPlus, Mail, Phone, Eye, Loader2, Users } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
@@ -35,7 +34,6 @@ interface Props {
 }
 
 export function CounsellorsClient({ initialCounsellors, collegeId, adminId }: Props) {
-  const supabase = createClient()
   const [counsellors, setCounsellors] = useState(initialCounsellors)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -44,37 +42,16 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId }: Pr
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     setAdding(true)
-
     try {
-      // Create Supabase Auth user (requires service role in practice)
-      // For demo, we'll just create the user record
-      const { data: authData, error: authError } = await supabase.auth.admin?.createUser({
-        email: form.email,
-        password: form.password,
-        email_confirm: true,
-      }) as { data: { user: { id: string } | null }; error: Error | null } || {}
+      const res = await fetch('/api/admin/counsellors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, password: form.password }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Something went wrong.')
 
-      let authId = null
-      if (authData?.user) authId = authData.user.id
-
-      // Insert user profile
-      const { data: newUser, error: dbError } = await supabase
-        .from('users')
-        .insert({
-          name: form.name,
-          email: form.email,
-          phone: form.phone || null,
-          role: 'counsellor' as const,
-          college_id: collegeId,
-          auth_id: authId,
-          is_active: true,
-        })
-        .select()
-        .single()
-
-      if (dbError) throw dbError
-
-      setCounsellors((prev) => [{ ...newUser, assigned_leads: [] } as Counsellor, ...prev])
+      setCounsellors((prev) => [{ ...json.user, assigned_leads: [] } as Counsellor, ...prev])
       setShowAddDialog(false)
       setForm({ name: '', email: '', phone: '', password: '' })
       toast({ title: 'Counsellor added', description: `${form.name} has been added successfully.`, variant: 'success' })
@@ -87,12 +64,12 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId }: Pr
   }
 
   const toggleActive = async (counsellor: Counsellor) => {
-    const { error } = await supabase
-      .from('users')
-      .update({ is_active: !counsellor.is_active })
-      .eq('id', counsellor.id)
-
-    if (!error) {
+    const res = await fetch('/api/admin/counsellors', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: counsellor.id, is_active: !counsellor.is_active }),
+    })
+    if (res.ok) {
       setCounsellors((prev) =>
         prev.map((c) => (c.id === counsellor.id ? { ...c, is_active: !c.is_active } : c))
       )

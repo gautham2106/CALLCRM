@@ -4,8 +4,10 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import {
   LEAD_STAGE_COLORS,
   CALL_STAGE_COLORS,
@@ -24,6 +26,8 @@ import {
   Users,
   SlidersHorizontal,
   CircleAlert,
+  Plus,
+  Loader2,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { toast } from '@/components/ui/use-toast'
@@ -60,9 +64,14 @@ const PRIORITY_DOT: Record<string, string> = {
   Cold: 'bg-blue-400',
 }
 
-export function AdminLeadsClient({ initialLeads, counsellors }: Props) {
-  const [leads] = useState(initialLeads)
+const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', priority: 'Warm', notes: '' }
+
+export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId, adminId }: Props) {
+  const [leads, setLeads] = useState(initialLeads)
   const [search, setSearch] = useState('')
+  const [showAddDialog, setShowAddDialog] = useState(false)
+  const [addingLead, setAddingLead] = useState(false)
+  const [leadForm, setLeadForm] = useState(EMPTY_LEAD_FORM)
   const [stageFilter, setStageFilter] = useState('all')
   const [counsellorFilter, setCounsellorFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
@@ -129,6 +138,34 @@ export function AdminLeadsClient({ initialLeads, counsellors }: Props) {
     toast({ title: 'Export ready', description: `${rows.length} leads exported.` })
   }
 
+  const handleAddLead = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAddingLead(true)
+    try {
+      const source = sources.find((s) => s.id === leadForm.source_id)
+      const res = await fetch('/api/admin/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...leadForm,
+          source_name: source?.source_name || null,
+          source_id: leadForm.source_id || null,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Something went wrong.')
+      setLeads((prev) => [json.lead, ...prev])
+      setShowAddDialog(false)
+      setLeadForm(EMPTY_LEAD_FORM)
+      toast({ title: 'Lead added', description: `${leadForm.name} has been added.`, variant: 'success' })
+    } catch (err: unknown) {
+      const error = err as Error
+      toast({ title: 'Failed to add lead', description: error?.message || 'Something went wrong.', variant: 'destructive' })
+    } finally {
+      setAddingLead(false)
+    }
+  }
+
   const unassignedCount = leads.filter((l) => !l.assigned_to).length
 
   return (
@@ -157,6 +194,10 @@ export function AdminLeadsClient({ initialLeads, counsellors }: Props) {
             <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
               <Download className="h-4 w-4" />
               Export
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowAddDialog(true)} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Add Lead
             </Button>
             <Link href="/admin/leads/import">
               <Button size="sm" className="gap-1.5">
@@ -412,5 +453,110 @@ export function AdminLeadsClient({ initialLeads, counsellors }: Props) {
         </div>
       </div>
     </div>
+
+    {/* Add Lead Dialog */}
+    <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add New Lead</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleAddLead} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="lead-name">Full Name <span className="text-red-500">*</span></Label>
+              <Input
+                id="lead-name"
+                value={leadForm.name}
+                onChange={(e) => setLeadForm({ ...leadForm, name: e.target.value })}
+                placeholder="Rahul Kumar"
+                required
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="lead-phone">Phone <span className="text-red-500">*</span></Label>
+              <Input
+                id="lead-phone"
+                value={leadForm.phone}
+                onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })}
+                placeholder="9876543210"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lead-email">Email</Label>
+              <Input
+                id="lead-email"
+                type="email"
+                value={leadForm.email}
+                onChange={(e) => setLeadForm({ ...leadForm, email: e.target.value })}
+                placeholder="rahul@example.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lead-city">City</Label>
+              <Input
+                id="lead-city"
+                value={leadForm.city}
+                onChange={(e) => setLeadForm({ ...leadForm, city: e.target.value })}
+                placeholder="Chennai"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lead-course">Course Interest</Label>
+              <Input
+                id="lead-course"
+                value={leadForm.course_interest}
+                onChange={(e) => setLeadForm({ ...leadForm, course_interest: e.target.value })}
+                placeholder="B.Tech CSE"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Priority</Label>
+              <Select value={leadForm.priority} onValueChange={(v) => setLeadForm({ ...leadForm, priority: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hot">Hot</SelectItem>
+                  <SelectItem value="Warm">Warm</SelectItem>
+                  <SelectItem value="Cold">Cold</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {sources.length > 0 && (
+              <div className="col-span-2 space-y-1.5">
+                <Label>Source</Label>
+                <Select value={leadForm.source_id} onValueChange={(v) => setLeadForm({ ...leadForm, source_id: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sources.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="col-span-2 space-y-1.5">
+              <Label htmlFor="lead-notes">Notes</Label>
+              <Input
+                id="lead-notes"
+                value={leadForm.notes}
+                onChange={(e) => setLeadForm({ ...leadForm, notes: e.target.value })}
+                placeholder="Optional notes..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button type="submit" disabled={addingLead}>
+              {addingLead ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Add Lead
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
