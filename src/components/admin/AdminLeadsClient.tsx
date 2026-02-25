@@ -169,6 +169,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const unassignedCount = leads.filter((l) => !l.assigned_to).length
 
   return (
+    <>
     <div className="min-h-full bg-gray-50">
       {/* Page Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-5">
@@ -558,5 +559,6 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
         </form>
       </DialogContent>
     </Dialog>
+    </>
   )
 }
