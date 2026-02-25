@@ -1,11 +1,11 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { AssignmentClient } from '@/components/admin/AssignmentClient'
+import { LeadsTableSkeleton } from '@/components/ui/skeletons'
 
-export default async function AssignmentPage() {
-  const user = await requireAdmin()
+async function AssignmentContent({ collegeId, adminId }: { collegeId: string; adminId: string }) {
   const supabase = await createClient()
-
   const [
     { data: leads },
     { data: counsellors },
@@ -17,13 +17,13 @@ export default async function AssignmentPage() {
         current_lead_stage, priority, follow_up_date, assigned_to,
         assigned_user:users!leads_assigned_to_fkey(id, name)
       `)
-      .eq('college_id', user.college_id!)
+      .eq('college_id', collegeId)
       .eq('is_active', true)
       .order('created_at', { ascending: false }),
     supabase
       .from('users')
       .select('id, name, email')
-      .eq('college_id', user.college_id!)
+      .eq('college_id', collegeId)
       .eq('role', 'counsellor')
       .eq('is_active', true),
   ])
@@ -32,8 +32,18 @@ export default async function AssignmentPage() {
     <AssignmentClient
       initialLeads={(leads || []) as any}
       counsellors={(counsellors || []) as any}
-      collegeId={user.college_id!}
-      adminId={user.id}
+      collegeId={collegeId}
+      adminId={adminId}
     />
+  )
+}
+
+export default async function AssignmentPage() {
+  const user = await requireAdmin()
+
+  return (
+    <Suspense fallback={<LeadsTableSkeleton />}>
+      <AssignmentContent collegeId={user.college_id!} adminId={user.id} />
+    </Suspense>
   )
 }
