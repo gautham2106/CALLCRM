@@ -6,7 +6,9 @@ export default async function CounsellorsPage() {
   const user = await requireAdmin()
   const supabase = createAdminClient()
 
-  const { data: counsellors } = await supabase
+  console.log('[CounsellorsPage] college_id:', user.college_id)
+
+  const { data: counsellors, error } = await supabase
     .from('users')
     .select(`
       id, name, email, phone, is_active, created_at,
@@ -17,6 +19,8 @@ export default async function CounsellorsPage() {
     .eq('college_id', user.college_id!)
     .eq('role', 'counsellor')
     .order('created_at', { ascending: false })
+
+  console.log('[CounsellorsPage] count:', counsellors?.length, 'error:', error)
 
   return (
     <CounsellorsClient
