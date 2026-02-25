@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 import {
   LEAD_STAGE_COLORS,
   CALL_STAGE_COLORS,
@@ -28,9 +29,12 @@ import {
   CircleAlert,
   Plus,
   Loader2,
+  Shuffle,
+  CheckCircle,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { toast } from '@/components/ui/use-toast'
+import { createClient } from '@/lib/supabase/client'
 
 interface Lead {
   id: string
@@ -67,6 +71,7 @@ const PRIORITY_DOT: Record<string, string> = {
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', priority: 'Warm', notes: '' }
 
 export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId, adminId }: Props) {
+  const supabase = createClient()
   const [leads, setLeads] = useState(initialLeads)
   const [search, setSearch] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -77,6 +82,13 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
+
+  // Assignment state
+  const [showAssignDialog, setShowAssignDialog] = useState(false)
+  const [showReassignDialog, setShowReassignDialog] = useState(false)
+  const [selectedCounsellorId, setSelectedCounsellorId] = useState('')
+  const [reason, setReason] = useState('')
+  const [assigning, setAssigning] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -166,6 +178,143 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
     }
   }
 
+  const assignLeads = async (isReassign = false) => {
+    if (!selectedCounsellorId || selectedIds.size === 0) return
+    setAssigning(true)
+
+    const selectedLeadsList = leads.filter((l) => selectedIds.has(l.id))
+    const counsellor = counsellors.find((c) => c.id === selectedCounsellorId)
+
+    try {
+      await (supabase as any)
+        .from('leads')
+        .update({ assigned_to: selectedCounsellorId, updated_at: new Date().toISOString() })
+        .in('id', Array.from(selectedIds))
+
+      const historyRows = selectedLeadsList.map((lead) => ({
+        lead_id: lead.id,
+        college_id: collegeId,
+        assigned_from: lead.assigned_to || null,
+        assigned_to: selectedCounsellorId,
+        assigned_by: adminId,
+        reason: reason || null,
+      }))
+      await (supabase as any).from('lead_assignment_history').insert(historyRows)
+
+      if (selectedIds.size === 1) {
+        const lead = selectedLeadsList[0]
+        await (supabase as any).from('notifications').insert({
+          user_id: selectedCounsellorId,
+          college_id: collegeId,
+          type: isReassign ? 'reassigned' : 'new_lead',
+          message: `${isReassign ? 'Lead reassigned to you' : 'New lead assigned'}: ${lead.name}`,
+          lead_id: lead.id,
+        })
+      } else {
+        await (supabase as any).from('notifications').insert({
+          user_id: selectedCounsellorId,
+          college_id: collegeId,
+          type: 'bulk_leads',
+          message: `${selectedIds.size} leads ${isReassign ? 'reassigned' : 'assigned'} to you`,
+          bulk_count: selectedIds.size,
+        })
+      }
+
+      setLeads((prev) =>
+        prev.map((l) =>
+          selectedIds.has(l.id)
+            ? { ...l, assigned_to: selectedCounsellorId, assigned_user: { id: selectedCounsellorId, name: counsellor?.name || '', email: '' } }
+            : l
+        )
+      )
+
+      toast({
+        title: 'Leads assigned',
+        description: `${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''} assigned to ${counsellor?.name}`,
+        variant: 'success',
+      })
+
+      setSelectedIds(new Set())
+      setSelectedCounsellorId('')
+      setReason('')
+      setShowAssignDialog(false)
+      setShowReassignDialog(false)
+    } catch {
+      toast({ title: 'Assignment failed', description: 'Something went wrong.', variant: 'destructive' })
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  const autoDistribute = async () => {
+    if (counsellors.length === 0 || selectedIds.size === 0) return
+    setAssigning(true)
+
+    const leadIds = Array.from(selectedIds)
+    const assignments: Record<string, string[]> = {}
+
+    leadIds.forEach((id, idx) => {
+      const counsellor = counsellors[idx % counsellors.length]
+      if (!assignments[counsellor.id]) assignments[counsellor.id] = []
+      assignments[counsellor.id].push(id)
+    })
+
+    try {
+      for (const [counsellorId, ids] of Object.entries(assignments)) {
+        await (supabase as any)
+          .from('leads')
+          .update({ assigned_to: counsellorId, updated_at: new Date().toISOString() })
+          .in('id', ids)
+
+        const selectedLeadsList = leads.filter((l) => ids.includes(l.id))
+        const historyRows = selectedLeadsList.map((lead) => ({
+          lead_id: lead.id,
+          college_id: collegeId,
+          assigned_from: lead.assigned_to || null,
+          assigned_to: counsellorId,
+          assigned_by: adminId,
+          reason: 'Auto-distributed',
+        }))
+        await (supabase as any).from('lead_assignment_history').insert(historyRows)
+
+        await (supabase as any).from('notifications').insert({
+          user_id: counsellorId,
+          college_id: collegeId,
+          type: 'bulk_leads',
+          message: `${ids.length} leads auto-assigned to you`,
+          bulk_count: ids.length,
+        })
+      }
+
+      setLeads((prev) =>
+        prev.map((l) => {
+          for (const [counsellorId, ids] of Object.entries(assignments)) {
+            if (ids.includes(l.id)) {
+              const c = counsellors.find((c) => c.id === counsellorId)
+              return { ...l, assigned_to: counsellorId, assigned_user: { id: counsellorId, name: c?.name || '', email: '' } }
+            }
+          }
+          return l
+        })
+      )
+
+      toast({
+        title: 'Auto-distributed!',
+        description: `${leadIds.length} leads distributed equally among ${counsellors.length} counsellors`,
+        variant: 'success',
+      })
+      setSelectedIds(new Set())
+    } catch {
+      toast({ title: 'Distribution failed', description: 'Something went wrong.', variant: 'destructive' })
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  const hasReassignableSelected = Array.from(selectedIds).some(
+    (id) => leads.find((l) => l.id === id)?.assigned_to
+  )
+
   const unassignedCount = leads.filter((l) => !l.assigned_to).length
 
   return (
@@ -185,12 +334,38 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
           </div>
           <div className="flex items-center gap-2">
             {selectedIds.size > 0 && (
-              <Link href={`/admin/assignment?leads=${Array.from(selectedIds).join(',')}`}>
-                <Button variant="default" size="sm" className="gap-1.5">
-                  <UserPlus className="h-4 w-4" />
-                  Assign {selectedIds.size} leads
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={autoDistribute}
+                  disabled={assigning || counsellors.length === 0}
+                  className="gap-1.5"
+                >
+                  {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shuffle className="h-4 w-4" />}
+                  Auto-Distribute
                 </Button>
-              </Link>
+                {hasReassignableSelected && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowReassignDialog(true)}
+                    className="gap-1.5"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Reassign
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => setShowAssignDialog(true)}
+                  disabled={assigning}
+                  className="gap-1.5"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Assign {selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''}
+                </Button>
+              </>
             )}
             <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
               <Download className="h-4 w-4" />
@@ -557,6 +732,78 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+
+    {/* Assign Dialog */}
+    <Dialog open={showAssignDialog} onOpenChange={(open) => { setShowAssignDialog(open); if (!open) { setSelectedCounsellorId(''); setReason('') } }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Assign {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Select Counsellor</Label>
+            <Select value={selectedCounsellorId} onValueChange={setSelectedCounsellorId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a counsellor..." />
+              </SelectTrigger>
+              <SelectContent>
+                {counsellors.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name} — {leads.filter((l) => l.assigned_to === c.id).length} leads
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowAssignDialog(false)}>Cancel</Button>
+          <Button onClick={() => assignLeads(false)} disabled={!selectedCounsellorId || assigning}>
+            {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+            Assign Leads
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Reassign Dialog */}
+    <Dialog open={showReassignDialog} onOpenChange={(open) => { setShowReassignDialog(open); if (!open) { setSelectedCounsellorId(''); setReason('') } }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reassign {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Assign To</Label>
+            <Select value={selectedCounsellorId} onValueChange={setSelectedCounsellorId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose new counsellor..." />
+              </SelectTrigger>
+              <SelectContent>
+                {counsellors.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Reason for reassignment</Label>
+            <Textarea
+              placeholder="Why are these leads being reassigned? (optional)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowReassignDialog(false)}>Cancel</Button>
+          <Button onClick={() => assignLeads(true)} disabled={!selectedCounsellorId || assigning}>
+            {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Reassign Leads
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     </>

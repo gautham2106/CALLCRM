@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Users,
   UserCheck,
-  ArrowLeftRight,
   Sliders,
   Tags,
   Settings,
@@ -21,7 +20,6 @@ import { useRouter } from 'next/navigation'
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/leads', label: 'Leads', icon: Users },
-  { href: '/admin/assignment', label: 'Assignment', icon: ArrowLeftRight },
   { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck },
   { href: '/admin/super-fields', label: 'Super Fields', icon: Sliders },
   { href: '/admin/sources', label: 'Lead Sources', icon: Tags },
