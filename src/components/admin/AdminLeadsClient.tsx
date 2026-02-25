@@ -34,7 +34,6 @@ import {
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { toast } from '@/components/ui/use-toast'
-import { createClient } from '@/lib/supabase/client'
 
 interface Lead {
   id: string
@@ -71,7 +70,6 @@ const PRIORITY_DOT: Record<string, string> = {
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', priority: 'Warm', notes: '' }
 
 export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId, adminId }: Props) {
-  const supabase = createClient()
   const [leads, setLeads] = useState(initialLeads)
   const [search, setSearch] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -182,43 +180,21 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
     if (!selectedCounsellorId || selectedIds.size === 0) return
     setAssigning(true)
 
-    const selectedLeadsList = leads.filter((l) => selectedIds.has(l.id))
     const counsellor = counsellors.find((c) => c.id === selectedCounsellorId)
 
     try {
-      await (supabase as any)
-        .from('leads')
-        .update({ assigned_to: selectedCounsellorId, updated_at: new Date().toISOString() })
-        .in('id', Array.from(selectedIds))
-
-      const historyRows = selectedLeadsList.map((lead) => ({
-        lead_id: lead.id,
-        college_id: collegeId,
-        assigned_from: lead.assigned_to || null,
-        assigned_to: selectedCounsellorId,
-        assigned_by: adminId,
-        reason: reason || null,
-      }))
-      await (supabase as any).from('lead_assignment_history').insert(historyRows)
-
-      if (selectedIds.size === 1) {
-        const lead = selectedLeadsList[0]
-        await (supabase as any).from('notifications').insert({
-          user_id: selectedCounsellorId,
-          college_id: collegeId,
-          type: isReassign ? 'reassigned' : 'new_lead',
-          message: `${isReassign ? 'Lead reassigned to you' : 'New lead assigned'}: ${lead.name}`,
-          lead_id: lead.id,
-        })
-      } else {
-        await (supabase as any).from('notifications').insert({
-          user_id: selectedCounsellorId,
-          college_id: collegeId,
-          type: 'bulk_leads',
-          message: `${selectedIds.size} leads ${isReassign ? 'reassigned' : 'assigned'} to you`,
-          bulk_count: selectedIds.size,
-        })
-      }
+      const res = await fetch('/api/admin/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadIds: Array.from(selectedIds),
+          counsellorId: selectedCounsellorId,
+          reason: reason || null,
+          isReassign,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Something went wrong.')
 
       setLeads((prev) =>
         prev.map((l) =>
@@ -239,8 +215,9 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
       setReason('')
       setShowAssignDialog(false)
       setShowReassignDialog(false)
-    } catch {
-      toast({ title: 'Assignment failed', description: 'Something went wrong.', variant: 'destructive' })
+    } catch (err: unknown) {
+      const error = err as Error
+      toast({ title: 'Assignment failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
     } finally {
       setAssigning(false)
     }
@@ -251,40 +228,23 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
     setAssigning(true)
 
     const leadIds = Array.from(selectedIds)
-    const assignments: Record<string, string[]> = {}
-
-    leadIds.forEach((id, idx) => {
-      const counsellor = counsellors[idx % counsellors.length]
-      if (!assignments[counsellor.id]) assignments[counsellor.id] = []
-      assignments[counsellor.id].push(id)
-    })
 
     try {
-      for (const [counsellorId, ids] of Object.entries(assignments)) {
-        await (supabase as any)
-          .from('leads')
-          .update({ assigned_to: counsellorId, updated_at: new Date().toISOString() })
-          .in('id', ids)
+      const res = await fetch('/api/admin/assign', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds, counsellors }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Something went wrong.')
 
-        const selectedLeadsList = leads.filter((l) => ids.includes(l.id))
-        const historyRows = selectedLeadsList.map((lead) => ({
-          lead_id: lead.id,
-          college_id: collegeId,
-          assigned_from: lead.assigned_to || null,
-          assigned_to: counsellorId,
-          assigned_by: adminId,
-          reason: 'Auto-distributed',
-        }))
-        await (supabase as any).from('lead_assignment_history').insert(historyRows)
-
-        await (supabase as any).from('notifications').insert({
-          user_id: counsellorId,
-          college_id: collegeId,
-          type: 'bulk_leads',
-          message: `${ids.length} leads auto-assigned to you`,
-          bulk_count: ids.length,
-        })
-      }
+      // Build round-robin map to update local state
+      const assignments: Record<string, string[]> = {}
+      leadIds.forEach((id, idx) => {
+        const c = counsellors[idx % counsellors.length]
+        if (!assignments[c.id]) assignments[c.id] = []
+        assignments[c.id].push(id)
+      })
 
       setLeads((prev) =>
         prev.map((l) => {
@@ -304,8 +264,9 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
         variant: 'success',
       })
       setSelectedIds(new Set())
-    } catch {
-      toast({ title: 'Distribution failed', description: 'Something went wrong.', variant: 'destructive' })
+    } catch (err: unknown) {
+      const error = err as Error
+      toast({ title: 'Distribution failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
     } finally {
       setAssigning(false)
     }
