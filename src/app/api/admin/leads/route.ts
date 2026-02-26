@@ -18,7 +18,9 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { name, phone, email, city, course_interest, source_id, source_name, notes, assigned_to, visit_date } = body
+  const { name, email, city, course_interest, source_id, source_name, notes, assigned_to, visit_date } = body
+  // Normalize phone: trim whitespace so "9876543210" and " 9876543210 " are treated the same
+  const phone: string = (body.phone ?? '').trim()
 
   if (!name || !phone) {
     return NextResponse.json({ error: 'name and phone are required' }, { status: 400 })
@@ -27,21 +29,28 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient()
 
   // Prevent duplicate phone numbers within the same college.
+  // Use .limit(1) before .maybeSingle() so PostgREST never sees multiple rows
+  // (which would cause maybeSingle to error rather than return the existing lead).
   // Do NOT filter by is_active — leads imported without that flag have is_active = null
   // and would be missed, allowing silent duplicates.
-  const { data: existing } = await admin
+  const { data: existing, error: dupError } = await admin
     .from('leads')
-    .select('id, name')
+    .select('id, name, phone')
     .eq('college_id', profile.college_id)
     .eq('phone', phone)
     .limit(1)
     .maybeSingle()
+
+  console.log('[leads/POST] dup check', { college_id: profile.college_id, phone, found: existing?.name ?? null, dupError: dupError?.message ?? null })
 
   if (existing) {
     return NextResponse.json(
       { error: `A lead with this phone number already exists: "${existing.name}"` },
       { status: 409 }
     )
+  }
+  if (dupError) {
+    return NextResponse.json({ error: dupError.message }, { status: 500 })
   }
 
   const { data: lead, error } = await admin
