@@ -26,7 +26,11 @@ const navItems = [
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ]
 
-export function AdminSidebar() {
+interface Props {
+  onClose?: () => void
+}
+
+export function AdminSidebar({ onClose }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -62,6 +66,7 @@ export function AdminSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
                 isActive

@@ -212,8 +212,8 @@ export function LeadDetailClient({
   return (
     <div className="min-h-full bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-5">
-        <div className="flex items-start gap-4">
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 sm:py-5">
+        <div className="flex items-start gap-3 sm:gap-4">
           <button
             onClick={() => router.push(backPath)}
             className="mt-1 p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
@@ -223,7 +223,7 @@ export function LeadDetailClient({
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{lead.name}</h1>
                 <div className="flex items-center flex-wrap gap-2 mt-2">
                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${LEAD_STAGE_COLORS[lead.current_lead_stage] || 'bg-gray-100 text-gray-700'}`}>
                     {lead.current_lead_stage}
@@ -297,7 +297,7 @@ export function LeadDetailClient({
       </div>
 
       {/* Tabs */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Tabs defaultValue="info">
           <TabsList className="mb-6 bg-white border border-gray-200 p-1 rounded-xl h-auto">
             <TabsTrigger value="info" className="rounded-lg data-[state=active]:shadow-sm">

@@ -178,13 +178,13 @@ export function SuperFieldsClient({ initialFields, collegeId, adminId }: Props) 
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Super Fields</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Super Fields</h1>
           <p className="text-gray-500 text-sm">Custom fields that appear on every lead</p>
         </div>
-        <Button onClick={openAdd}>
+        <Button onClick={openAdd} className="shrink-0">
           <Plus className="h-4 w-4" />
           Add Field
         </Button>
@@ -209,31 +209,31 @@ export function SuperFieldsClient({ initialFields, collegeId, adminId }: Props) 
             return (
               <div
                 key={field.id}
-                className={`bg-white border rounded-lg p-4 flex items-center gap-4 ${!field.is_active ? 'opacity-50' : ''}`}
+                className={`bg-white border rounded-lg p-4 flex items-center gap-3 ${!field.is_active ? 'opacity-50' : ''}`}
               >
-                <GripVertical className="h-5 w-5 text-gray-300 cursor-grab" />
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                <GripVertical className="h-5 w-5 text-gray-300 cursor-grab shrink-0" />
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                   <TypeIcon className="h-4 w-4" />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-gray-900">{field.field_name}</span>
                     {field.is_required && <Badge variant="outline" className="text-xs">Required</Badge>}
                     {!field.is_active && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <div className="flex items-center gap-2 text-sm text-gray-400 flex-wrap">
                     <span>{FIELD_TYPE_INFO[field.field_type]?.label}</span>
                     {field.field_type === 'dropdown' && options.length > 0 && (
-                      <span>· {options.slice(0, 3).join(', ')}{options.length > 3 ? ` +${options.length - 3}` : ''}</span>
+                      <span className="truncate">· {options.slice(0, 3).join(', ')}{options.length > 3 ? ` +${options.length - 3}` : ''}</span>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(field)}>Edit</Button>
-                  <Button variant="ghost" size="sm" onClick={() => toggleActive(field)}>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(field)} className="h-8 px-2">Edit</Button>
+                  <Button variant="ghost" size="sm" onClick={() => toggleActive(field)} className="h-8 w-8 p-0">
                     {field.is_active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => deleteField(field)} className="text-red-500 hover:text-red-700">
+                  <Button variant="ghost" size="sm" onClick={() => deleteField(field)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>

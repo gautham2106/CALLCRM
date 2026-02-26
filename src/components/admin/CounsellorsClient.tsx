@@ -361,119 +361,214 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
         </div>
       )}
 
-      {/* Counsellors Table */}
+      {/* Counsellors List */}
       {counsellors.length === 0 ? (
         <div className="text-center py-16 text-gray-400 bg-white border border-gray-200 rounded-xl">
           <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
           <p>No counsellors yet. Add your first counsellor.</p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-8">#</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Counsellor</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Not Called</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Interested</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Enrolled</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Conv%</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {[...counsellors]
-                  .sort((a, b) => getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today))
-                  .map((c, idx) => {
-                    const leads = c.assigned_leads || []
-                    const total = leads.length
-                    const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
-                    const notCalled = leads.filter((l) => l.current_call_stage === null).length
-                    const interested = leads.filter((l) => l.current_call_stage === 'Interested').length
-                    const conversion = total > 0 ? Math.round((enrolled / total) * 100) : 0
-                    const overdueCount = leads.filter((l) => l.follow_up_date && l.follow_up_date < today).length
+        <>
+          {/* Mobile cards */}
+          <div className="sm:hidden space-y-3">
+            {[...counsellors]
+              .sort((a, b) => getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today))
+              .map((c, idx) => {
+                const leads = c.assigned_leads || []
+                const total = leads.length
+                const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
+                const notCalled = leads.filter((l) => l.current_call_stage === null).length
+                const interested = leads.filter((l) => l.current_call_stage === 'Interested').length
+                const conversion = total > 0 ? Math.round((enrolled / total) * 100) : 0
+                const overdueCount = leads.filter((l) => l.follow_up_date && l.follow_up_date < today).length
 
-                    return (
-                      <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${!c.is_active ? 'opacity-50' : ''}`}>
-                        <td className="px-4 py-3.5 text-xs font-bold text-gray-300">{idx + 1}</td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
-                              {c.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-semibold text-gray-900">{c.name}</p>
-                              <p className="text-xs text-gray-400 truncate">{c.email}</p>
-                              {c.phone && <p className="text-xs text-gray-400">{c.phone}</p>}
-                            </div>
+                return (
+                  <div key={c.id} className={`bg-white border border-gray-200 rounded-xl p-4 ${!c.is_active ? 'opacity-50' : ''}`}>
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
+                        {c.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900">{c.name}</p>
+                            <p className="text-xs text-gray-400 truncate">{c.email}</p>
                           </div>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col items-end gap-1 shrink-0">
                             <Badge variant={c.is_active ? 'success' : 'secondary'}>
                               {c.is_active ? 'Active' : 'Inactive'}
                             </Badge>
                             {overdueCount > 0 && (
-                              <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full flex items-center gap-1 w-fit">
+                              <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full flex items-center gap-1">
                                 <AlertCircle className="h-2.5 w-2.5" />
                                 {overdueCount} overdue
                               </span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className="font-bold text-gray-900 text-base">{total}</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className={`font-bold text-base ${notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{notCalled}</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className={`font-bold text-base ${interested > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>{interested}</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className="font-bold text-base text-green-600">{enrolled}</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <span className="font-bold text-base text-blue-600">{conversion}%</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              className="gap-1 bg-green-600 hover:bg-green-700 text-white h-8 text-xs px-2.5"
-                              onClick={() => openAddLeads(c)}
-                              disabled={!c.is_active}
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              Add Leads
-                            </Button>
-                            <Link href={`/admin/counsellors/${c.id}`}>
-                              <Button variant="outline" size="sm" className="gap-1 h-8 text-xs px-2.5">
-                                <Eye className="h-3.5 w-3.5" />
-                                View
-                              </Button>
-                            </Link>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => toggleActive(c)}
-                              className="h-8 px-2.5 text-xs"
-                              title={c.is_active ? 'Deactivate' : 'Activate'}
-                            >
-                              {c.is_active ? '✕' : '✓'}
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-              </tbody>
-            </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats row */}
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      <div className="text-center bg-gray-50 rounded-lg py-2">
+                        <p className="text-xs text-gray-400 font-medium">Total</p>
+                        <p className="font-bold text-gray-900">{total}</p>
+                      </div>
+                      <div className="text-center bg-red-50 rounded-lg py-2">
+                        <p className="text-xs text-gray-400 font-medium">Uncalled</p>
+                        <p className={`font-bold ${notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{notCalled}</p>
+                      </div>
+                      <div className="text-center bg-green-50 rounded-lg py-2">
+                        <p className="text-xs text-gray-400 font-medium">Enrolled</p>
+                        <p className="font-bold text-green-600">{enrolled}</p>
+                      </div>
+                      <div className="text-center bg-blue-50 rounded-lg py-2">
+                        <p className="text-xs text-gray-400 font-medium">Conv%</p>
+                        <p className="font-bold text-blue-600">{conversion}%</p>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 gap-1 bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+                        onClick={() => openAddLeads(c)}
+                        disabled={!c.is_active}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add Leads
+                      </Button>
+                      <Link href={`/admin/counsellors/${c.id}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full gap-1 h-8 text-xs">
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleActive(c)}
+                        className="h-8 px-2.5 text-xs"
+                        title={c.is_active ? 'Deactivate' : 'Activate'}
+                      >
+                        {c.is_active ? '✕' : '✓'}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
           </div>
-        </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-8">#</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Counsellor</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Not Called</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Interested</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Enrolled</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Conv%</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {[...counsellors]
+                    .sort((a, b) => getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today))
+                    .map((c, idx) => {
+                      const leads = c.assigned_leads || []
+                      const total = leads.length
+                      const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
+                      const notCalled = leads.filter((l) => l.current_call_stage === null).length
+                      const interested = leads.filter((l) => l.current_call_stage === 'Interested').length
+                      const conversion = total > 0 ? Math.round((enrolled / total) * 100) : 0
+                      const overdueCount = leads.filter((l) => l.follow_up_date && l.follow_up_date < today).length
+
+                      return (
+                        <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${!c.is_active ? 'opacity-50' : ''}`}>
+                          <td className="px-4 py-3.5 text-xs font-bold text-gray-300">{idx + 1}</td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
+                                {c.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-gray-900">{c.name}</p>
+                                <p className="text-xs text-gray-400 truncate">{c.email}</p>
+                                {c.phone && <p className="text-xs text-gray-400">{c.phone}</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={c.is_active ? 'success' : 'secondary'}>
+                                {c.is_active ? 'Active' : 'Inactive'}
+                              </Badge>
+                              {overdueCount > 0 && (
+                                <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full flex items-center gap-1 w-fit">
+                                  <AlertCircle className="h-2.5 w-2.5" />
+                                  {overdueCount} overdue
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <span className="font-bold text-gray-900 text-base">{total}</span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <span className={`font-bold text-base ${notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{notCalled}</span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <span className={`font-bold text-base ${interested > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>{interested}</span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <span className="font-bold text-base text-green-600">{enrolled}</span>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <span className="font-bold text-base text-blue-600">{conversion}%</span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                className="gap-1 bg-green-600 hover:bg-green-700 text-white h-8 text-xs px-2.5"
+                                onClick={() => openAddLeads(c)}
+                                disabled={!c.is_active}
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Add Leads
+                              </Button>
+                              <Link href={`/admin/counsellors/${c.id}`}>
+                                <Button variant="outline" size="sm" className="gap-1 h-8 text-xs px-2.5">
+                                  <Eye className="h-3.5 w-3.5" />
+                                  View
+                                </Button>
+                              </Link>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleActive(c)}
+                                className="h-8 px-2.5 text-xs"
+                                title={c.is_active ? 'Deactivate' : 'Activate'}
+                              >
+                                {c.is_active ? '✕' : '✓'}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Add Counsellor Dialog */}

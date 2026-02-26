@@ -244,15 +244,15 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
   )
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Assignment</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Assignment</h1>
           <p className="text-gray-500 text-sm mt-0.5">Assign leads to counsellors</p>
         </div>
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">{selectedIds.size} selected</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-gray-500 font-medium">{selectedIds.size} selected</span>
             <Button
               variant="outline"
               size="sm"
@@ -260,7 +260,8 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
               disabled={assigning}
             >
               <Shuffle className="h-4 w-4" />
-              Auto-Distribute ({counsellors.length} counsellors)
+              <span className="hidden xs:inline">Auto-Distribute</span>
+              <span className="xs:hidden">Auto</span>
             </Button>
             {hasReassignableSelected && (
               <Button
@@ -278,7 +279,7 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
               disabled={assigning}
             >
               <UserPlus className="h-4 w-4" />
-              Assign to Counsellor
+              Assign
             </Button>
           </div>
         )}
@@ -304,8 +305,8 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
       )}
 
       {/* Filters */}
-      <div className="flex gap-3 bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex gap-1 border border-gray-200 rounded-md p-1">
+      <div className="flex flex-col sm:flex-row gap-3 bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex gap-1 border border-gray-200 rounded-md p-1 self-start">
           <button
             onClick={() => setFilterMode('unassigned')}
             className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${filterMode === 'unassigned' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}
@@ -330,8 +331,66 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Mobile cards */}
+      <div className="sm:hidden space-y-2">
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-lg border border-gray-200 px-4 py-12 text-center text-gray-400 text-sm">
+            {filterMode === 'unassigned' ? 'All leads are assigned!' : 'No leads found'}
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-2.5">
+              <Checkbox
+                checked={selectedIds.size === filtered.length && filtered.length > 0}
+                onCheckedChange={toggleSelectAll}
+              />
+              <span className="text-xs text-gray-500 font-medium">
+                {selectedIds.size > 0 ? `${selectedIds.size} selected` : `Select all ${filtered.length}`}
+              </span>
+            </div>
+            {filtered.map((lead) => (
+              <div
+                key={lead.id}
+                onClick={() => toggleSelect(lead.id)}
+                className={`bg-white rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                  selectedIds.has(lead.id) ? 'border-blue-400 bg-blue-50' : 'border-gray-200'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    checked={selectedIds.has(lead.id)}
+                    onCheckedChange={() => toggleSelect(lead.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-gray-900">{lead.name}</p>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${LEAD_STAGE_COLORS[lead.current_lead_stage] || 'bg-gray-100'}`}>
+                        {lead.current_lead_stage}
+                      </span>
+                    </div>
+                    <p className="text-xs font-mono text-gray-500 mt-0.5">{lead.phone}</p>
+                    {(lead.city || lead.course_interest) && (
+                      <p className="text-xs text-gray-400 mt-0.5">{lead.city || lead.course_interest}</p>
+                    )}
+                    <div className="mt-1.5">
+                      {lead.assigned_user ? (
+                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">{lead.assigned_user.name}</span>
+                      ) : (
+                        <span className="text-xs text-orange-500 font-semibold bg-orange-50 px-2 py-0.5 rounded-full">Unassigned</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden sm:block bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>

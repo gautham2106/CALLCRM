@@ -1,4 +1,4 @@
-import { AdminSidebar } from '@/components/layout/AdminSidebar'
+import { AdminShell } from '@/components/layout/AdminShell'
 import { requireAdmin } from '@/lib/auth'
 
 export default async function AdminLayout({
@@ -9,11 +9,8 @@ export default async function AdminLayout({
   await requireAdmin()
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
-    </div>
+    <AdminShell>
+      {children}
+    </AdminShell>
   )
 }
