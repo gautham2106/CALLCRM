@@ -26,7 +26,7 @@ const LEAD_FIELDS = [
   { key: 'city', label: 'City', required: false },
   { key: 'course_interest', label: 'Course Interest', required: false },
   { key: 'source_name', label: 'Source', required: false },
-  { key: 'priority', label: 'Priority (Hot/Warm/Cold)', required: false },
+  { key: 'visit_date', label: 'Visit Date (YYYY-MM-DD)', required: false },
   { key: 'notes', label: 'Notes', required: false },
 ]
 
@@ -139,9 +139,7 @@ export function LeadImportClient({ collegeId, adminId, sources }: Props) {
       city: columnMap['city'] ? row[columnMap['city']] || null : null,
       course_interest: columnMap['course_interest'] ? row[columnMap['course_interest']] || null : null,
       source_name: columnMap['source_name'] ? row[columnMap['source_name']] || null : null,
-      priority: columnMap['priority']
-        ? (['Hot', 'Warm', 'Cold'].includes(row[columnMap['priority']]) ? row[columnMap['priority']] : 'Warm')
-        : 'Warm',
+      visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
       notes: columnMap['notes'] ? row[columnMap['notes']] || null : null,
       created_by: adminId,
     }))

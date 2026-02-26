@@ -15,7 +15,7 @@ export default async function AdminLeadsPage() {
       .from('leads')
       .select(`
         id, name, phone, email, city, course_interest, source_name,
-        current_lead_stage, current_call_stage, priority, follow_up_date,
+        current_lead_stage, current_call_stage, visit_date, follow_up_date,
         is_active, created_at, updated_at, assigned_to,
         assigned_user:users!leads_assigned_to_fkey(id, name, email)
       `)

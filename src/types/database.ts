@@ -23,7 +23,6 @@ export type CallStage =
   | 'Call Not Picked'
   | 'Call Later'
 
-export type Priority = 'Hot' | 'Warm' | 'Cold'
 export type UserRole = 'admin' | 'counsellor'
 export type FieldType = 'text' | 'number' | 'phone' | 'dropdown' | 'date' | 'checkbox' | 'textarea'
 export type NotificationType = 'new_lead' | 'bulk_leads' | 'reassigned'
@@ -96,7 +95,7 @@ export interface Database {
           current_lead_stage: LeadStage
           current_call_stage: CallStage | null
           assigned_to: string | null
-          priority: Priority
+          visit_date: string | null
           follow_up_date: string | null
           notes: string | null
           is_active: boolean
@@ -117,7 +116,7 @@ export interface Database {
           current_lead_stage?: LeadStage
           current_call_stage?: CallStage | null
           assigned_to?: string | null
-          priority?: Priority
+          visit_date?: string | null
           follow_up_date?: string | null
           notes?: string | null
           is_active?: boolean
@@ -278,7 +277,7 @@ export interface LeadWithDetails {
   source_name: string | null
   current_lead_stage: LeadStage
   current_call_stage: CallStage | null
-  priority: Priority
+  visit_date: string | null
   follow_up_date: string | null
   notes: string | null
   is_active: boolean

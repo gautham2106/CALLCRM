@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { name, phone, email, city, course_interest, source_id, source_name, priority, notes } = body
+  const { name, phone, email, city, course_interest, source_id, source_name, notes, assigned_to, visit_date } = body
 
   if (!name || !phone) {
     return NextResponse.json({ error: 'name and phone are required' }, { status: 400 })
@@ -36,15 +36,16 @@ export async function POST(request: NextRequest) {
       course_interest: course_interest || null,
       source_id: source_id || null,
       source_name: source_name || null,
-      priority: priority || 'Warm',
       notes: notes || null,
+      assigned_to: assigned_to || null,
+      visit_date: visit_date || null,
       college_id: profile.college_id,
       created_by: profile.id,
       current_lead_stage: 'New Enquiry',
     })
     .select(`
       id, name, phone, email, city, course_interest, source_name,
-      current_lead_stage, current_call_stage, priority, follow_up_date,
+      current_lead_stage, current_call_stage, visit_date, follow_up_date,
       is_active, created_at, updated_at, assigned_to,
       assigned_user:users!leads_assigned_to_fkey(id, name, email)
     `)

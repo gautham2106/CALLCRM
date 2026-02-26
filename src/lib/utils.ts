@@ -57,8 +57,6 @@ export const CALL_STAGES = [
   'Call Later',
 ] as const
 
-export const PRIORITIES = ['Hot', 'Warm', 'Cold'] as const
-
 export const LEAD_STAGE_COLORS: Record<string, string> = {
   'New Enquiry': 'bg-blue-100 text-blue-800',
   'Contacted': 'bg-yellow-100 text-yellow-800',
@@ -78,8 +76,3 @@ export const CALL_STAGE_COLORS: Record<string, string> = {
   'Call Later': 'bg-orange-100 text-orange-800',
 }
 
-export const PRIORITY_COLORS: Record<string, string> = {
-  Hot: 'bg-red-100 text-red-800 border-red-200',
-  Warm: 'bg-orange-100 text-orange-800 border-orange-200',
-  Cold: 'bg-blue-100 text-blue-800 border-blue-200',
-}

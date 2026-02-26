@@ -12,7 +12,6 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   LEAD_STAGE_COLORS,
   CALL_STAGE_COLORS,
-  PRIORITY_COLORS,
   LEAD_STAGES,
   formatDate,
 } from '@/lib/utils'
@@ -31,6 +30,8 @@ import {
   Loader2,
   Shuffle,
   CheckCircle,
+  Building2,
+  Calendar,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { toast } from '@/components/ui/use-toast'
@@ -45,7 +46,7 @@ interface Lead {
   source_name: string | null
   current_lead_stage: string
   current_call_stage: string | null
-  priority: string
+  visit_date: string | null
   follow_up_date: string | null
   is_active: boolean
   created_at: string
@@ -61,13 +62,7 @@ interface Props {
   adminId: string
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  Hot: 'bg-red-500',
-  Warm: 'bg-orange-400',
-  Cold: 'bg-blue-400',
-}
-
-const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', priority: 'Warm', notes: '' }
+const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', notes: '' }
 
 export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId, adminId }: Props) {
   const [leads, setLeads] = useState(initialLeads)
@@ -77,7 +72,6 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const [leadForm, setLeadForm] = useState(EMPTY_LEAD_FORM)
   const [stageFilter, setStageFilter] = useState('all')
   const [counsellorFilter, setCounsellorFilter] = useState('all')
-  const [priorityFilter, setPriorityFilter] = useState('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
 
@@ -108,9 +102,8 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
       if (counsellorFilter === 'unassigned') result = result.filter((l) => !l.assigned_to)
       else result = result.filter((l) => l.assigned_to === counsellorFilter)
     }
-    if (priorityFilter !== 'all') result = result.filter((l) => l.priority === priorityFilter)
     return result
-  }, [leads, search, stageFilter, counsellorFilter, priorityFilter, activeTab])
+  }, [leads, search, stageFilter, counsellorFilter, activeTab])
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -133,7 +126,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
       Name: l.name, Phone: l.phone, Email: l.email || '', City: l.city || '',
       Course: l.course_interest || '', Source: l.source_name || '',
       'Lead Stage': l.current_lead_stage, 'Call Stage': l.current_call_stage || '',
-      Priority: l.priority, 'Follow-up Date': l.follow_up_date || '',
+      'Visit Date': l.visit_date || '', 'Follow-up Date': l.follow_up_date || '',
       'Assigned To': l.assigned_user?.name || 'Unassigned',
       'Created At': formatDate(l.created_at),
     }))
@@ -238,7 +231,6 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
 
-      // Build round-robin map to update local state
       const assignments: Record<string, string[]> = {}
       leadIds.forEach((id, idx) => {
         const c = counsellors[idx % counsellors.length]
@@ -282,18 +274,18 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
     <>
     <div className="min-h-full bg-gray-50">
       {/* Page Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-5">
-        <div className="flex items-center justify-between gap-4">
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 sm:py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Leads</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {leads.length.toLocaleString()} total leads
+              {leads.length.toLocaleString()} total
               {unassignedCount > 0 && (
                 <span className="ml-2 text-orange-600 font-medium">· {unassignedCount} unassigned</span>
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {selectedIds.size > 0 && (
               <>
                 <Button
@@ -307,46 +299,36 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                   Auto-Distribute
                 </Button>
                 {hasReassignableSelected && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowReassignDialog(true)}
-                    className="gap-1.5"
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setShowReassignDialog(true)} className="gap-1.5">
                     <UserPlus className="h-4 w-4" />
                     Reassign
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  onClick={() => setShowAssignDialog(true)}
-                  disabled={assigning}
-                  className="gap-1.5"
-                >
+                <Button size="sm" onClick={() => setShowAssignDialog(true)} disabled={assigning} className="gap-1.5">
                   <UserPlus className="h-4 w-4" />
-                  Assign {selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''}
+                  Assign {selectedIds.size}
                 </Button>
               </>
             )}
             <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
               <Download className="h-4 w-4" />
-              Export
+              <span className="hidden sm:inline">Export</span>
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowAddDialog(true)} className="gap-1.5">
               <Plus className="h-4 w-4" />
-              Add Lead
+              <span className="hidden sm:inline">Add Lead</span>
             </Button>
             <Link href="/admin/leads/import">
               <Button size="sm" className="gap-1.5">
                 <Upload className="h-4 w-4" />
-                Import CSV
+                <span className="hidden sm:inline">Import CSV</span>
               </Button>
             </Link>
           </div>
         </div>
       </div>
 
-      <div className="p-6 space-y-4">
+      <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
         {/* Tabs */}
         <div className="flex gap-1 border-b border-gray-200 bg-white px-4 rounded-t-xl -mb-px">
           {(['all', 'unassigned'] as const).map((tab) => (
@@ -374,59 +356,155 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-center">
-          <SlidersHorizontal className="h-4 w-4 text-gray-400 shrink-0" />
-          <div className="relative flex-1 min-w-48">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search by name, phone, email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9"
-            />
+        <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4">
+          <div className="flex flex-wrap gap-2 items-center">
+            <SlidersHorizontal className="h-4 w-4 text-gray-400 shrink-0 hidden sm:block" />
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search name, phone, email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+            <Select value={stageFilter} onValueChange={setStageFilter}>
+              <SelectTrigger className="w-full sm:w-40 h-9">
+                <SelectValue placeholder="Stage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Stages</SelectItem>
+                {LEAD_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={counsellorFilter} onValueChange={setCounsellorFilter}>
+              <SelectTrigger className="w-full sm:w-40 h-9">
+                <SelectValue placeholder="Counsellor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Counsellors</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {counsellors.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {(search || stageFilter !== 'all' || counsellorFilter !== 'all') && (
+              <button
+                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all') }}
+                className="text-xs text-gray-400 hover:text-gray-600 underline"
+              >
+                Clear
+              </button>
+            )}
           </div>
-          <Select value={stageFilter} onValueChange={setStageFilter}>
-            <SelectTrigger className="w-44 h-9">
-              <SelectValue placeholder="Lead Stage" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Stages</SelectItem>
-              {LEAD_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={counsellorFilter} onValueChange={setCounsellorFilter}>
-            <SelectTrigger className="w-44 h-9">
-              <SelectValue placeholder="Counsellor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Counsellors</SelectItem>
-              <SelectItem value="unassigned">Unassigned</SelectItem>
-              {counsellors.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-32 h-9">
-              <SelectValue placeholder="Priority" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priority</SelectItem>
-              <SelectItem value="Hot">Hot</SelectItem>
-              <SelectItem value="Warm">Warm</SelectItem>
-              <SelectItem value="Cold">Cold</SelectItem>
-            </SelectContent>
-          </Select>
-          {(search || stageFilter !== 'all' || counsellorFilter !== 'all' || priorityFilter !== 'all') && (
-            <button
-              onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setPriorityFilter('all') }}
-              className="text-xs text-gray-400 hover:text-gray-600 underline"
-            >
-              Clear filters
-            </button>
+        </div>
+
+        {/* Mobile: Card Grid */}
+        <div className="sm:hidden space-y-3">
+          {filtered.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 flex flex-col items-center justify-center py-12 text-gray-400">
+              <Users className="h-8 w-8 mb-2 opacity-20" />
+              <p className="text-sm font-medium">No leads found</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between px-1">
+                <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
+                  <Checkbox
+                    checked={selectedIds.size === filtered.length && filtered.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  Select all ({filtered.length})
+                </label>
+                {selectedIds.size > 0 && (
+                  <span className="text-xs text-blue-600 font-medium">{selectedIds.size} selected</span>
+                )}
+              </div>
+              {filtered.map((lead) => {
+                const isOverdue = lead.follow_up_date && lead.follow_up_date < today
+                const isVisitToday = lead.visit_date === today
+                return (
+                  <div
+                    key={lead.id}
+                    className={`bg-white rounded-xl border p-4 space-y-3 ${
+                      selectedIds.has(lead.id) ? 'border-blue-300 bg-blue-50/30' : 'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={selectedIds.has(lead.id)}
+                        onCheckedChange={() => toggleSelect(lead.id)}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-semibold text-gray-900 truncate">{lead.name}</p>
+                          <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${LEAD_STAGE_COLORS[lead.current_lead_stage] || 'bg-gray-100 text-gray-700'}`}>
+                            {lead.current_lead_stage}
+                          </span>
+                        </div>
+                        <p className="text-sm font-mono text-gray-500 mt-0.5">{lead.phone}</p>
+                        {lead.city && <p className="text-xs text-gray-400">{lead.city}</p>}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {lead.current_call_stage && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CALL_STAGE_COLORS[lead.current_call_stage]}`}>
+                          {lead.current_call_stage}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>{lead.assigned_user ? (
+                        <span className="flex items-center gap-1">
+                          <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[9px] font-bold">
+                            {lead.assigned_user.name.charAt(0)}
+                          </div>
+                          {lead.assigned_user.name}
+                        </span>
+                      ) : (
+                        <span className="text-orange-500 font-medium">Unassigned</span>
+                      )}</span>
+                      <div className="flex flex-col items-end gap-0.5">
+                        {lead.visit_date && (
+                          <span className={`flex items-center gap-1 ${isVisitToday ? 'text-purple-600 font-medium' : 'text-gray-400'}`}>
+                            <Building2 className="h-3 w-3" />
+                            Visit: {formatDate(lead.visit_date)}
+                          </span>
+                        )}
+                        {lead.follow_up_date && (
+                          <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(lead.follow_up_date)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1 border-t border-gray-100">
+                      <a href={`tel:${lead.phone}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full gap-1 text-green-700 border-green-200">
+                          <Phone className="h-3.5 w-3.5" /> Call
+                        </Button>
+                      </a>
+                      <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full gap-1 text-green-600">
+                          <MessageCircle className="h-3.5 w-3.5" /> WA
+                        </Button>
+                      </a>
+                      <Link href={`/admin/leads/${lead.id}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full gap-1">
+                          <Eye className="h-3.5 w-3.5" /> View
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </>
           )}
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {/* Desktop: Table */}
+        <div className="hidden sm:block bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -441,8 +519,8 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Course / Source</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Priority</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assigned To</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Visit Date</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Follow-up</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -461,6 +539,8 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                 ) : (
                   filtered.map((lead) => {
                     const isOverdue = lead.follow_up_date && lead.follow_up_date <= today
+                    const isVisitToday = lead.visit_date === today
+                    const isVisitOverdue = lead.visit_date && lead.visit_date < today
                     return (
                       <tr
                         key={lead.id}
@@ -507,12 +587,6 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                           </div>
                         </td>
                         <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[lead.priority] || 'bg-gray-300'}`} />
-                            <span className="text-[13px] text-gray-700 font-medium">{lead.priority}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5">
                           {lead.assigned_user ? (
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -524,6 +598,18 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                             <span className="inline-flex items-center text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
                               Unassigned
                             </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {lead.visit_date ? (
+                            <span className={`text-xs font-medium flex items-center gap-1 ${
+                              isVisitOverdue ? 'text-red-600' : isVisitToday ? 'text-purple-600' : 'text-gray-500'
+                            }`}>
+                              <Building2 className="h-3 w-3" />
+                              {isVisitToday ? 'Today' : formatDate(lead.visit_date)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3.5">
@@ -539,27 +625,13 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <a
-                              href={`tel:${lead.phone}`}
-                              title="Call"
-                              className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
-                            >
+                            <a href={`tel:${lead.phone}`} title="Call" className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors">
                               <Phone className="h-4 w-4" />
                             </a>
-                            <a
-                              href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="WhatsApp"
-                              className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
-                            >
+                            <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors">
                               <MessageCircle className="h-4 w-4" />
                             </a>
-                            <Link
-                              href={`/admin/leads/${lead.id}`}
-                              title="View"
-                              className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
-                            >
+                            <Link href={`/admin/leads/${lead.id}`} title="View" className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors">
                               <Eye className="h-4 w-4" />
                             </Link>
                           </div>
@@ -647,21 +719,8 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                 placeholder="B.Tech CSE"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Priority</Label>
-              <Select value={leadForm.priority} onValueChange={(v) => setLeadForm({ ...leadForm, priority: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Hot">Hot</SelectItem>
-                  <SelectItem value="Warm">Warm</SelectItem>
-                  <SelectItem value="Cold">Cold</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             {sources.length > 0 && (
-              <div className="col-span-2 space-y-1.5">
+              <div className="space-y-1.5">
                 <Label>Source</Label>
                 <Select value={leadForm.source_id} onValueChange={(v) => setLeadForm({ ...leadForm, source_id: v })}>
                   <SelectTrigger>

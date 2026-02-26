@@ -14,7 +14,6 @@ import {
   CALL_STAGES,
   LEAD_STAGE_COLORS,
   CALL_STAGE_COLORS,
-  PRIORITY_COLORS,
   formatDateTime,
   formatDate,
   getWhatsAppLink,
@@ -49,7 +48,7 @@ interface Lead {
   source_name: string | null
   current_lead_stage: string
   current_call_stage: string | null
-  priority: string
+  visit_date: string | null
   follow_up_date: string | null
   notes: string | null
   assigned_to: string | null
@@ -97,12 +96,6 @@ interface Props {
   userRole: 'admin' | 'counsellor'
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  Hot: 'bg-red-500',
-  Warm: 'bg-orange-400',
-  Cold: 'bg-blue-400',
-}
-
 export function LeadDetailClient({
   lead: initialLead,
   callDiary: initialDiary,
@@ -137,7 +130,7 @@ export function LeadDetailClient({
       .update({
         current_lead_stage: lead.current_lead_stage,
         current_call_stage: lead.current_call_stage,
-        priority: lead.priority,
+        visit_date: lead.visit_date || null,
         follow_up_date: lead.follow_up_date || null,
         notes: lead.notes,
         email: lead.email,
@@ -240,10 +233,12 @@ export function LeadDetailClient({
                       {lead.current_call_stage}
                     </span>
                   )}
-                  <div className="flex items-center gap-1.5">
-                    <div className={`w-2 h-2 rounded-full ${PRIORITY_DOT[lead.priority] || 'bg-gray-300'}`} />
-                    <span className={`text-xs font-semibold ${PRIORITY_COLORS[lead.priority] || 'text-gray-600'}`}>{lead.priority}</span>
-                  </div>
+                  {lead.visit_date && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+                      <Calendar className="h-3 w-3" />
+                      Visit: {formatDate(lead.visit_date)}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -387,20 +382,12 @@ export function LeadDetailClient({
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Priority</Label>
-                    <Select
-                      value={lead.priority}
-                      onValueChange={(val) => setLead({ ...lead, priority: val })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Hot">🔴 Hot</SelectItem>
-                        <SelectItem value="Warm">🟠 Warm</SelectItem>
-                        <SelectItem value="Cold">🔵 Cold</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Visit Scheduled Date</Label>
+                    <Input
+                      type="date"
+                      value={lead.visit_date || ''}
+                      onChange={(e) => setLead({ ...lead, visit_date: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Follow-up Date</Label>
