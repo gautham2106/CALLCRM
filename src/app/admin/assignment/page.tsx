@@ -14,7 +14,7 @@ async function AssignmentContent({ collegeId, adminId }: { collegeId: string; ad
       .from('leads')
       .select(`
         id, name, phone, email, city, course_interest, source_name,
-        current_lead_stage, priority, follow_up_date, assigned_to,
+        current_lead_stage, follow_up_date, assigned_to,
         assigned_user:users!leads_assigned_to_fkey(id, name)
       `)
       .eq('college_id', collegeId)

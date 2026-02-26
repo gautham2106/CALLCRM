@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/components/ui/use-toast'
-import { LEAD_STAGE_COLORS, PRIORITY_COLORS } from '@/lib/utils'
+import { LEAD_STAGE_COLORS } from '@/lib/utils'
 import {
   UserPlus,
   Shuffle,
@@ -30,7 +30,6 @@ interface Lead {
   course_interest: string | null
   source_name: string | null
   current_lead_stage: string
-  priority: string
   assigned_to: string | null
   assigned_user: { id: string; name: string } | null
 }
@@ -345,14 +344,13 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
               <th className="text-left px-4 py-3 font-medium text-gray-500">Lead</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">Phone</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">Stage</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-500">Priority</th>
               <th className="text-left px-4 py-3 font-medium text-gray-500">Currently Assigned</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
                   {filterMode === 'unassigned' ? 'All leads are assigned!' : 'No leads found'}
                 </td>
               </tr>
@@ -375,11 +373,6 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${LEAD_STAGE_COLORS[lead.current_lead_stage] || 'bg-gray-100'}`}>
                       {lead.current_lead_stage}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PRIORITY_COLORS[lead.priority] || ''}`}>
-                      {lead.priority}
                     </span>
                   </td>
                   <td className="px-4 py-3">
