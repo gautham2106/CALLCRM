@@ -81,3 +81,34 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ lead })
 }
+
+// DELETE /api/admin/leads — permanently delete one or more leads
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('id, role, college_id')
+    .eq('auth_id', user.id)
+    .single()
+  if (!profile || profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { ids } = await request.json()
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return NextResponse.json({ error: 'ids array is required' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('leads')
+    .delete()
+    .in('id', ids)
+    .eq('college_id', profile.college_id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ deleted: ids.length })
+}

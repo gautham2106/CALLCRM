@@ -323,18 +323,21 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const bulkDelete = async () => {
     if (selectedIds.size === 0) return
     setBulkProcessing(true)
-    const { error } = await supabase
-      .from('leads')
-      .update({ is_active: false })
-      .in('id', Array.from(selectedIds))
-      .eq('college_id', collegeId)
-    if (!error) {
+    try {
+      const res = await fetch('/api/admin/leads', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Delete failed')
       setLeads((prev) => prev.filter((l) => !selectedIds.has(l.id)))
-      toast({ title: `${selectedIds.size} leads deleted`, variant: 'success' })
+      toast({ title: `${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''} permanently deleted`, variant: 'success' })
       setSelectedIds(new Set())
       setShowBulkDeleteDialog(false)
-    } else {
-      toast({ title: 'Failed to delete leads', description: error.message, variant: 'destructive' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Something went wrong.'
+      toast({ title: 'Failed to delete leads', description: message, variant: 'destructive' })
     }
     setBulkProcessing(false)
   }
