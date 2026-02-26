@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
 import {
   LEAD_STAGE_COLORS,
   LEAD_STAGES,
@@ -11,8 +12,11 @@ import {
 } from '@/lib/utils'
 import {
   Search, Phone, MessageCircle, Eye, Users, Clock, PhoneOff, Building2, Pencil,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { LeadSlidePanel } from '@/components/shared/LeadSlidePanel'
+
+const PAGE_SIZE = 50
 
 interface Lead {
   id: string
@@ -68,6 +72,10 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
   const [filterTab, setFilterTab] = useState<'all' | 'today' | 'visits' | 'not-called'>(
     initialFilter as 'all' | 'today' | 'visits' | 'not-called'
   )
+  const [page, setPage] = useState(0)
+  const [showAll, setShowAll] = useState(false)
+
+  const resetPage = () => { setPage(0); setShowAll(false) }
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -88,6 +96,9 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
     if (stageFilter !== 'all') result = result.filter((l) => l.current_lead_stage === stageFilter)
     return result
   }, [leads, search, stageFilter, filterTab, today])
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const paginated = showAll ? filtered : filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const tabCount = {
     all: leads.length,
@@ -121,7 +132,7 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
           {tabs.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setFilterTab(key)}
+              onClick={() => { setFilterTab(key); resetPage() }}
               className={`flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                 filterTab === key
                   ? 'border-blue-600 text-blue-600'
@@ -146,11 +157,11 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
             <Input
               placeholder="Search by name, phone..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); resetPage() }}
               className="pl-9 h-9"
             />
           </div>
-          <Select value={stageFilter} onValueChange={setStageFilter}>
+          <Select value={stageFilter} onValueChange={(v) => { setStageFilter(v); resetPage() }}>
             <SelectTrigger className="w-full sm:w-44 h-9">
               <SelectValue placeholder="Stage" />
             </SelectTrigger>
@@ -171,7 +182,7 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
           <>
             {/* Mobile: Cards */}
             <div className="sm:hidden space-y-2">
-              {filtered.map((lead) => {
+              {paginated.map((lead) => {
                 const isOverdue = lead.follow_up_date && lead.follow_up_date <= today &&
                   !['Enrolled', 'Cold Lead', 'Wrong Lead'].includes(lead.current_lead_stage)
                 return (
@@ -210,10 +221,70 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
                   </div>
                 )
               })}
+              {/* Mobile pagination */}
+              {filtered.length > 0 && (
+                <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
+                  <span>
+                    {showAll
+                      ? `${filtered.length.toLocaleString()} leads`
+                      : `${Math.min(page * PAGE_SIZE + 1, filtered.length)}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length.toLocaleString()}`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {filtered.length > PAGE_SIZE && (
+                      <button
+                        onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                      >
+                        {showAll ? 'Paginate' : `Show all`}
+                      </button>
+                    )}
+                    {!showAll && totalPages > 1 && (
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Desktop: Standardised Table */}
             <div className="hidden sm:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+              {/* Toolbar: count + pagination + show all */}
+              <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50/60">
+                <span className="text-xs text-gray-500">
+                  {showAll
+                    ? `${filtered.length.toLocaleString()} leads`
+                    : `${Math.min(page * PAGE_SIZE + 1, filtered.length).toLocaleString()}–${Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()} of ${filtered.length.toLocaleString()}`}
+                </span>
+                <div className="flex items-center gap-3">
+                  {!showAll && totalPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                        <ChevronLeft className="h-3 w-3" />
+                      </Button>
+                      <span className="text-xs font-medium text-gray-600 px-1">{page + 1} / {totalPages}</span>
+                      <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                        <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  {filtered.length > PAGE_SIZE && (
+                    <button
+                      onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                    >
+                      {showAll ? 'Paginate' : `Show all ${filtered.length.toLocaleString()}`}
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -228,7 +299,7 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {filtered.map((lead) => {
+                    {paginated.map((lead) => {
                       const isOverdue = lead.follow_up_date && lead.follow_up_date <= today &&
                         !['Enrolled', 'Cold Lead', 'Wrong Lead'].includes(lead.current_lead_stage)
                       const isVisitToday = lead.visit_date === today
@@ -305,12 +376,23 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
                   </tbody>
                 </table>
               </div>
-              <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-                <span className="text-xs text-gray-500">
-                  Showing <span className="font-medium text-gray-700">{filtered.length}</span> of{' '}
-                  <span className="font-medium text-gray-700">{leads.length}</span> leads
-                </span>
-              </div>
+              {!showAll && totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
+                  <span className="text-xs text-gray-500">
+                    {Math.min(page * PAGE_SIZE + 1, filtered.length).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()} of{' '}
+                    <span className="font-medium text-gray-700">{filtered.length.toLocaleString()}</span> leads
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <span className="text-xs font-medium text-gray-600 px-2">{page + 1} / {totalPages}</span>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
