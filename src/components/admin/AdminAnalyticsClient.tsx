@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
   Users, GraduationCap, PhoneCall, AlertCircle, Clock, Building2,
-  TrendingUp, Activity, UserX, Target,
+  TrendingUp, Activity, UserX, Target, ArrowUp, ArrowDown, Minus,
 } from 'lucide-react'
 
 // ---- Types ----
@@ -39,11 +39,19 @@ interface CounsellorStat {
   visitsToday: number
 }
 
+interface StageEntry {
+  stage: string
+  count: number
+}
+
 interface SourceStat {
   source: string
   total: number
   enrolled: number
   rate: number
+  stages: StageEntry[]
+  thisMonth: number
+  lastMonth: number
 }
 
 interface Props {
@@ -63,6 +71,17 @@ const STAGE_COLORS: Record<string, string> = {
   'Enrolled': '#22c55e',
   'Cold Lead': '#6b7280',
   'Wrong Lead': '#ef4444',
+}
+
+const STAGE_PILL: Record<string, string> = {
+  'New Enquiry': 'bg-blue-100 text-blue-700',
+  'Contacted': 'bg-amber-100 text-amber-700',
+  'Visit Scheduled': 'bg-purple-100 text-purple-700',
+  'Visit Done': 'bg-indigo-100 text-indigo-700',
+  'Application Started': 'bg-orange-100 text-orange-700',
+  'Enrolled': 'bg-green-100 text-green-700',
+  'Cold Lead': 'bg-gray-100 text-gray-500',
+  'Wrong Lead': 'bg-red-100 text-red-500',
 }
 
 const AVATAR_COLORS = [
@@ -86,7 +105,6 @@ export function AdminAnalyticsClient({ overview, funnelData, counsellorStats, so
 
   return (
     <div>
-      {/* Tab Bar */}
       <div className="bg-white border-b border-gray-200 px-2 sm:px-6 overflow-x-auto">
         <div className="flex">
           {tabs.map((t) => {
@@ -110,7 +128,6 @@ export function AdminAnalyticsClient({ overview, funnelData, counsellorStats, so
         </div>
       </div>
 
-      {/* Tab Content */}
       <div className="p-4 sm:p-6 space-y-6">
         {tab === 'overview' && <OverviewTab overview={overview} funnelData={funnelData} />}
         {tab === 'counsellors' && <CounsellorTab stats={counsellorStats} />}
@@ -128,64 +145,21 @@ function OverviewTab({ overview, funnelData }: { overview: Overview; funnelData:
 
   return (
     <div className="space-y-6">
-      {/* KPI Row */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-        <KPICard
-          label="Total Leads"
-          value={overview.totalLeads}
-          icon={<Users className="h-5 w-5" />}
-          iconBg="bg-blue-50" iconColor="text-blue-600"
-          sub="active pipeline"
-        />
-        <KPICard
-          label="Enrolled"
-          value={overview.enrolled}
-          icon={<GraduationCap className="h-5 w-5" />}
-          iconBg="bg-green-50" iconColor="text-green-600"
-          sub={`${overview.conversionRate}% conversion`}
-          subColor="text-green-600"
-        />
-        <KPICard
-          label="In Progress"
-          value={overview.inProgress}
-          icon={<TrendingUp className="h-5 w-5" />}
-          iconBg="bg-indigo-50" iconColor="text-indigo-600"
-          sub="being worked"
-        />
-        <KPICard
-          label="Cold / Wrong"
-          value={overview.coldWrong}
-          icon={<UserX className="h-5 w-5" />}
-          iconBg="bg-gray-100" iconColor="text-gray-500"
-          sub="not converting"
-        />
+        <KPICard label="Total Leads" value={overview.totalLeads} icon={<Users className="h-5 w-5" />} iconBg="bg-blue-50" iconColor="text-blue-600" sub="active pipeline" />
+        <KPICard label="Enrolled" value={overview.enrolled} icon={<GraduationCap className="h-5 w-5" />} iconBg="bg-green-50" iconColor="text-green-600" sub={`${overview.conversionRate}% conversion`} subColor="text-green-600" />
+        <KPICard label="In Progress" value={overview.inProgress} icon={<TrendingUp className="h-5 w-5" />} iconBg="bg-indigo-50" iconColor="text-indigo-600" sub="being worked" />
+        <KPICard label="Cold / Wrong" value={overview.coldWrong} icon={<UserX className="h-5 w-5" />} iconBg="bg-gray-100" iconColor="text-gray-500" sub="not converting" />
       </div>
 
-      {/* Attention Flags */}
       {(overview.staleLeads > 0 || overview.unassigned > 0 || overview.todayFollowUps > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <FlagCard
-            value={overview.staleLeads}
-            label="Stale Leads (3+ days silent)"
-            icon={<AlertCircle className="h-5 w-5" />}
-            color={overview.staleLeads > 0 ? 'red' : 'gray'}
-          />
-          <FlagCard
-            value={overview.unassigned}
-            label="Unassigned Leads"
-            icon={<Users className="h-5 w-5" />}
-            color={overview.unassigned > 0 ? 'orange' : 'gray'}
-          />
-          <FlagCard
-            value={overview.todayFollowUps}
-            label="Follow-ups Due Today"
-            icon={<Clock className="h-5 w-5" />}
-            color={overview.todayFollowUps > 0 ? 'blue' : 'gray'}
-          />
+          <FlagCard value={overview.staleLeads} label="Stale Leads (3+ days silent)" icon={<AlertCircle className="h-5 w-5" />} color={overview.staleLeads > 0 ? 'red' : 'gray'} />
+          <FlagCard value={overview.unassigned} label="Unassigned Leads" icon={<Users className="h-5 w-5" />} color={overview.unassigned > 0 ? 'orange' : 'gray'} />
+          <FlagCard value={overview.todayFollowUps} label="Follow-ups Due Today" icon={<Clock className="h-5 w-5" />} color={overview.todayFollowUps > 0 ? 'blue' : 'gray'} />
         </div>
       )}
 
-      {/* Today's Pulse */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Today&apos;s Pulse</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -196,7 +170,6 @@ function OverviewTab({ overview, funnelData }: { overview: Overview; funnelData:
         </div>
       </div>
 
-      {/* Stage Funnel — inline horizontal bars */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-900">Lead Stage Snapshot</h3>
@@ -212,10 +185,7 @@ function OverviewTab({ overview, funnelData }: { overview: Overview; funnelData:
                 <div className="flex-1 h-7 bg-gray-100 rounded-lg overflow-hidden">
                   <div
                     className="h-full rounded-lg flex items-center px-2.5 transition-all duration-500"
-                    style={{
-                      width: `${Math.max(pct, item.count > 0 ? 3 : 0)}%`,
-                      backgroundColor: color,
-                    }}
+                    style={{ width: `${Math.max(pct, item.count > 0 ? 3 : 0)}%`, backgroundColor: color }}
                   >
                     {item.count > 0 && pct > 12 && (
                       <span className="text-white text-xs font-semibold">{item.count}</span>
@@ -237,8 +207,18 @@ function OverviewTab({ overview, funnelData }: { overview: Overview; funnelData:
 // ============================================================
 // Tab 2 — Counsellor Performance
 // ============================================================
+type CounsellorSort = 'enrolled' | 'conversion' | 'assigned' | 'notCalled' | 'interested'
+
+const SORT_OPTIONS: { key: CounsellorSort; label: string; desc: string }[] = [
+  { key: 'enrolled', label: 'Enrolled', desc: 'Results' },
+  { key: 'conversion', label: 'Conversion %', desc: 'Efficiency' },
+  { key: 'assigned', label: 'Assigned', desc: 'Workload' },
+  { key: 'notCalled', label: 'Not Called', desc: 'At Risk' },
+  { key: 'interested', label: 'Interested', desc: 'Warm Pipeline' },
+]
+
 function CounsellorTab({ stats }: { stats: CounsellorStat[] }) {
-  const [sortBy, setSortBy] = useState<'enrolled' | 'conversion' | 'assigned'>('enrolled')
+  const [sortBy, setSortBy] = useState<CounsellorSort>('enrolled')
   const sorted = [...stats].sort((a, b) => b[sortBy] - a[sortBy])
   const maxEnrolled = Math.max(...stats.map((s) => s.enrolled), 1)
 
@@ -253,30 +233,36 @@ function CounsellorTab({ stats }: { stats: CounsellorStat[] }) {
 
   return (
     <div className="space-y-6">
-      {/* Sort Controls */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-gray-400 font-medium">Sort by:</span>
-        {(['enrolled', 'conversion', 'assigned'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setSortBy(s)}
-            className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-              sortBy === s ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {s === 'conversion' ? 'Conversion %' : s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
-        ))}
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Sort Counsellors By</p>
+        <div className="flex flex-wrap gap-2">
+          {SORT_OPTIONS.map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setSortBy(opt.key)}
+              className={`flex flex-col items-start px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                sortBy === opt.key
+                  ? opt.key === 'notCalled'
+                    ? 'bg-red-600 border-red-600 text-white'
+                    : 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <span>{opt.label}</span>
+              <span className={`text-[10px] font-normal mt-0.5 ${sortBy === opt.key ? 'opacity-80' : 'text-gray-400'}`}>
+                {opt.desc}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Counsellor Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {sorted.map((c, idx) => (
           <CounsellorCard key={c.id} stat={c} rank={idx + 1} maxEnrolled={maxEnrolled} colorIndex={stats.indexOf(c)} />
         ))}
       </div>
 
-      {/* Detail Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-900">Full Breakdown</h3>
@@ -297,14 +283,12 @@ function CounsellorTab({ stats }: { stats: CounsellorStat[] }) {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {sorted.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${c.notCalled > 0 && sortBy === 'notCalled' ? 'bg-red-50/30' : ''}`}>
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{c.name}</td>
                   <td className="px-4 py-3 text-center text-gray-700">{c.assigned}</td>
                   <td className="px-4 py-3 text-center text-gray-700">{c.called}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`font-semibold ${c.notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>
-                      {c.notCalled}
-                    </span>
+                    <span className={`font-semibold ${c.notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{c.notCalled}</span>
                   </td>
                   <td className="px-4 py-3 text-center text-indigo-600 font-medium">{c.interested}</td>
                   <td className="px-4 py-3 text-center text-green-600 font-bold">{c.enrolled}</td>
@@ -312,15 +296,11 @@ function CounsellorTab({ stats }: { stats: CounsellorStat[] }) {
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${
-                            c.conversion >= 20 ? 'bg-green-500' : c.conversion >= 10 ? 'bg-orange-400' : 'bg-gray-300'
-                          }`}
+                          className={`h-full rounded-full ${c.conversion >= 20 ? 'bg-green-500' : c.conversion >= 10 ? 'bg-orange-400' : 'bg-gray-300'}`}
                           style={{ width: `${c.conversion}%` }}
                         />
                       </div>
-                      <span className={`text-xs font-semibold w-9 text-right tabular-nums ${
-                        c.conversion >= 20 ? 'text-green-600' : c.conversion >= 10 ? 'text-orange-500' : 'text-gray-400'
-                      }`}>
+                      <span className={`text-xs font-semibold w-9 text-right tabular-nums ${c.conversion >= 20 ? 'text-green-600' : c.conversion >= 10 ? 'text-orange-500' : 'text-gray-400'}`}>
                         {c.conversion}%
                       </span>
                     </div>
@@ -337,9 +317,7 @@ function CounsellorTab({ stats }: { stats: CounsellorStat[] }) {
                           <Building2 className="h-3 w-3" />{c.visitsToday}
                         </span>
                       )}
-                      {c.followUpsToday === 0 && c.visitsToday === 0 && (
-                        <span className="text-gray-300">—</span>
-                      )}
+                      {c.followUpsToday === 0 && c.visitsToday === 0 && <span className="text-gray-300">—</span>}
                     </div>
                   </td>
                 </tr>
@@ -353,17 +331,13 @@ function CounsellorTab({ stats }: { stats: CounsellorStat[] }) {
 }
 
 function CounsellorCard({ stat, rank, maxEnrolled, colorIndex }: {
-  stat: CounsellorStat
-  rank: number
-  maxEnrolled: number
-  colorIndex: number
+  stat: CounsellorStat; rank: number; maxEnrolled: number; colorIndex: number
 }) {
   const avatarBg = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]
   const enrollPct = maxEnrolled > 0 ? Math.round((stat.enrolled / maxEnrolled) * 100) : 0
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
-      {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full ${avatarBg} text-white flex items-center justify-center font-bold text-sm shrink-0`}>
@@ -375,39 +349,30 @@ function CounsellorCard({ stat, rank, maxEnrolled, colorIndex }: {
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p className={`text-xl font-bold tabular-nums ${
-            stat.conversion >= 20 ? 'text-green-600' : stat.conversion >= 10 ? 'text-orange-500' : 'text-gray-400'
-          }`}>
+          <p className={`text-xl font-bold tabular-nums ${stat.conversion >= 20 ? 'text-green-600' : stat.conversion >= 10 ? 'text-orange-500' : 'text-gray-400'}`}>
             {stat.conversion}%
           </p>
           <p className="text-[10px] text-gray-400 leading-tight">conversion</p>
         </div>
       </div>
 
-      {/* Enrolled bar */}
       <div className="mb-4">
         <div className="flex items-center justify-between text-xs mb-1.5">
           <span className="text-gray-400">Enrolled</span>
           <span className="font-bold text-green-600 tabular-nums">{stat.enrolled}</span>
         </div>
         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-green-500 rounded-full transition-all duration-500"
-            style={{ width: `${enrollPct}%` }}
-          />
+          <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${enrollPct}%` }} />
         </div>
       </div>
 
-      {/* Stats grid */}
       <div className="grid grid-cols-3 gap-1 py-3 border-t border-gray-100">
         <div className="text-center">
           <p className="text-sm font-bold text-gray-900 tabular-nums">{stat.called}</p>
           <p className="text-[10px] text-gray-400 mt-0.5">Called</p>
         </div>
         <div className="text-center border-x border-gray-100">
-          <p className={`text-sm font-bold tabular-nums ${stat.notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>
-            {stat.notCalled}
-          </p>
+          <p className={`text-sm font-bold tabular-nums ${stat.notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{stat.notCalled}</p>
           <p className="text-[10px] text-gray-400 mt-0.5">Not Called</p>
         </div>
         <div className="text-center">
@@ -416,19 +381,16 @@ function CounsellorCard({ stat, rank, maxEnrolled, colorIndex }: {
         </div>
       </div>
 
-      {/* Today chips */}
       {(stat.followUpsToday > 0 || stat.visitsToday > 0) && (
         <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100 flex-wrap">
           {stat.followUpsToday > 0 && (
             <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded-full font-medium">
-              <Clock className="h-2.5 w-2.5" />
-              {stat.followUpsToday} follow-up{stat.followUpsToday > 1 ? 's' : ''} today
+              <Clock className="h-2.5 w-2.5" />{stat.followUpsToday} follow-up{stat.followUpsToday > 1 ? 's' : ''} today
             </span>
           )}
           {stat.visitsToday > 0 && (
             <span className="flex items-center gap-1 text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded-full font-medium">
-              <Building2 className="h-2.5 w-2.5" />
-              {stat.visitsToday} visit{stat.visitsToday > 1 ? 's' : ''} today
+              <Building2 className="h-2.5 w-2.5" />{stat.visitsToday} visit{stat.visitsToday > 1 ? 's' : ''} today
             </span>
           )}
         </div>
@@ -441,10 +403,9 @@ function CounsellorCard({ stat, rank, maxEnrolled, colorIndex }: {
 // Tab 3 — Pipeline & Sources
 // ============================================================
 function PipelineTab({ funnelData, sourceData, overview }: {
-  funnelData: FunnelEntry[]
-  sourceData: SourceStat[]
-  overview: Overview
+  funnelData: FunnelEntry[]; sourceData: SourceStat[]; overview: Overview
 }) {
+  const [expandedSource, setExpandedSource] = useState<string | null>(null)
   const maxSourceTotal = Math.max(...sourceData.map((s) => s.total), 1)
   const bestConvertingSource = sourceData.filter((s) => s.total >= 3).reduce(
     (best, curr) => (curr.rate > (best?.rate || 0) ? curr : best),
@@ -457,7 +418,6 @@ function PipelineTab({ funnelData, sourceData, overview }: {
 
   return (
     <div className="space-y-6">
-      {/* Pipeline Health KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <PulseCard label="Active Pipeline" value={overview.inProgress + overview.enrolled} icon={<TrendingUp className="h-4 w-4 text-blue-500" />} bg="bg-blue-50" />
         <PulseCard label="Enrolled" value={overview.enrolled} icon={<GraduationCap className="h-4 w-4 text-green-500" />} bg="bg-green-50" />
@@ -465,7 +425,7 @@ function PipelineTab({ funnelData, sourceData, overview }: {
         <PulseCard label="Conversion Rate" value={overview.conversionRate} icon={<Target className="h-4 w-4 text-orange-500" />} bg="bg-orange-50" suffix="%" />
       </div>
 
-      {/* Stage Distribution — recharts horizontal bar */}
+      {/* Stage Distribution */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-900">Stage Distribution</h3>
@@ -473,11 +433,7 @@ function PipelineTab({ funnelData, sourceData, overview }: {
         </div>
         <div className="p-4">
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart
-              data={funnelData}
-              layout="vertical"
-              margin={{ top: 0, right: 36, left: 10, bottom: 0 }}
-            >
+            <BarChart data={funnelData} layout="vertical" margin={{ top: 0, right: 36, left: 10, bottom: 0 }}>
               <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis type="category" dataKey="stage" tick={{ fontSize: 11 }} width={130} tickLine={false} axisLine={false} />
               <Tooltip
@@ -494,13 +450,13 @@ function PipelineTab({ funnelData, sourceData, overview }: {
         </div>
       </div>
 
-      {/* Source Performance */}
+      {/* Source Intelligence */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <div className="flex items-start justify-between flex-wrap gap-2">
             <div>
-              <h3 className="font-semibold text-gray-900">Source Performance</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Which channels bring quality leads</p>
+              <h3 className="font-semibold text-gray-900">Source Intelligence</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Where leads come from, where they end up — tap a row to see stage breakdown</p>
             </div>
             <div className="flex gap-2 flex-wrap">
               {bestConvertingSource && (
@@ -520,56 +476,91 @@ function PipelineTab({ funnelData, sourceData, overview }: {
         {sourceData.length === 0 ? (
           <div className="py-12 text-center text-gray-400 text-sm">No source data yet</div>
         ) : (
-          <>
-            <div className="p-4 space-y-4">
-              {sourceData.map((s) => {
-                const volPct = maxSourceTotal > 0 ? Math.round((s.total / maxSourceTotal) * 100) : 0
-                const isBest = s.source === bestConvertingSource?.source
-                return (
-                  <div key={s.source}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">{s.source}</span>
+          <div className="divide-y divide-gray-100">
+            {sourceData.map((s) => {
+              const volPct = maxSourceTotal > 0 ? Math.round((s.total / maxSourceTotal) * 100) : 0
+              const isBest = s.source === bestConvertingSource?.source
+              const isExpanded = expandedSource === s.source
+              const trendDiff = s.thisMonth - s.lastMonth
+
+              return (
+                <div key={s.source}>
+                  <button
+                    onClick={() => setExpandedSource(isExpanded ? null : s.source)}
+                    className="w-full text-left px-5 py-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2 gap-4">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className="font-semibold text-gray-900 text-sm">{s.source}</span>
                         {isBest && (
-                          <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">Best Rate</span>
+                          <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold shrink-0">Best Rate</span>
                         )}
+                        <span className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                          trendDiff > 0 ? 'bg-green-50 text-green-600' : trendDiff < 0 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          {trendDiff > 0 ? <ArrowUp className="h-2.5 w-2.5" /> : trendDiff < 0 ? <ArrowDown className="h-2.5 w-2.5" /> : <Minus className="h-2.5 w-2.5" />}
+                          {s.thisMonth} this month
+                          {s.lastMonth > 0 && (
+                            <span className="opacity-70 ml-0.5">({trendDiff > 0 ? '+' : ''}{trendDiff} vs last)</span>
+                          )}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <div className="flex items-center gap-4 text-xs text-gray-500 shrink-0">
                         <span className="tabular-nums">{s.total} leads</span>
                         <span className="text-green-600 font-semibold tabular-nums">{s.enrolled} enrolled</span>
-                        <span className={`font-bold w-9 text-right tabular-nums ${
-                          s.rate >= 20 ? 'text-green-600' : s.rate >= 10 ? 'text-orange-500' : 'text-gray-400'
-                        }`}>
+                        <span className={`font-bold w-9 text-right tabular-nums ${s.rate >= 20 ? 'text-green-600' : s.rate >= 10 ? 'text-orange-500' : 'text-gray-400'}`}>
                           {s.rate}%
                         </span>
                       </div>
                     </div>
-                    {/* Two-layer bar: volume + conversion */}
+
                     <div className="space-y-1">
-                      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-400 rounded-full transition-all duration-500"
-                          style={{ width: `${volPct}%` }}
-                        />
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-400 rounded-full transition-all duration-500" style={{ width: `${volPct}%` }} />
                       </div>
-                      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            s.rate >= 20 ? 'bg-green-500' : s.rate >= 10 ? 'bg-orange-400' : 'bg-gray-300'
-                          }`}
+                          className={`h-full rounded-full transition-all duration-500 ${s.rate >= 20 ? 'bg-green-500' : s.rate >= 10 ? 'bg-orange-400' : 'bg-gray-300'}`}
                           style={{ width: `${s.rate}%` }}
                         />
                       </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-            <div className="px-4 py-2.5 border-t border-gray-100 flex items-center gap-5 text-[11px] text-gray-400">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-full bg-blue-400 inline-block" />Lead volume</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-full bg-green-500 inline-block" />Conversion rate</span>
-            </div>
-          </>
+                  </button>
+
+                  {/* Expanded stage breakdown */}
+                  {isExpanded && s.stages.length > 0 && (
+                    <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+                        Where {s.source} leads are right now
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {s.stages.map((st) => (
+                          <div
+                            key={st.stage}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${STAGE_PILL[st.stage] || 'bg-gray-100 text-gray-500'}`}
+                          >
+                            <span>{st.stage}</span>
+                            <span className="font-bold tabular-nums">{st.count}</span>
+                            <span className="opacity-60">
+                              ({s.total > 0 ? Math.round((st.count / s.total) * 100) : 0}%)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {sourceData.length > 0 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center gap-5 text-[11px] text-gray-400">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-full bg-blue-400 inline-block" />Lead volume</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-full bg-green-500 inline-block" />Conversion rate</span>
+            <span className="opacity-70">Tap a row to expand stage breakdown</span>
+          </div>
         )}
       </div>
     </div>
@@ -577,7 +568,7 @@ function PipelineTab({ funnelData, sourceData, overview }: {
 }
 
 // ============================================================
-// Shared UI primitives
+// Shared UI Primitives
 // ============================================================
 function KPICard({ label, value, icon, iconBg, iconColor, sub, subColor }: {
   label: string; value: number; icon: React.ReactNode
