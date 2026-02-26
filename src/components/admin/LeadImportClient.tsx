@@ -34,11 +34,12 @@ interface Props {
   collegeId: string
   adminId: string
   sources: { id: string; source_name: string }[]
+  counsellors: { id: string; full_name: string }[]
 }
 
 type Step = 'upload' | 'map' | 'preview' | 'done'
 
-export function LeadImportClient({ collegeId, adminId, sources }: Props) {
+export function LeadImportClient({ collegeId, adminId, sources, counsellors }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -51,6 +52,7 @@ export function LeadImportClient({ collegeId, adminId, sources }: Props) {
   const [duplicates, setDuplicates] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState({ imported: 0, skipped: 0 })
+  const [assignCounsellorId, setAssignCounsellorId] = useState<string>('__none__')
 
   const handleFileUpload = (file: File) => {
     Papa.parse(file, {
@@ -131,6 +133,8 @@ export function LeadImportClient({ collegeId, adminId, sources }: Props) {
       return !duplicates.includes(phone)
     })
 
+    const counsellorId = assignCounsellorId !== '__none__' ? assignCounsellorId : null
+
     const leadsToInsert = toImport.map((row) => ({
       college_id: collegeId,
       name: row[columnMap['name']] || 'Unknown',
@@ -142,6 +146,7 @@ export function LeadImportClient({ collegeId, adminId, sources }: Props) {
       visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
       notes: columnMap['notes'] ? row[columnMap['notes']] || null : null,
       created_by: adminId,
+      ...(counsellorId ? { assigned_to: counsellorId } : {}),
     }))
 
     try {
@@ -151,6 +156,15 @@ export function LeadImportClient({ collegeId, adminId, sources }: Props) {
         const batch = leadsToInsert.slice(i, i + batchSize)
         await supabase.from('leads').insert(batch)
         imported += batch.length
+      }
+
+      // Notify counsellor if directly assigned
+      if (counsellorId && imported > 0) {
+        await fetch('/api/admin/import-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ counsellorId, count: imported }),
+        })
       }
 
       setImportResult({ imported, skipped: duplicates.length })
@@ -285,8 +299,33 @@ export function LeadImportClient({ collegeId, adminId, sources }: Props) {
                 )}
               </div>
 
+              {/* Optional: assign directly to a counsellor */}
+              {counsellors.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    Assign to counsellor <span className="text-gray-400 font-normal">(optional)</span>
+                  </Label>
+                  <Select value={assignCounsellorId} onValueChange={setAssignCounsellorId}>
+                    <SelectTrigger className="max-w-xs">
+                      <SelectValue placeholder="Leave unassigned" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Leave unassigned —</SelectItem>
+                      {counsellors.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {assignCounsellorId !== '__none__' && (
+                    <p className="text-xs text-blue-600 mt-1.5">
+                      All {csvRows.length - duplicates.length} leads will be assigned to this counsellor and they will be notified.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {previewData.length > 0 && (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto mt-4">
                   <table className="w-full text-xs border-collapse">
                     <thead>
                       <tr className="bg-gray-50">
@@ -338,6 +377,11 @@ export function LeadImportClient({ collegeId, adminId, sources }: Props) {
           <CardContent className="p-8 text-center">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Import Complete!</h2>
+            {assignCounsellorId !== '__none__' && (
+              <p className="text-sm text-blue-600 mb-2">
+                Assigned to <strong>{counsellors.find(c => c.id === assignCounsellorId)?.full_name}</strong> — they've been notified.
+              </p>
+            )}
             <div className="flex items-center justify-center gap-8 my-6">
               <div>
                 <p className="text-4xl font-bold text-green-600">{importResult.imported}</p>
