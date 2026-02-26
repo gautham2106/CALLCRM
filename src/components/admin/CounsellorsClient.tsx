@@ -335,7 +335,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       </div>
 
       {/* Sort Controls */}
-      {counsellors.length > 1 && (
+      {counsellors.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2.5">Sort By</p>
           <div className="flex flex-wrap gap-2">
