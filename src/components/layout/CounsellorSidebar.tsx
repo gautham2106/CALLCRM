@@ -33,29 +33,44 @@ export function CounsellorSidebar({ onClose }: Props) {
   const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
-    const fetchUnreadCount = async () => {
+    let channel: ReturnType<typeof supabase.channel> | null = null
+
+    const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: profile } = await supabase.from('users').select('id').eq('auth_id', user.id).single()
       if (!profile) return
-      const { count } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
-        .eq('is_read', false)
-      setUnreadCount(count || 0)
+
+      const fetchCount = async () => {
+        const { count } = await supabase
+          .from('notifications')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', profile.id)
+          .eq('is_read', false)
+        setUnreadCount(count || 0)
+      }
+
+      await fetchCount()
+
+      // Filter by user_id so only this counsellor's notifications trigger a refresh
+      channel = supabase
+        .channel('notifications-sidebar')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${profile.id}`,
+          },
+          () => { fetchCount() }
+        )
+        .subscribe()
     }
 
-    fetchUnreadCount()
+    init()
 
-    const channel = supabase
-      .channel('notifications-sidebar')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, () => {
-        fetchUnreadCount()
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
+    return () => { if (channel) supabase.removeChannel(channel) }
   }, [supabase])
 
   const handleSignOut = async () => {

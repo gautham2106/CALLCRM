@@ -382,6 +382,15 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       } else {
         toast({ title: 'Import complete', description: `${imported} leads assigned to ${addLeadsTarget.name}.`, variant: 'success' })
       }
+
+      // Notify the counsellor about the new leads
+      if (imported > 0) {
+        fetch('/api/admin/import-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ counsellorId: addLeadsTarget.id, count: imported }),
+        }).catch(() => {/* notification failure should not block the UI */})
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong during import.'
       toast({ title: 'Import failed', description: message, variant: 'destructive' })
