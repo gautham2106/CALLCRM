@@ -14,8 +14,8 @@ async function getDashboardData(collegeId: string) {
     { count: unassigned }, { count: todayVisits },
   ] = await Promise.all([
     supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).eq('is_active', true),
-    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).eq('current_lead_stage', 'Enrolled'),
-    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).in('current_lead_stage', ['Cold Lead', 'Wrong Lead']),
+    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).eq('current_lead_stage', 'Enrolled').eq('is_active', true),
+    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).in('current_lead_stage', ['Cold Lead', 'Wrong Lead']).eq('is_active', true),
     supabase.from('leads').select('current_lead_stage').eq('college_id', collegeId).eq('is_active', true),
     // Counsellors — plain select, no nested join
     supabase.from('users').select('id, name').eq('college_id', collegeId).eq('role', 'counsellor').eq('is_active', true),
@@ -24,8 +24,8 @@ async function getDashboardData(collegeId: string) {
       .select('id, assigned_to, current_lead_stage, current_call_stage, visit_date, follow_up_date')
       .eq('college_id', collegeId).eq('is_active', true).not('assigned_to', 'is', null),
     supabase.from('leads').select('id, name, phone, source_name, current_lead_stage, created_at, assigned_to').eq('college_id', collegeId).eq('is_active', true),
-    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).eq('follow_up_date', today),
-    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).lte('updated_at', threeDaysAgo).not('current_lead_stage', 'in', '("Enrolled","Cold Lead","Wrong Lead")'),
+    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).eq('follow_up_date', today).eq('is_active', true),
+    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).eq('is_active', true).lte('updated_at', threeDaysAgo).not('current_lead_stage', 'in', '("Enrolled","Cold Lead","Wrong Lead")'),
     supabase.from('call_diary').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).gte('created_at', today),
     supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).is('assigned_to', null).eq('is_active', true),
     supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).eq('visit_date', today).eq('is_active', true),

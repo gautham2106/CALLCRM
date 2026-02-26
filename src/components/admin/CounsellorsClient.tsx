@@ -312,8 +312,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       let imported = 0
       for (let i = 0; i < leadsToInsert.length; i += batchSize) {
         const batch = leadsToInsert.slice(i, i + batchSize)
-        await supabase.from('leads').insert(batch)
-        imported += batch.length
+        const { data: inserted, error: batchError } = await supabase.from('leads').insert(batch).select('id')
+        if (!batchError && inserted) imported += inserted.length
       }
 
       // Update counsellor's lead count

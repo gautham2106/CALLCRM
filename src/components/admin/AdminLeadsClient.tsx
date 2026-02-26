@@ -1012,8 +1012,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
           <DialogTitle>Delete {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-gray-500 py-2">
-          This will permanently remove {selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} from your system.
-          This action cannot be undone.
+          This will remove {selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} from your system.
         </p>
         <DialogFooter>
           <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)}>Cancel</Button>
