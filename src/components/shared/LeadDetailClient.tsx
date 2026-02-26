@@ -45,6 +45,7 @@ interface Lead {
   email: string | null
   city: string | null
   course_interest: string | null
+  source_id: string | null
   source_name: string | null
   current_lead_stage: string
   current_call_stage: string | null
@@ -91,6 +92,7 @@ interface Props {
   customFields: CustomField[]
   fieldValues: Record<string, string>
   counsellors: { id: string; name: string; email: string }[]
+  sources?: { id: string; source_name: string }[]
   currentUserId: string
   collegeId: string
   userRole: 'admin' | 'counsellor'
@@ -103,6 +105,7 @@ export function LeadDetailClient({
   customFields,
   fieldValues: initialFieldValues,
   counsellors,
+  sources = [],
   currentUserId,
   collegeId,
   userRole,
@@ -125,18 +128,45 @@ export function LeadDetailClient({
 
   const saveLeadInfo = async () => {
     setSaving(true)
+
+    // Admin-only: check for duplicate phone if phone was changed
+    if (userRole === 'admin' && lead.phone.trim() !== initialLead.phone) {
+      const { data: dup } = await supabase
+        .from('leads')
+        .select('id, name')
+        .eq('college_id', collegeId)
+        .eq('phone', lead.phone.trim())
+        .neq('id', lead.id)
+        .limit(1)
+        .maybeSingle()
+      if (dup) {
+        toast({ title: 'Duplicate phone', description: `Phone already used by "${dup.name}"`, variant: 'destructive' })
+        setSaving(false)
+        return
+      }
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      current_lead_stage: lead.current_lead_stage,
+      current_call_stage: lead.current_call_stage,
+      visit_date: lead.visit_date || null,
+      follow_up_date: lead.follow_up_date || null,
+      notes: lead.notes,
+      email: lead.email,
+      city: lead.city,
+      course_interest: lead.course_interest,
+    }
+
+    if (userRole === 'admin') {
+      updatePayload.name = lead.name
+      updatePayload.phone = lead.phone.trim()
+      updatePayload.source_id = lead.source_id || null
+      updatePayload.source_name = lead.source_name || null
+    }
+
     const { error } = await supabase
       .from('leads')
-      .update({
-        current_lead_stage: lead.current_lead_stage,
-        current_call_stage: lead.current_call_stage,
-        visit_date: lead.visit_date || null,
-        follow_up_date: lead.follow_up_date || null,
-        notes: lead.notes,
-        email: lead.email,
-        city: lead.city,
-        course_interest: lead.course_interest,
-      })
+      .update(updatePayload)
       .eq('id', lead.id)
 
     if (!error) {
@@ -326,11 +356,28 @@ export function LeadDetailClient({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</Label>
-                    <Input value={lead.name} disabled className="bg-gray-50" />
+                    {userRole === 'admin' ? (
+                      <Input
+                        value={lead.name}
+                        onChange={(e) => setLead({ ...lead, name: e.target.value })}
+                        placeholder="Lead name"
+                      />
+                    ) : (
+                      <Input value={lead.name} disabled className="bg-gray-50" />
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Phone</Label>
-                    <Input value={lead.phone} disabled className="bg-gray-50 font-mono" />
+                    {userRole === 'admin' ? (
+                      <Input
+                        value={lead.phone}
+                        onChange={(e) => setLead({ ...lead, phone: e.target.value })}
+                        placeholder="Phone number"
+                        className="font-mono"
+                      />
+                    ) : (
+                      <Input value={lead.phone} disabled className="bg-gray-50 font-mono" />
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</Label>
@@ -358,7 +405,31 @@ export function LeadDetailClient({
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Source</Label>
-                    <Input value={lead.source_name || '—'} disabled className="bg-gray-50" />
+                    {userRole === 'admin' ? (
+                      <Select
+                        value={lead.source_id || '__none__'}
+                        onValueChange={(val) => {
+                          const src = sources.find((s) => s.id === val)
+                          setLead({
+                            ...lead,
+                            source_id: val === '__none__' ? null : val,
+                            source_name: src?.source_name || null,
+                          })
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select source..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— No Source —</SelectItem>
+                          {sources.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={lead.source_name || '—'} disabled className="bg-gray-50" />
+                    )}
                   </div>
                 </div>
               </div>

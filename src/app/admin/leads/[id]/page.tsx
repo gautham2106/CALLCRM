@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 import { LeadDetailClient } from '@/components/shared/LeadDetailClient'
 import { notFound } from 'next/navigation'
@@ -10,7 +10,7 @@ export default async function AdminLeadDetailPage({
 }) {
   const { id } = await params
   const user = await requireAdmin()
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [
     { data: lead },
@@ -19,11 +19,12 @@ export default async function AdminLeadDetailPage({
     { data: customFields },
     { data: customFieldValues },
     { data: counsellors },
+    { data: sources },
   ] = await Promise.all([
     supabase
       .from('leads')
       .select(`
-        id, name, phone, email, city, course_interest, source_name,
+        id, name, phone, email, city, course_interest, source_id, source_name,
         current_lead_stage, current_call_stage, visit_date, follow_up_date,
         notes, is_active, created_at, updated_at, assigned_to,
         assigned_user:users!leads_assigned_to_fkey(id, name, email)
@@ -65,6 +66,11 @@ export default async function AdminLeadDetailPage({
       .eq('college_id', user.college_id!)
       .eq('role', 'counsellor')
       .eq('is_active', true),
+    supabase
+      .from('lead_sources')
+      .select('id, source_name')
+      .eq('college_id', user.college_id!)
+      .eq('is_active', true),
   ])
 
   if (!lead) notFound()
@@ -81,6 +87,7 @@ export default async function AdminLeadDetailPage({
       customFields={(customFields || []) as any}
       fieldValues={fieldValues}
       counsellors={(counsellors || []) as any}
+      sources={(sources || []) as any}
       currentUserId={user.id}
       collegeId={user.college_id!}
       userRole="admin"
