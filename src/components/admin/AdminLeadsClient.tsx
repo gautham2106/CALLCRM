@@ -74,6 +74,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const [counsellorFilter, setCounsellorFilter] = useState('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
 
   // Assignment state
   const [showAssignDialog, setShowAssignDialog] = useState(false)
@@ -102,8 +103,15 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
       if (counsellorFilter === 'unassigned') result = result.filter((l) => !l.assigned_to)
       else result = result.filter((l) => l.assigned_to === counsellorFilter)
     }
+    if (sourceFilter !== 'all') {
+      if (sourceFilter === '__none__') result = result.filter((l) => !l.source_name)
+      else {
+        const sName = sources.find((s) => s.id === sourceFilter)?.source_name
+        result = result.filter((l) => l.source_name === sName)
+      }
+    }
     return result
-  }, [leads, search, stageFilter, counsellorFilter, activeTab])
+  }, [leads, search, stageFilter, counsellorFilter, sourceFilter, activeTab, sources])
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -387,9 +395,21 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                 {counsellors.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            {(search || stageFilter !== 'all' || counsellorFilter !== 'all') && (
+            {sources.length > 0 && (
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger className="w-full sm:w-40 h-9">
+                  <SelectValue placeholder="Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  <SelectItem value="__none__">Unknown / No Source</SelectItem>
+                  {sources.map((s) => <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {(search || stageFilter !== 'all' || counsellorFilter !== 'all' || sourceFilter !== 'all') && (
               <button
-                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all') }}
+                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all') }}
                 className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 Clear
@@ -624,14 +644,14 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                           )}
                         </td>
                         <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <a href={`tel:${lead.phone}`} title="Call" className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors">
+                          <div className="flex items-center gap-1">
+                            <a href={`tel:${lead.phone}`} title="Call" className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
                               <Phone className="h-4 w-4" />
                             </a>
-                            <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors">
+                            <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors">
                               <MessageCircle className="h-4 w-4" />
                             </a>
-                            <Link href={`/admin/leads/${lead.id}`} title="View" className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors">
+                            <Link href={`/admin/leads/${lead.id}`} title="View" className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
                               <Eye className="h-4 w-4" />
                             </Link>
                           </div>

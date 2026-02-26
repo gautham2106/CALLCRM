@@ -29,6 +29,7 @@ interface CounsellorLead {
   source_name: string | null
   current_lead_stage: string
   current_call_stage: string | null
+  visit_date: string | null
   follow_up_date: string | null
   created_at: string
 }
@@ -130,17 +131,19 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Lead</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Course / Source</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Stage</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Visit Date</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Follow-up</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                     No leads assigned yet.
                   </td>
                 </tr>
@@ -150,15 +153,28 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
                     !['Enrolled', 'Cold Lead', 'Wrong Lead'].includes(lead.current_lead_stage)
                   return (
                     <tr key={lead.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      {/* Lead */}
+                      <td className="px-4 py-3 font-semibold text-gray-900">
                         <div>{lead.name}</div>
-                        {(lead.city || lead.course_interest) && (
-                          <div className="text-xs text-gray-400 mt-0.5">
-                            {[lead.city, lead.course_interest].filter(Boolean).join(' · ')}
-                          </div>
+                        {lead.city && (
+                          <div className="text-xs text-gray-400 mt-0.5">{lead.city}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{lead.phone}</td>
+                      {/* Contact */}
+                      <td className="px-4 py-3">
+                        <p className="font-mono text-gray-700 text-[13px]">{lead.phone}</p>
+                        {lead.email && (
+                          <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[160px]">{lead.email}</p>
+                        )}
+                      </td>
+                      {/* Course / Source */}
+                      <td className="px-4 py-3">
+                        <p className="text-gray-700 text-[13px]">{lead.course_interest || <span className="text-gray-300">—</span>}</p>
+                        {lead.source_name && (
+                          <p className="text-xs text-gray-400 mt-0.5">{lead.source_name}</p>
+                        )}
+                      </td>
+                      {/* Stage */}
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium w-fit ${STAGE_PILL[lead.current_lead_stage] || 'bg-gray-100 text-gray-600'}`}>
                           {lead.current_lead_stage}
@@ -169,6 +185,15 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
                           </div>
                         )}
                       </td>
+                      {/* Visit Date */}
+                      <td className="px-4 py-3">
+                        {lead.visit_date ? (
+                          <span className="text-xs font-medium text-gray-600">{formatDate(lead.visit_date)}</span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                      {/* Follow-up */}
                       <td className="px-4 py-3">
                         {lead.follow_up_date ? (
                           <span className={`text-xs font-medium ${isOverdue ? 'text-red-500' : 'text-gray-600'}`}>
@@ -179,12 +204,13 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
                           <span className="text-xs text-gray-300">—</span>
                         )}
                       </td>
+                      {/* Actions */}
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-0.5">
+                        <div className="flex items-center gap-1">
                           <a
                             href={`tel:${lead.phone}`}
                             title="Call"
-                            className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
+                            className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                           >
                             <Phone className="h-4 w-4" />
                           </a>
@@ -193,14 +219,14 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
                             target="_blank"
                             rel="noopener noreferrer"
                             title="WhatsApp"
-                            className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
+                            className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
                           >
                             <MessageCircle className="h-4 w-4" />
                           </a>
                           <button
                             onClick={() => setEditingLeadId(lead.id)}
                             title="Edit lead"
-                            className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
+                            className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>

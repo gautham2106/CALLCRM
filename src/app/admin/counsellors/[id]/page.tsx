@@ -25,7 +25,7 @@ export default async function CounsellorDetailPage({
       .single(),
     supabase
       .from('leads')
-      .select('id, name, phone, email, city, course_interest, source_name, current_lead_stage, current_call_stage, follow_up_date, created_at')
+      .select('id, name, phone, email, city, course_interest, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, created_at')
       .eq('assigned_to', id)
       .eq('college_id', user.college_id!)
       .eq('is_active', true)
