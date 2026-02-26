@@ -29,17 +29,17 @@ export default async function SourcesPage() {
   lastMonthDate.setMonth(lastMonthDate.getMonth() - 1)
   const lastMonthStr = lastMonthDate.toISOString().substring(0, 7)
 
-  // Build source stats keyed by source_id
+  // Build source stats keyed by source_id; bucket null source_id as '__unknown__'
   const statsMap: Record<string, { total: number; enrolled: number; thisMonth: number; lastMonth: number; stages: Record<string, number> }> = {}
   ;(allLeads || []).forEach((l: any) => {
-    if (!l.source_id) return
-    if (!statsMap[l.source_id]) statsMap[l.source_id] = { total: 0, enrolled: 0, thisMonth: 0, lastMonth: 0, stages: {} }
-    statsMap[l.source_id].total++
-    if (l.current_lead_stage === 'Enrolled') statsMap[l.source_id].enrolled++
-    statsMap[l.source_id].stages[l.current_lead_stage] = (statsMap[l.source_id].stages[l.current_lead_stage] || 0) + 1
+    const key = l.source_id || '__unknown__'
+    if (!statsMap[key]) statsMap[key] = { total: 0, enrolled: 0, thisMonth: 0, lastMonth: 0, stages: {} }
+    statsMap[key].total++
+    if (l.current_lead_stage === 'Enrolled') statsMap[key].enrolled++
+    statsMap[key].stages[l.current_lead_stage] = (statsMap[key].stages[l.current_lead_stage] || 0) + 1
     const month = l.created_at?.substring(0, 7)
-    if (month === thisMonthStr) statsMap[l.source_id].thisMonth++
-    if (month === lastMonthStr) statsMap[l.source_id].lastMonth++
+    if (month === thisMonthStr) statsMap[key].thisMonth++
+    if (month === lastMonthStr) statsMap[key].lastMonth++
   })
 
   const stageOrder = ['New Enquiry', 'Contacted', 'Visit Scheduled', 'Visit Done', 'Application Started', 'Enrolled', 'Cold Lead', 'Wrong Lead']
@@ -58,12 +58,25 @@ export default async function SourcesPage() {
     }
   })
 
+  // Unknown stat (no source_id)
+  const unknownStats = statsMap['__unknown__'] || null
+  const unknownStat = unknownStats ? {
+    sourceId: '__unknown__',
+    total: unknownStats.total,
+    enrolled: unknownStats.enrolled,
+    rate: unknownStats.total > 0 ? Math.round((unknownStats.enrolled / unknownStats.total) * 100) : 0,
+    thisMonth: unknownStats.thisMonth,
+    lastMonth: unknownStats.lastMonth,
+    stages: stageOrder.filter((st) => unknownStats.stages[st]).map((st) => ({ stage: st, count: unknownStats.stages[st] })),
+  } : null
+
   return (
     <LeadSourcesClient
       initialSources={sources || []}
       collegeId={user.college_id!}
       adminId={user.id}
       initialSourceStats={sourceStats}
+      unknownStat={unknownStat}
     />
   )
 }
