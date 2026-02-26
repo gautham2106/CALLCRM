@@ -1,4 +1,4 @@
-import { CounsellorSidebar } from '@/components/layout/CounsellorSidebar'
+import { CounsellorShell } from '@/components/layout/CounsellorShell'
 import { requireCounsellor } from '@/lib/auth'
 
 export default async function CounsellorLayout({
@@ -9,11 +9,8 @@ export default async function CounsellorLayout({
   await requireCounsellor()
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <CounsellorSidebar />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
-    </div>
+    <CounsellorShell>
+      {children}
+    </CounsellorShell>
   )
 }
