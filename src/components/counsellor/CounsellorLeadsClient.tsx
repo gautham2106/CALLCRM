@@ -98,7 +98,9 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
   }, [leads, search, stageFilter, filterTab, today])
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const paginated = showAll ? filtered : filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  // If a lead update shrinks filtered and the current page no longer exists, clamp silently
+  const safePage = filtered.length === 0 ? 0 : Math.min(page, Math.max(0, totalPages - 1))
+  const paginated = showAll ? filtered : filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
 
   const tabCount = {
     all: leads.length,
@@ -227,7 +229,7 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
                   <span>
                     {showAll
                       ? `${filtered.length.toLocaleString()} leads`
-                      : `${Math.min(page * PAGE_SIZE + 1, filtered.length)}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length.toLocaleString()}`}
+                      : `${Math.min(safePage * PAGE_SIZE + 1, filtered.length)}–${Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length.toLocaleString()}`}
                   </span>
                   <div className="flex items-center gap-2">
                     {filtered.length > PAGE_SIZE && (
@@ -240,11 +242,11 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
                     )}
                     {!showAll && totalPages > 1 && (
                       <div className="flex items-center gap-1">
-                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={safePage === 0}>
                           <ChevronLeft className="h-3.5 w-3.5" />
                         </Button>
-                        <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
-                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                        <span className="px-2 font-medium text-gray-700">{safePage + 1} / {totalPages}</span>
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={safePage >= totalPages - 1}>
                           <ChevronRight className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -261,16 +263,16 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
                 <span className="text-xs text-gray-500">
                   {showAll
                     ? `${filtered.length.toLocaleString()} leads`
-                    : `${Math.min(page * PAGE_SIZE + 1, filtered.length).toLocaleString()}–${Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()} of ${filtered.length.toLocaleString()}`}
+                    : `${Math.min(safePage * PAGE_SIZE + 1, filtered.length).toLocaleString()}–${Math.min((safePage + 1) * PAGE_SIZE, filtered.length).toLocaleString()} of ${filtered.length.toLocaleString()}`}
                 </span>
                 <div className="flex items-center gap-3">
                   {!showAll && totalPages > 1 && (
                     <div className="flex items-center gap-1">
-                      <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                      <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setPage((p) => p - 1)} disabled={safePage === 0}>
                         <ChevronLeft className="h-3 w-3" />
                       </Button>
-                      <span className="text-xs font-medium text-gray-600 px-1">{page + 1} / {totalPages}</span>
-                      <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                      <span className="text-xs font-medium text-gray-600 px-1">{safePage + 1} / {totalPages}</span>
+                      <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setPage((p) => p + 1)} disabled={safePage >= totalPages - 1}>
                         <ChevronRight className="h-3 w-3" />
                       </Button>
                     </div>
@@ -379,15 +381,15 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
               {!showAll && totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
                   <span className="text-xs text-gray-500">
-                    {Math.min(page * PAGE_SIZE + 1, filtered.length).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()} of{' '}
+                    {Math.min(safePage * PAGE_SIZE + 1, filtered.length).toLocaleString()}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length).toLocaleString()} of{' '}
                     <span className="font-medium text-gray-700">{filtered.length.toLocaleString()}</span> leads
                   </span>
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={safePage === 0}>
                       <ChevronLeft className="h-3.5 w-3.5" />
                     </Button>
-                    <span className="text-xs font-medium text-gray-600 px-2">{page + 1} / {totalPages}</span>
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                    <span className="text-xs font-medium text-gray-600 px-2">{safePage + 1} / {totalPages}</span>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={safePage >= totalPages - 1}>
                       <ChevronRight className="h-3.5 w-3.5" />
                     </Button>
                   </div>

@@ -584,7 +584,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
               </span>
             ) : (
               <span className="text-blue-700">
-                <strong>{selectedIds.size}</strong> leads on this page selected
+                <strong>{selectedIds.size}</strong> lead{selectedIds.size > 1 ? 's' : ''} selected
               </span>
             )}
             {selectAllMatching ? (
