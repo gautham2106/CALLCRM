@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +15,7 @@ import {
   formatDate, formatDateTime,
 } from '@/lib/utils'
 import {
-  Phone, MessageCircle, X, Save, Loader2, Clock, ArrowRight, History,
+  Phone, MessageCircle, X, Save, Loader2, Clock, ArrowRight, History, AlertTriangle,
 } from 'lucide-react'
 
 interface LeadSource {
@@ -66,6 +66,9 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
   const [saving, setSaving] = useState(false)
   const [loggingCall, setLoggingCall] = useState(false)
   const [callForm, setCallForm] = useState({ call_stage: '', lead_stage: '', notes: '', follow_up_date: '' })
+  const [phoneWarning, setPhoneWarning] = useState<string | null>(null)
+  const originalPhoneRef = useRef<string>('')
+  const phoneCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchData = useCallback(async (id: string) => {
     setLoading(true)
@@ -91,6 +94,8 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
 
     if (leadData) {
       setLead(leadData as SlideLeadData)
+      originalPhoneRef.current = (leadData as SlideLeadData).phone
+      setPhoneWarning(null)
       setCallForm((prev) => ({ ...prev, lead_stage: (leadData as SlideLeadData).current_lead_stage }))
     }
 
@@ -120,6 +125,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
     if (leadId) {
       setLead(null)
       setDiary([])
+      setPhoneWarning(null)
       setCallForm({ call_stage: '', lead_stage: '', notes: '', follow_up_date: '' })
       fetchData(leadId)
     }
@@ -278,7 +284,40 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
                     </div>
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Phone</Label>
-                      <Input value={lead.phone} onChange={(e) => setLead({ ...lead, phone: e.target.value })} placeholder="Phone number" className="font-mono" />
+                      <Input
+                        value={lead.phone}
+                        onChange={(e) => {
+                          const newPhone = e.target.value
+                          setLead({ ...lead, phone: newPhone })
+                          if (phoneCheckTimer.current) clearTimeout(phoneCheckTimer.current)
+                          if (newPhone.length >= 6 && newPhone !== originalPhoneRef.current) {
+                            const currentLeadId = lead.id
+                            phoneCheckTimer.current = setTimeout(async () => {
+                              const { data } = await supabase
+                                .from('leads')
+                                .select('id, name')
+                                .eq('college_id', collegeId)
+                                .eq('phone', newPhone)
+                                .neq('id', currentLeadId)
+                                .limit(1)
+                              setPhoneWarning(
+                                data && data.length > 0
+                                  ? `Duplicate: "${(data[0] as any).name}" already has this number`
+                                  : null
+                              )
+                            }, 500)
+                          } else {
+                            setPhoneWarning(null)
+                          }
+                        }}
+                        placeholder="Phone number"
+                        className={`font-mono${phoneWarning ? ' border-orange-400 focus-visible:ring-orange-300' : ''}`}
+                      />
+                      {phoneWarning && (
+                        <p className="text-xs text-orange-500 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />{phoneWarning}
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</Label>

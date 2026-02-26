@@ -88,6 +88,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const today = new Date().toISOString().split('T')[0]
   const [page, setPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
+  const [phoneWarning, setPhoneWarning] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     let result = leads
@@ -179,6 +180,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
       setLeads((prev) => [json.lead, ...prev])
       setShowAddDialog(false)
       setLeadForm(EMPTY_LEAD_FORM)
+      setPhoneWarning(null)
       toast({ title: 'Lead added', description: `${leadForm.name} has been added.`, variant: 'success' })
     } catch (err: unknown) {
       const error = err as Error
@@ -728,7 +730,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
     </div>
 
     {/* Add Lead Dialog */}
-    <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+    <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) { setLeadForm(EMPTY_LEAD_FORM); setPhoneWarning(null) } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add New Lead</DialogTitle>
@@ -750,10 +752,26 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
               <Input
                 id="lead-phone"
                 value={leadForm.phone}
-                onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })}
+                onChange={(e) => {
+                  const phone = e.target.value
+                  setLeadForm({ ...leadForm, phone })
+                  if (phone.length >= 6) {
+                    const norm = phone.replace(/\D/g, '')
+                    const dup = leads.find((l) => l.phone.replace(/\D/g, '') === norm)
+                    setPhoneWarning(dup ? `Duplicate: "${dup.name}" already has this number` : null)
+                  } else {
+                    setPhoneWarning(null)
+                  }
+                }}
                 placeholder="9876543210"
                 required
+                className={phoneWarning ? 'border-orange-400 focus-visible:ring-orange-300' : ''}
               />
+              {phoneWarning && (
+                <p className="text-xs text-orange-500 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />{phoneWarning}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="lead-email">Email</Label>
