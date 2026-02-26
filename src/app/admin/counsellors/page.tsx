@@ -6,7 +6,7 @@ export default async function CounsellorsPage() {
   const user = await requireAdmin()
   const supabase = createAdminClient()
 
-  const [{ data: counsellors }, { data: sources }, { data: unassigned }] = await Promise.all([
+  const [{ data: counsellors }, { data: sources }, { data: unassigned }, { data: customFields }] = await Promise.all([
     supabase
       .from('users')
       .select(`
@@ -29,6 +29,12 @@ export default async function CounsellorsPage() {
       .eq('college_id', user.college_id!)
       .is('assigned_to', null)
       .or('is_active.is.null,is_active.eq.true'),
+    supabase
+      .from('custom_field_definitions')
+      .select('id, field_name, field_type, is_required')
+      .eq('college_id', user.college_id!)
+      .eq('is_active', true)
+      .order('display_order'),
   ])
 
   return (
@@ -37,6 +43,7 @@ export default async function CounsellorsPage() {
       collegeId={user.college_id!}
       adminId={user.id}
       sources={sources || []}
+      customFields={customFields || []}
       unassignedCount={(unassigned as any)?.count ?? 0}
     />
   )

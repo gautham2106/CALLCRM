@@ -1,12 +1,12 @@
 import { requireAdmin } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { LeadImportClient } from '@/components/admin/LeadImportClient'
 
 export default async function ImportLeadsPage() {
   const user = await requireAdmin()
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
-  const [{ data: sources }, { data: counsellors }] = await Promise.all([
+  const [{ data: sources }, { data: counsellors }, { data: customFields }] = await Promise.all([
     supabase
       .from('lead_sources')
       .select('id, source_name')
@@ -19,6 +19,12 @@ export default async function ImportLeadsPage() {
       .eq('role', 'counsellor')
       .eq('is_active', true)
       .order('full_name'),
+    supabase
+      .from('custom_field_definitions')
+      .select('id, field_name, field_type, is_required')
+      .eq('college_id', user.college_id!)
+      .eq('is_active', true)
+      .order('display_order'),
   ])
 
   return (
@@ -27,6 +33,7 @@ export default async function ImportLeadsPage() {
       adminId={user.id}
       sources={sources || []}
       counsellors={counsellors || []}
+      customFields={customFields || []}
     />
   )
 }

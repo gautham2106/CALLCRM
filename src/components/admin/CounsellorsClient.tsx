@@ -37,23 +37,31 @@ interface Counsellor {
   assigned_leads: CounsellorLead[]
 }
 
+interface CustomFieldDef {
+  id: string
+  field_name: string
+  field_type: string
+  is_required: boolean
+}
+
 interface Props {
   initialCounsellors: Counsellor[]
   collegeId: string
   adminId: string
   sources: { id: string; source_name: string }[]
+  customFields: CustomFieldDef[]
   unassignedCount: number
 }
 
-const CSV_FIELDS = [
-  { key: 'name', label: 'Name', required: true },
-  { key: 'phone', label: 'Phone', required: true },
-  { key: 'email', label: 'Email', required: false },
-  { key: 'city', label: 'City', required: false },
-  { key: 'course_interest', label: 'Course Interest', required: false },
-  { key: 'source_name', label: 'Source', required: false },
-  { key: 'visit_date', label: 'Visit Date (YYYY-MM-DD)', required: false },
-  { key: 'notes', label: 'Notes', required: false },
+// Static mappable fields — source removed (it's a batch-level dropdown, not per-row)
+const STATIC_CSV_FIELDS = [
+  { key: 'name',            label: 'Name',                    required: true  },
+  { key: 'phone',           label: 'Phone',                   required: true  },
+  { key: 'email',           label: 'Email',                   required: false },
+  { key: 'city',            label: 'City',                    required: false },
+  { key: 'course_interest', label: 'Course Interest',         required: false },
+  { key: 'visit_date',      label: 'Visit Date (YYYY-MM-DD)', required: false },
+  { key: 'notes',           label: 'Notes',                   required: false },
 ]
 
 const EMPTY_SINGLE = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', notes: '' }
@@ -82,9 +90,15 @@ function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): num
   }
 }
 
-export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sources, unassignedCount }: Props) {
+export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sources, customFields, unassignedCount }: Props) {
   const supabase = createClient()
   const today = new Date().toISOString().split('T')[0]
+
+  // All mappable fields: static + custom (computed once per render, stable reference via memo not needed at module level)
+  const allCsvFields = [
+    ...STATIC_CSV_FIELDS,
+    ...customFields.map((f) => ({ key: `custom_${f.id}`, label: f.field_name, required: f.is_required })),
+  ]
 
   const [counsellors, setCounsellors] = useState(initialCounsellors)
   const [sortBy, setSortBy] = useState<SortKey>('enrolled')
@@ -110,6 +124,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const [csvImporting, setCsvImporting] = useState(false)
   const [csvResult, setCsvResult] = useState({ imported: 0, skipped: 0 })
   const [csvPreview, setCsvPreview] = useState<Record<string, string>[]>([])
+  const [csvSelectedSourceId, setCsvSelectedSourceId] = useState<string>('__none__')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const resetAddLeads = () => {
@@ -123,6 +138,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     setCsvImportableCount(0)
     setCsvResult({ imported: 0, skipped: 0 })
     setCsvPreview([])
+    setCsvSelectedSourceId('__none__')
   }
 
   const openAddLeads = (c: Counsellor) => {
@@ -222,10 +238,10 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     setCsvRows(rows)
 
     const autoMap: Record<string, string> = {}
-    CSV_FIELDS.forEach((field) => {
+    allCsvFields.forEach((field) => {
       const match = trimmedHeaders.find(
         (h) =>
-          h.toLowerCase().includes(field.key.toLowerCase()) ||
+          h.toLowerCase() === field.label.toLowerCase() ||
           h.toLowerCase().includes(field.label.toLowerCase().split(' ')[0])
       )
       if (match) autoMap[field.key] = match
@@ -304,7 +320,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
 
     const preview = csvRows.slice(0, 5).map((row) => {
       const mapped: Record<string, string> = {}
-      CSV_FIELDS.forEach((field) => {
+      allCsvFields.forEach((field) => {
         if (columnMap[field.key]) mapped[field.label] = row[columnMap[field.key]] || ''
       })
       return mapped
@@ -317,8 +333,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     if (!addLeadsTarget) return
     setCsvImporting(true)
     const phoneCol = columnMap['phone']
+    const sourceEntry = csvSelectedSourceId !== '__none__' ? sources.find((s) => s.id === csvSelectedSourceId) : null
 
-    // Deduplicate within CSV (first occurrence wins) AND skip DB duplicates
     const seenPhones = new Set<string>()
     const toImport = csvRows.filter((row) => {
       const phone = row[phoneCol]
@@ -331,12 +347,13 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       college_id: collegeId,
       name: row[columnMap['name']] || 'Unknown',
       phone: row[columnMap['phone']],
-      email: columnMap['email'] ? row[columnMap['email']] || null : null,
-      city: columnMap['city'] ? row[columnMap['city']] || null : null,
+      email:           columnMap['email']           ? row[columnMap['email']]           || null : null,
+      city:            columnMap['city']            ? row[columnMap['city']]            || null : null,
       course_interest: columnMap['course_interest'] ? row[columnMap['course_interest']] || null : null,
-      source_name: columnMap['source_name'] ? row[columnMap['source_name']] || null : null,
-      visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
-      notes: columnMap['notes'] ? row[columnMap['notes']] || null : null,
+      visit_date:      columnMap['visit_date']      ? row[columnMap['visit_date']]      || null : null,
+      notes:           columnMap['notes']           ? row[columnMap['notes']]           || null : null,
+      source_id:   sourceEntry?.id          ?? null,
+      source_name: sourceEntry?.source_name ?? null,
       assigned_to: addLeadsTarget.id,
       created_by: adminId,
       current_lead_stage: 'New Enquiry',
@@ -346,18 +363,39 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       const batchSize = 100
       let imported = 0
       let failed = 0
+      const insertedLeadMap: { leadId: string; row: Record<string, string> }[] = []
       for (let i = 0; i < leadsToInsert.length; i += batchSize) {
         const batch = leadsToInsert.slice(i, i + batchSize)
+        const batchRows = toImport.slice(i, i + batchSize)
         const { data: inserted, error: batchError } = await supabase.from('leads').insert(batch).select('id')
         if (batchError || !inserted) {
           failed += batch.length
         } else {
           imported += inserted.length
+          inserted.forEach((lead, idx) => insertedLeadMap.push({ leadId: lead.id, row: batchRows[idx] }))
         }
       }
 
       if (imported === 0 && failed > 0) {
         throw new Error(`All ${failed} leads failed to save. Please try again.`)
+      }
+
+      // Insert custom field values for successfully imported leads
+      if (customFields.length > 0 && insertedLeadMap.length > 0) {
+        const customFieldValues = insertedLeadMap.flatMap(({ leadId, row }) =>
+          customFields
+            .filter((f) => columnMap[`custom_${f.id}`] && row[columnMap[`custom_${f.id}`]])
+            .map((f) => ({
+              lead_id: leadId,
+              field_id: f.id,
+              college_id: collegeId,
+              value: row[columnMap[`custom_${f.id}`]] || null,
+              updated_by: adminId,
+            }))
+        )
+        if (customFieldValues.length > 0) {
+          await supabase.from('custom_field_values').insert(customFieldValues)
+        }
       }
 
       // Update counsellor's lead count
@@ -846,8 +884,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
               {csvStep === 'map' && (
                 <div className="space-y-3">
                   <p className="text-xs text-gray-500">{csvRows.length} rows found. Map columns below.</p>
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {CSV_FIELDS.map((field) => (
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {STATIC_CSV_FIELDS.map((field) => (
                       <div key={field.key} className="flex items-center gap-3">
                         <span className="text-xs font-medium text-gray-700 w-36 shrink-0">
                           {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
@@ -866,6 +904,32 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                         </Select>
                       </div>
                     ))}
+                    {customFields.length > 0 && (
+                      <>
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest pt-2">Custom Fields</p>
+                        {customFields.map((field) => (
+                          <div key={field.id} className="flex items-center gap-3">
+                            <span className="text-xs font-medium text-gray-700 w-36 shrink-0">
+                              {field.field_name}
+                              {field.is_required && <span className="text-red-500 ml-0.5">*</span>}
+                              <span className="ml-1 text-[9px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded uppercase">{field.field_type}</span>
+                            </span>
+                            <Select
+                              value={columnMap[`custom_${field.id}`] || '__none__'}
+                              onValueChange={(val) => setColumnMap({ ...columnMap, [`custom_${field.id}`]: val === '__none__' ? '' : val })}
+                            >
+                              <SelectTrigger className="h-8 text-xs flex-1">
+                                <SelectValue placeholder="Select column..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">— Not mapped —</SelectItem>
+                                {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" size="sm" onClick={() => setCsvStep('upload')}>Back</Button>
@@ -890,6 +954,27 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                       </span>
                     )}
                   </div>
+
+                  {/* Source dropdown — batch-level, not per-row */}
+                  {sources.length > 0 && (
+                    <div className="pt-2 border-t border-gray-100">
+                      <Label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                        Lead Source <span className="text-gray-400 font-normal">(optional — applied to all leads)</span>
+                      </Label>
+                      <Select value={csvSelectedSourceId} onValueChange={setCsvSelectedSourceId}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select source..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— No source —</SelectItem>
+                          {sources.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   {csvPreview.length > 0 && (
                     <div className="overflow-x-auto border rounded-lg">
                       <table className="w-full text-xs">

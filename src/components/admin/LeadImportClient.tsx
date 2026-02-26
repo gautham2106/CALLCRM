@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
@@ -12,35 +12,41 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/components/ui/use-toast'
 import {
   Upload,
-  FileText,
   CheckCircle,
   AlertTriangle,
   ArrowRight,
-  X,
   Loader2,
 } from 'lucide-react'
 
-const LEAD_FIELDS = [
-  { key: 'name', label: 'Name', required: true },
-  { key: 'phone', label: 'Phone', required: true },
-  { key: 'email', label: 'Email', required: false },
-  { key: 'city', label: 'City', required: false },
-  { key: 'course_interest', label: 'Course Interest', required: false },
-  { key: 'source_name', label: 'Source', required: false },
-  { key: 'visit_date', label: 'Visit Date (YYYY-MM-DD)', required: false },
-  { key: 'notes', label: 'Notes', required: false },
+// Static lead fields that are always mappable (source removed — it's a batch-level dropdown)
+const STATIC_FIELDS = [
+  { key: 'name',            label: 'Name',                    required: true  },
+  { key: 'phone',           label: 'Phone',                   required: true  },
+  { key: 'email',           label: 'Email',                   required: false },
+  { key: 'city',            label: 'City',                    required: false },
+  { key: 'course_interest', label: 'Course Interest',         required: false },
+  { key: 'visit_date',      label: 'Visit Date (YYYY-MM-DD)', required: false },
+  { key: 'notes',           label: 'Notes',                   required: false },
 ]
+
+interface CustomFieldDef {
+  id: string
+  field_name: string
+  field_type: string
+  is_required: boolean
+}
 
 interface Props {
   collegeId: string
   adminId: string
   sources: { id: string; source_name: string }[]
   counsellors: { id: string; full_name: string }[]
+  customFields: CustomFieldDef[]
 }
 
 type Step = 'upload' | 'map' | 'preview' | 'done'
 
-export function LeadImportClient({ collegeId, adminId, sources, counsellors }: Props) {
+export function LeadImportClient({ collegeId, adminId, sources, counsellors, customFields }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -55,17 +61,28 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState({ imported: 0, skipped: 0 })
   const [assignCounsellorId, setAssignCounsellorId] = useState<string>('__none__')
+  const [selectedSourceId, setSelectedSourceId] = useState<string>('__none__')
+
+  // All mappable fields: static + custom
+  const allFields = useMemo(() => [
+    ...STATIC_FIELDS,
+    ...customFields.map((f) => ({
+      key: `custom_${f.id}`,
+      label: f.field_name,
+      required: f.is_required,
+    })),
+  ], [customFields])
 
   const applyParsedData = (headers: string[], rows: Record<string, string>[]) => {
-    const trimmedHeaders = headers.map((h) => h.trim())
-    setCsvHeaders(trimmedHeaders)
+    const trimmed = headers.map((h) => h.trim())
+    setCsvHeaders(trimmed)
     setCsvRows(rows)
 
     const autoMap: Record<string, string> = {}
-    LEAD_FIELDS.forEach((field) => {
-      const match = trimmedHeaders.find(
+    allFields.forEach((field) => {
+      const match = trimmed.find(
         (h) =>
-          h.toLowerCase().includes(field.key.toLowerCase()) ||
+          h.toLowerCase() === field.label.toLowerCase() ||
           h.toLowerCase().includes(field.label.toLowerCase().split(' ')[0])
       )
       if (match) autoMap[field.key] = match
@@ -89,7 +106,8 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
             return
           }
           const headers = raw[0].map((h) => String(h ?? ''))
-          const rows = raw.slice(1)
+          const rows = raw
+            .slice(1)
             .filter((r) => r.some((v) => v !== null && v !== undefined && String(v).trim() !== ''))
             .map((r) => {
               const obj: Record<string, string> = {}
@@ -121,10 +139,8 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
     e.preventDefault()
     const file = e.dataTransfer.files[0]
     if (file) {
-      const name = file.name.toLowerCase()
-      if (name.endsWith('.csv') || name.endsWith('.xlsx') || name.endsWith('.xls')) {
-        handleFileUpload(file)
-      }
+      const n = file.name.toLowerCase()
+      if (n.endsWith('.csv') || n.endsWith('.xlsx') || n.endsWith('.xls')) handleFileUpload(file)
     }
   }
 
@@ -137,7 +153,6 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
       return
     }
 
-    // Deduplicate within the CSV first (first occurrence wins)
     const seenInCsv = new Set<string>()
     const uniquePhones: string[] = []
     csvRows.forEach((r) => {
@@ -145,7 +160,6 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
       if (p && !seenInCsv.has(p)) { seenInCsv.add(p); uniquePhones.push(p) }
     })
 
-    // Check unique phones against DB
     const { data: existing } = await supabase
       .from('leads')
       .select('phone')
@@ -158,10 +172,8 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
 
     const preview = csvRows.slice(0, 5).map((row) => {
       const mapped: Record<string, string> = {}
-      LEAD_FIELDS.forEach((field) => {
-        if (columnMap[field.key]) {
-          mapped[field.label] = row[columnMap[field.key]] || ''
-        }
+      allFields.forEach((field) => {
+        if (columnMap[field.key]) mapped[field.label] = row[columnMap[field.key]] || ''
       })
       return mapped
     })
@@ -175,7 +187,6 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
     const nameCol = columnMap['name']
     const phoneCol = columnMap['phone']
 
-    // Deduplicate within CSV (first occurrence wins) AND skip DB duplicates
     const seenPhones = new Set<string>()
     const toImport = csvRows.filter((row) => {
       const phone = row[phoneCol]
@@ -186,17 +197,19 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
     })
 
     const counsellorId = assignCounsellorId !== '__none__' ? assignCounsellorId : null
+    const sourceEntry = selectedSourceId !== '__none__' ? sources.find((s) => s.id === selectedSourceId) : null
 
     const leadsToInsert = toImport.map((row) => ({
       college_id: collegeId,
-      name: row[columnMap['name']] || 'Unknown',
-      phone: row[columnMap['phone']],
-      email: columnMap['email'] ? row[columnMap['email']] || null : null,
-      city: columnMap['city'] ? row[columnMap['city']] || null : null,
+      name: row[nameCol] || 'Unknown',
+      phone: row[phoneCol],
+      email:           columnMap['email']           ? row[columnMap['email']]           || null : null,
+      city:            columnMap['city']            ? row[columnMap['city']]            || null : null,
       course_interest: columnMap['course_interest'] ? row[columnMap['course_interest']] || null : null,
-      source_name: columnMap['source_name'] ? row[columnMap['source_name']] || null : null,
-      visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
-      notes: columnMap['notes'] ? row[columnMap['notes']] || null : null,
+      visit_date:      columnMap['visit_date']      ? row[columnMap['visit_date']]      || null : null,
+      notes:           columnMap['notes']           ? row[columnMap['notes']]           || null : null,
+      source_id:   sourceEntry?.id           ?? null,
+      source_name: sourceEntry?.source_name  ?? null,
       created_by: adminId,
       ...(counsellorId ? { assigned_to: counsellorId } : {}),
     }))
@@ -205,18 +218,45 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
       const batchSize = 100
       let imported = 0
       let failed = 0
+      const insertedLeadMap: { leadId: string; row: Record<string, string> }[] = []
+
       for (let i = 0; i < leadsToInsert.length; i += batchSize) {
         const batch = leadsToInsert.slice(i, i + batchSize)
-        const { data: inserted, error: batchError } = await supabase.from('leads').insert(batch).select('id')
+        const batchRows = toImport.slice(i, i + batchSize)
+        const { data: inserted, error: batchError } = await supabase
+          .from('leads')
+          .insert(batch)
+          .select('id')
         if (batchError || !inserted) {
           failed += batch.length
         } else {
           imported += inserted.length
+          inserted.forEach((lead, idx) => {
+            insertedLeadMap.push({ leadId: lead.id, row: batchRows[idx] })
+          })
         }
       }
 
       if (imported === 0 && failed > 0) {
         throw new Error(`All ${failed} leads failed to save. Please try again.`)
+      }
+
+      // Insert custom field values for all successfully imported leads
+      if (customFields.length > 0 && insertedLeadMap.length > 0) {
+        const customFieldValues = insertedLeadMap.flatMap(({ leadId, row }) =>
+          customFields
+            .filter((f) => columnMap[`custom_${f.id}`] && row[columnMap[`custom_${f.id}`]])
+            .map((f) => ({
+              lead_id: leadId,
+              field_id: f.id,
+              college_id: collegeId,
+              value: row[columnMap[`custom_${f.id}`]] || null,
+              updated_by: adminId,
+            }))
+        )
+        if (customFieldValues.length > 0) {
+          await supabase.from('custom_field_values').insert(customFieldValues)
+        }
       }
 
       // Notify counsellor if directly assigned
@@ -293,9 +333,12 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
               <p className="font-medium mb-1">Format Tips:</p>
               <ul className="list-disc pl-4 space-y-0.5 text-blue-600">
                 <li>Supports CSV, Excel (.xlsx) and older Excel (.xls)</li>
-                <li>First row should be headers</li>
+                <li>First row should be column headers</li>
                 <li>Phone and Name are required</li>
-                <li>Duplicate phones will be skipped automatically</li>
+                <li>Duplicate phones are skipped automatically</li>
+                {customFields.length > 0 && (
+                  <li>{customFields.length} custom field{customFields.length > 1 ? 's' : ''} available to map</li>
+                )}
               </ul>
             </div>
           </CardContent>
@@ -306,13 +349,14 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
       {step === 'map' && (
         <Card>
           <CardHeader>
-            <CardTitle>Map CSV Columns</CardTitle>
-            <p className="text-sm text-gray-500">{csvRows.length} rows found. Map your CSV columns to lead fields.</p>
+            <CardTitle>Map Columns</CardTitle>
+            <p className="text-sm text-gray-500">{csvRows.length} rows found. Match your file columns to lead fields.</p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {LEAD_FIELDS.map((field) => (
+          <CardContent className="space-y-3">
+            {/* Standard fields */}
+            {STATIC_FIELDS.map((field) => (
               <div key={field.key} className="flex items-center gap-4">
-                <div className="w-44 flex-shrink-0">
+                <div className="w-48 flex-shrink-0">
                   <span className="text-sm font-medium text-gray-700">
                     {field.label}
                     {field.required && <span className="text-red-500 ml-1">*</span>}
@@ -327,14 +371,49 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— Not mapped —</SelectItem>
-                    {csvHeaders.map((h) => (
-                      <SelectItem key={h} value={h}>{h}</SelectItem>
-                    ))}
+                    {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             ))}
-            <div className="flex gap-3 pt-4">
+
+            {/* Custom fields section */}
+            {customFields.length > 0 && (
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+                  Custom Fields
+                </p>
+                {customFields.map((field) => (
+                  <div key={field.id} className="flex items-center gap-4 mb-3">
+                    <div className="w-48 flex-shrink-0">
+                      <span className="text-sm font-medium text-gray-700">
+                        {field.field_name}
+                        {field.is_required && <span className="text-red-500 ml-1">*</span>}
+                      </span>
+                      <span className="ml-1.5 text-[10px] text-gray-400 font-normal bg-gray-100 px-1.5 py-0.5 rounded uppercase">
+                        {field.field_type}
+                      </span>
+                    </div>
+                    <Select
+                      value={columnMap[`custom_${field.id}`] || '__none__'}
+                      onValueChange={(val) =>
+                        setColumnMap({ ...columnMap, [`custom_${field.id}`]: val === '__none__' ? '' : val })
+                      }
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select column..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Not mapped —</SelectItem>
+                        {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-3">
               <Button variant="outline" onClick={() => setStep('upload')}>Back</Button>
               <Button onClick={generatePreview}>
                 Preview Import
@@ -353,7 +432,7 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
               <CardTitle>Import Preview</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-6 mb-4">
+              <div className="flex items-center gap-6 mb-4 flex-wrap">
                 <div className="flex items-center gap-2 text-green-600">
                   <CheckCircle className="h-5 w-5" />
                   <span className="font-semibold">{importableCount} leads to import</span>
@@ -361,35 +440,61 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
                 {csvRows.length - importableCount > 0 && (
                   <div className="flex items-center gap-2 text-orange-500">
                     <AlertTriangle className="h-5 w-5" />
-                    <span className="font-semibold">{csvRows.length - importableCount} skipped ({duplicates.length} already in system{csvRows.length - importableCount - duplicates.length > 0 ? `, ${csvRows.length - importableCount - duplicates.length} duplicate rows in file` : ''})</span>
+                    <span className="font-semibold">
+                      {csvRows.length - importableCount} skipped ({duplicates.length} already in system
+                      {csvRows.length - importableCount - duplicates.length > 0
+                        ? `, ${csvRows.length - importableCount - duplicates.length} duplicate rows in file`
+                        : ''})
+                    </span>
                   </div>
                 )}
               </div>
 
-              {/* Optional: assign directly to a counsellor */}
-              {counsellors.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                    Assign to counsellor <span className="text-gray-400 font-normal">(optional)</span>
-                  </Label>
-                  <Select value={assignCounsellorId} onValueChange={setAssignCounsellorId}>
-                    <SelectTrigger className="max-w-xs">
-                      <SelectValue placeholder="Leave unassigned" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Leave unassigned —</SelectItem>
-                      {counsellors.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {assignCounsellorId !== '__none__' && (
-                    <p className="text-xs text-blue-600 mt-1.5">
-                      All {importableCount} leads will be assigned to this counsellor and they will be notified.
-                    </p>
-                  )}
-                </div>
-              )}
+              {/* Batch-level options */}
+              <div className="space-y-4 mt-4 pt-4 border-t border-gray-100">
+                {sources.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                      Lead Source <span className="text-gray-400 font-normal">(optional — applied to all imported leads)</span>
+                    </Label>
+                    <Select value={selectedSourceId} onValueChange={setSelectedSourceId}>
+                      <SelectTrigger className="max-w-xs">
+                        <SelectValue placeholder="Select source..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— No source —</SelectItem>
+                        {sources.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {counsellors.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                      Assign to counsellor <span className="text-gray-400 font-normal">(optional)</span>
+                    </Label>
+                    <Select value={assignCounsellorId} onValueChange={setAssignCounsellorId}>
+                      <SelectTrigger className="max-w-xs">
+                        <SelectValue placeholder="Leave unassigned" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Leave unassigned —</SelectItem>
+                        {counsellors.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {assignCounsellorId !== '__none__' && (
+                      <p className="text-xs text-blue-600 mt-1.5">
+                        All {importableCount} leads will be assigned to this counsellor and they will be notified.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {previewData.length > 0 && (
                 <div className="overflow-x-auto mt-4">
@@ -446,7 +551,7 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Import Complete!</h2>
             {assignCounsellorId !== '__none__' && (
               <p className="text-sm text-blue-600 mb-2">
-                Assigned to <strong>{counsellors.find(c => c.id === assignCounsellorId)?.full_name}</strong> — they've been notified.
+                Assigned to <strong>{counsellors.find(c => c.id === assignCounsellorId)?.full_name}</strong> — they&apos;ve been notified.
               </p>
             )}
             <div className="flex items-center justify-center gap-8 my-6">
