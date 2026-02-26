@@ -14,9 +14,9 @@ async function getProfile() {
   return profile
 }
 
-// POST — save or update the push subscription for the current user.
-// One subscription per user (onConflict: 'user_id') is sufficient when
-// each counsellor uses their own personal device.
+// POST — save or update a push subscription for this specific device.
+// Keyed by endpoint so a counsellor's phone and a shared college PC each
+// get their own row and both receive notifications simultaneously.
 export async function POST(request: NextRequest) {
   const profile = await getProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -26,21 +26,45 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
   await admin.from('push_subscriptions').upsert(
-    { user_id: profile.id, college_id: profile.college_id, subscription },
-    { onConflict: 'user_id' }
+    {
+      user_id: profile.id,
+      college_id: profile.college_id,
+      subscription,
+      endpoint: subscription.endpoint,
+    },
+    { onConflict: 'endpoint' }
   )
 
   return NextResponse.json({ success: true })
 }
 
-// DELETE — remove the push subscription for the current user.
-// Called on sign-out to clean up stale tokens (e.g. when switching phones).
-export async function DELETE() {
+// DELETE — remove only this device's push subscription on sign-out.
+// This prevents the next person who logs in on a shared PC from seeing
+// the previous user's notifications. The user's phone subscription
+// (different endpoint) is unaffected and keeps receiving notifications.
+export async function DELETE(request: NextRequest) {
   const profile = await getProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createAdminClient()
-  await admin.from('push_subscriptions').delete().eq('user_id', profile.id)
+
+  let endpoint: string | null = null
+  try {
+    const body = await request.json()
+    endpoint = body.endpoint ?? null
+  } catch {
+    // no body
+  }
+
+  if (endpoint) {
+    // Delete only this specific device's subscription
+    await admin.from('push_subscriptions').delete()
+      .eq('user_id', profile.id)
+      .eq('endpoint', endpoint)
+  } else {
+    // Fallback: delete all subscriptions for user (full opt-out)
+    await admin.from('push_subscriptions').delete().eq('user_id', profile.id)
+  }
 
   return NextResponse.json({ success: true })
 }

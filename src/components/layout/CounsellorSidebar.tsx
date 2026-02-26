@@ -67,7 +67,12 @@ export function CounsellorSidebar({ onClose }: Props) {
         const reg = await navigator.serviceWorker.getRegistration('/')
         const sub = await reg?.pushManager.getSubscription()
         if (sub) {
-          await fetch('/api/push/subscribe', { method: 'DELETE' })
+          // Delete only THIS device's subscription — not the user's phone
+          await fetch('/api/push/subscribe', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          })
           await sub.unsubscribe()
         }
       } catch {
