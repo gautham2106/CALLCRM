@@ -204,12 +204,25 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
     })
   }
 
+  // True when every lead on the current page is in the selection set
+  const allCurrentPageSelected = leads.length > 0 && leads.every((l) => selectedIds.has(l.id))
+
   const toggleSelectAll = () => {
-    if (selectedIds.size > 0) {
-      setSelectedIds(new Set())
+    if (allCurrentPageSelected) {
+      // Deselect only the current page — preserve other-page selections
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        leads.forEach((l) => next.delete(l.id))
+        return next
+      })
       setSelectAllMatching(false)
     } else {
-      setSelectedIds(new Set(leads.map((l) => l.id)))
+      // Add all current-page leads to the selection
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        leads.forEach((l) => next.add(l.id))
+        return next
+      })
     }
   }
 
@@ -610,7 +623,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
               <div className="flex items-center justify-between px-1">
                 <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
                   <Checkbox
-                    checked={selectedIds.size === leads.length && leads.length > 0}
+                    checked={allCurrentPageSelected}
                     onCheckedChange={toggleSelectAll}
                   />
                   Select page ({leads.length})
@@ -757,7 +770,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
                 <tr className="border-b border-gray-100 bg-gray-50/80">
                   <th className="w-10 px-4 py-3">
                     <Checkbox
-                      checked={selectedIds.size === leads.length && leads.length > 0}
+                      checked={allCurrentPageSelected}
                       onCheckedChange={toggleSelectAll}
                     />
                   </th>
