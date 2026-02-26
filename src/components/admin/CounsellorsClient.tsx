@@ -102,6 +102,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([])
   const [columnMap, setColumnMap] = useState<Record<string, string>>({})
   const [csvDuplicates, setCsvDuplicates] = useState<string[]>([])
+  const [csvImportableCount, setCsvImportableCount] = useState(0)
   const [csvImporting, setCsvImporting] = useState(false)
   const [csvResult, setCsvResult] = useState({ imported: 0, skipped: 0 })
   const [csvPreview, setCsvPreview] = useState<Record<string, string>[]>([])
@@ -114,6 +115,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     setCsvRows([])
     setColumnMap({})
     setCsvDuplicates([])
+    setCsvImportableCount(0)
     setCsvResult({ imported: 0, skipped: 0 })
     setCsvPreview([])
   }
@@ -242,15 +244,23 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       return
     }
 
-    const phones = csvRows.map((r) => r[phoneCol]).filter(Boolean)
+    // Deduplicate within the CSV first (first occurrence wins)
+    const seenInCsv = new Set<string>()
+    const uniquePhones: string[] = []
+    csvRows.forEach((r) => {
+      const p = r[phoneCol]
+      if (p && !seenInCsv.has(p)) { seenInCsv.add(p); uniquePhones.push(p) }
+    })
+
     const { data: existing } = await supabase
       .from('leads')
       .select('phone')
       .eq('college_id', collegeId)
-      .in('phone', phones)
+      .in('phone', uniquePhones)
 
     const existingPhones = new Set((existing || []).map((l: { phone: string }) => l.phone))
     setCsvDuplicates([...existingPhones])
+    setCsvImportableCount(uniquePhones.length - existingPhones.size)
 
     const preview = csvRows.slice(0, 5).map((row) => {
       const mapped: Record<string, string> = {}
@@ -268,7 +278,15 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     setCsvImporting(true)
     const phoneCol = columnMap['phone']
 
-    const toImport = csvRows.filter((row) => !csvDuplicates.includes(row[phoneCol]))
+    // Deduplicate within CSV (first occurrence wins) AND skip DB duplicates
+    const seenPhones = new Set<string>()
+    const toImport = csvRows.filter((row) => {
+      const phone = row[phoneCol]
+      if (!phone || csvDuplicates.includes(phone)) return false
+      if (seenPhones.has(phone)) return false
+      seenPhones.add(phone)
+      return true
+    })
     const leadsToInsert = toImport.map((row) => ({
       college_id: collegeId,
       name: row[columnMap['name']] || 'Unknown',
@@ -307,7 +325,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
           : c
       ))
 
-      setCsvResult({ imported, skipped: csvDuplicates.length })
+      setCsvResult({ imported, skipped: csvRows.length - imported })
       setCsvStep('done')
       toast({ title: 'Import complete', description: `${imported} leads assigned to ${addLeadsTarget.name}.`, variant: 'success' })
     } catch {
@@ -761,15 +779,16 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
               {/* Step 3: Preview */}
               {csvStep === 'preview' && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-4 text-sm flex-wrap">
                     <span className="flex items-center gap-1.5 text-green-600 font-medium">
                       <CheckCircle className="h-4 w-4" />
-                      {csvRows.length - csvDuplicates.length} to import
+                      {csvImportableCount} to import
                     </span>
-                    {csvDuplicates.length > 0 && (
+                    {csvRows.length - csvImportableCount > 0 && (
                       <span className="flex items-center gap-1.5 text-orange-500 font-medium">
                         <X className="h-4 w-4" />
-                        {csvDuplicates.length} duplicates skipped
+                        {csvRows.length - csvImportableCount} skipped
+                        {csvDuplicates.length > 0 && ` (${csvDuplicates.length} already in system${csvRows.length - csvImportableCount - csvDuplicates.length > 0 ? `, ${csvRows.length - csvImportableCount - csvDuplicates.length} duplicate rows in file` : ''})`}
                       </span>
                     )}
                   </div>
@@ -786,7 +805,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                     <Button variant="outline" size="sm" onClick={() => setCsvStep('map')}>Back</Button>
                     <Button size="sm" onClick={handleCsvImport} disabled={csvImporting}>
                       {csvImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
-                      Import {csvRows.length - csvDuplicates.length} Leads
+                      Import {csvImportableCount} Leads
                     </Button>
                   </div>
                 </div>

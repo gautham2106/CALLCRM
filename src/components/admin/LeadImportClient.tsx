@@ -50,6 +50,7 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
   const [columnMap, setColumnMap] = useState<Record<string, string>>({})
   const [previewData, setPreviewData] = useState<Record<string, string>[]>([])
   const [duplicates, setDuplicates] = useState<string[]>([])
+  const [importableCount, setImportableCount] = useState(0)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState({ imported: 0, skipped: 0 })
   const [assignCounsellorId, setAssignCounsellorId] = useState<string>('__none__')
@@ -98,16 +99,24 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
       return
     }
 
-    // Check for duplicates
-    const phones = csvRows.map((r) => r[phoneCol]).filter(Boolean)
+    // Deduplicate within the CSV first (first occurrence wins)
+    const seenInCsv = new Set<string>()
+    const uniquePhones: string[] = []
+    csvRows.forEach((r) => {
+      const p = r[phoneCol]
+      if (p && !seenInCsv.has(p)) { seenInCsv.add(p); uniquePhones.push(p) }
+    })
+
+    // Check unique phones against DB
     const { data: existing } = await supabase
       .from('leads')
       .select('phone')
       .eq('college_id', collegeId)
-      .in('phone', phones)
+      .in('phone', uniquePhones)
 
     const existingPhones = new Set((existing || []).map((l: { phone: string }) => l.phone))
     setDuplicates([...existingPhones])
+    setImportableCount(uniquePhones.length - existingPhones.size)
 
     const preview = csvRows.slice(0, 5).map((row) => {
       const mapped: Record<string, string> = {}
@@ -128,9 +137,14 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
     const nameCol = columnMap['name']
     const phoneCol = columnMap['phone']
 
+    // Deduplicate within CSV (first occurrence wins) AND skip DB duplicates
+    const seenPhones = new Set<string>()
     const toImport = csvRows.filter((row) => {
       const phone = row[phoneCol]
-      return !duplicates.includes(phone)
+      if (!phone || duplicates.includes(phone)) return false
+      if (seenPhones.has(phone)) return false
+      seenPhones.add(phone)
+      return true
     })
 
     const counsellorId = assignCounsellorId !== '__none__' ? assignCounsellorId : null
@@ -167,7 +181,7 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
         })
       }
 
-      setImportResult({ imported, skipped: duplicates.length })
+      setImportResult({ imported, skipped: csvRows.length - imported })
       setStep('done')
     } catch {
       toast({ title: 'Import failed', description: 'Something went wrong during import.', variant: 'destructive' })
@@ -289,12 +303,12 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
               <div className="flex items-center gap-6 mb-4">
                 <div className="flex items-center gap-2 text-green-600">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-semibold">{csvRows.length - duplicates.length} leads to import</span>
+                  <span className="font-semibold">{importableCount} leads to import</span>
                 </div>
-                {duplicates.length > 0 && (
+                {csvRows.length - importableCount > 0 && (
                   <div className="flex items-center gap-2 text-orange-500">
                     <AlertTriangle className="h-5 w-5" />
-                    <span className="font-semibold">{duplicates.length} duplicates will be skipped</span>
+                    <span className="font-semibold">{csvRows.length - importableCount} skipped ({duplicates.length} already in system{csvRows.length - importableCount - duplicates.length > 0 ? `, ${csvRows.length - importableCount - duplicates.length} duplicate rows in file` : ''})</span>
                   </div>
                 )}
               </div>
@@ -318,7 +332,7 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
                   </Select>
                   {assignCounsellorId !== '__none__' && (
                     <p className="text-xs text-blue-600 mt-1.5">
-                      All {csvRows.length - duplicates.length} leads will be assigned to this counsellor and they will be notified.
+                      All {importableCount} leads will be assigned to this counsellor and they will be notified.
                     </p>
                   )}
                 </div>
@@ -363,7 +377,7 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
               ) : (
                 <>
                   <Upload className="h-4 w-4" />
-                  Import {csvRows.length - duplicates.length} Leads
+                  Import {importableCount} Leads
                 </>
               )}
             </Button>
