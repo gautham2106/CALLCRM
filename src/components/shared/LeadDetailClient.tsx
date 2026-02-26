@@ -45,6 +45,7 @@ interface Lead {
   email: string | null
   city: string | null
   course_interest: string | null
+  course_id: string | null
   source_id: string | null
   source_name: string | null
   current_lead_stage: string
@@ -93,6 +94,7 @@ interface Props {
   fieldValues: Record<string, string>
   counsellors: { id: string; name: string; email: string }[]
   sources?: { id: string; source_name: string }[]
+  courses?: { id: string; course_name: string }[]
   currentUserId: string
   collegeId: string
   userRole: 'admin' | 'counsellor'
@@ -106,6 +108,7 @@ export function LeadDetailClient({
   fieldValues: initialFieldValues,
   counsellors,
   sources = [],
+  courses = [],
   currentUserId,
   collegeId,
   userRole,
@@ -155,6 +158,7 @@ export function LeadDetailClient({
       email: lead.email,
       city: lead.city,
       course_interest: lead.course_interest,
+      course_id: lead.course_id || null,
     }
 
     if (userRole === 'admin') {
@@ -397,11 +401,35 @@ export function LeadDetailClient({
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Course Interest</Label>
-                    <Input
-                      value={lead.course_interest || ''}
-                      onChange={(e) => setLead({ ...lead, course_interest: e.target.value })}
-                      placeholder="MBA, B.Tech..."
-                    />
+                    {courses.length > 0 ? (
+                      <Select
+                        value={lead.course_id || '__none__'}
+                        onValueChange={(val) => {
+                          const c = courses.find((x) => x.id === val)
+                          setLead({
+                            ...lead,
+                            course_id: val === '__none__' ? null : val,
+                            course_interest: c?.course_name || null,
+                          })
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select course..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— No Course —</SelectItem>
+                          {courses.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={lead.course_interest || ''}
+                        onChange={(e) => setLead({ ...lead, course_interest: e.target.value })}
+                        placeholder="MBA, B.Tech..."
+                      />
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Source</Label>

@@ -23,6 +23,11 @@ interface LeadSource {
   source_name: string
 }
 
+interface LeadCourse {
+  id: string
+  course_name: string
+}
+
 interface SlideLeadData {
   id: string
   name: string
@@ -30,6 +35,7 @@ interface SlideLeadData {
   email: string | null
   city: string | null
   course_interest: string | null
+  course_id: string | null
   source_id: string | null
   source_name: string | null
   current_lead_stage: string
@@ -62,6 +68,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
   const [lead, setLead] = useState<SlideLeadData | null>(null)
   const [diary, setDiary] = useState<CallEntry[]>([])
   const [sources, setSources] = useState<LeadSource[]>([])
+  const [courses, setCourses] = useState<LeadCourse[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loggingCall, setLoggingCall] = useState(false)
@@ -72,10 +79,10 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
 
   const fetchData = useCallback(async (id: string) => {
     setLoading(true)
-    const [{ data: leadData }, { data: diaryData }, { data: sourcesData }] = await Promise.all([
+    const [{ data: leadData }, { data: diaryData }, { data: sourcesData }, { data: coursesData }] = await Promise.all([
       supabase
         .from('leads')
-        .select('id, name, phone, email, city, course_interest, source_id, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
+        .select('id, name, phone, email, city, course_interest, course_id, source_id, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
         .eq('id', id)
         .single(),
       supabase
@@ -90,6 +97,12 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
         .eq('college_id', collegeId)
         .eq('is_active', true)
         .order('source_name'),
+      supabase
+        .from('courses')
+        .select('id, course_name')
+        .eq('college_id', collegeId)
+        .eq('is_active', true)
+        .order('course_name'),
     ])
 
     if (leadData) {
@@ -100,6 +113,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
     }
 
     if (sourcesData) setSources(sourcesData as LeadSource[])
+    if (coursesData) setCourses(coursesData as LeadCourse[])
 
     if (diaryData && diaryData.length > 0) {
       const callerIds = [...new Set((diaryData as any[]).map((d) => d.called_by).filter(Boolean))]
@@ -142,6 +156,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
         email: lead.email,
         city: lead.city,
         course_interest: lead.course_interest,
+        course_id: lead.course_id || null,
         source_id: lead.source_id,
         source_name: lead.source_name,
         current_lead_stage: lead.current_lead_stage,
@@ -329,7 +344,27 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Course Interest</Label>
-                      <Input value={lead.course_interest || ''} onChange={(e) => setLead({ ...lead, course_interest: e.target.value })} placeholder="MBA, B.Tech..." />
+                      {courses.length > 0 ? (
+                        <Select
+                          value={lead.course_id || '__none__'}
+                          onValueChange={(val) => {
+                            const c = courses.find((x) => x.id === val)
+                            setLead({
+                              ...lead,
+                              course_id: val === '__none__' ? null : val,
+                              course_interest: c?.course_name || null,
+                            })
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— No course —</SelectItem>
+                            {courses.map((c) => <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input value={lead.course_interest || ''} onChange={(e) => setLead({ ...lead, course_interest: e.target.value })} placeholder="MBA, B.Tech..." />
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Source</Label>

@@ -20,11 +20,12 @@ export default async function AdminLeadDetailPage({
     { data: customFieldValues },
     { data: counsellors },
     { data: sources },
+    { data: courses },
   ] = await Promise.all([
     supabase
       .from('leads')
       .select(`
-        id, name, phone, email, city, course_interest, source_id, source_name,
+        id, name, phone, email, city, course_interest, course_id, source_id, source_name,
         current_lead_stage, current_call_stage, visit_date, follow_up_date,
         notes, is_active, created_at, updated_at, assigned_to,
         assigned_user:users!leads_assigned_to_fkey(id, name, email)
@@ -71,6 +72,11 @@ export default async function AdminLeadDetailPage({
       .select('id, source_name')
       .eq('college_id', user.college_id!)
       .eq('is_active', true),
+    supabase
+      .from('courses')
+      .select('id, course_name')
+      .eq('college_id', user.college_id!)
+      .eq('is_active', true),
   ])
 
   if (!lead) notFound()
@@ -88,6 +94,7 @@ export default async function AdminLeadDetailPage({
       fieldValues={fieldValues}
       counsellors={(counsellors || []) as any}
       sources={(sources || []) as any}
+      courses={(courses || []) as any}
       currentUserId={user.id}
       collegeId={user.college_id!}
       userRole="admin"

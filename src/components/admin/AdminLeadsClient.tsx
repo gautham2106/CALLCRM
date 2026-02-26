@@ -49,6 +49,7 @@ interface Lead {
   email: string | null
   city: string | null
   course_interest: string | null
+  course_id: string | null
   source_name: string | null
   current_lead_stage: string
   current_call_stage: string | null
@@ -64,13 +65,14 @@ interface Props {
   initialLeads: Lead[]
   counsellors: { id: string; name: string; email: string }[]
   sources: { id: string; source_name: string }[]
+  courses: { id: string; course_name: string }[]
   collegeId: string
   adminId: string
 }
 
-const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', notes: '' }
+const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
-export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId, adminId }: Props) {
+export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, collegeId, adminId }: Props) {
   const supabase = createClient()
   const [leads, setLeads] = useState(initialLeads)
   const [search, setSearch] = useState('')
@@ -82,6 +84,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
   const [sourceFilter, setSourceFilter] = useState('all')
+  const [courseFilter, setCourseFilter] = useState('all')
 
   // Assignment state
   const [showAssignDialog, setShowAssignDialog] = useState(false)
@@ -126,8 +129,12 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
         result = result.filter((l) => l.source_name === sName)
       }
     }
+    if (courseFilter !== 'all') {
+      if (courseFilter === '__none__') result = result.filter((l) => !l.course_id)
+      else result = result.filter((l) => l.course_id === courseFilter)
+    }
     return result
-  }, [leads, search, stageFilter, counsellorFilter, sourceFilter, activeTab, sources])
+  }, [leads, search, stageFilter, counsellorFilter, sourceFilter, courseFilter, activeTab, sources])
 
   const PAGE_SIZE = 50
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
@@ -177,6 +184,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
     setAddingLead(true)
     try {
       const source = sources.find((s) => s.id === leadForm.source_id)
+      const course = courses.find((c) => c.id === leadForm.course_id)
       const res = await fetch('/api/admin/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -184,6 +192,8 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
           ...leadForm,
           source_name: source?.source_name || null,
           source_id: leadForm.source_id || null,
+          course_id: leadForm.course_id || null,
+          course_interest: course?.course_name || null,
         }),
       })
       const json = await res.json()
@@ -490,9 +500,21 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                 </SelectContent>
               </Select>
             )}
-            {(search || stageFilter !== 'all' || counsellorFilter !== 'all' || sourceFilter !== 'all') && (
+            {courses.length > 0 && (
+              <Select value={courseFilter} onValueChange={(v) => { setCourseFilter(v); resetPage() }}>
+                <SelectTrigger className="w-full sm:w-40 h-9">
+                  <SelectValue placeholder="Course" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Courses</SelectItem>
+                  <SelectItem value="__none__">No Course</SelectItem>
+                  {courses.map((c) => <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {(search || stageFilter !== 'all' || counsellorFilter !== 'all' || sourceFilter !== 'all' || courseFilter !== 'all') && (
               <button
-                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all'); resetPage() }}
+                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all'); setCourseFilter('all'); resetPage() }}
                 className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 Clear
@@ -864,15 +886,21 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                 placeholder="Chennai"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="lead-course">Course Interest</Label>
-              <Input
-                id="lead-course"
-                value={leadForm.course_interest}
-                onChange={(e) => setLeadForm({ ...leadForm, course_interest: e.target.value })}
-                placeholder="B.Tech CSE"
-              />
-            </div>
+            {courses.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Course Interest</Label>
+                <Select value={leadForm.course_id} onValueChange={(v) => setLeadForm({ ...leadForm, course_id: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select course" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courses.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {sources.length > 0 && (
               <div className="space-y-1.5">
                 <Label>Source</Label>

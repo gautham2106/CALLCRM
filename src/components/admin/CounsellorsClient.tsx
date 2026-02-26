@@ -49,22 +49,22 @@ interface Props {
   collegeId: string
   adminId: string
   sources: { id: string; source_name: string }[]
+  courses: { id: string; course_name: string }[]
   customFields: CustomFieldDef[]
   unassignedCount: number
 }
 
-// Static mappable fields — source removed (it's a batch-level dropdown, not per-row)
+// Static mappable fields — source + course are batch-level dropdowns, not per-row
 const STATIC_CSV_FIELDS = [
-  { key: 'name',            label: 'Name',                    required: true  },
-  { key: 'phone',           label: 'Phone',                   required: true  },
-  { key: 'email',           label: 'Email',                   required: false },
-  { key: 'city',            label: 'City',                    required: false },
-  { key: 'course_interest', label: 'Course Interest',         required: false },
-  { key: 'visit_date',      label: 'Visit Date (YYYY-MM-DD)', required: false },
-  { key: 'notes',           label: 'Notes',                   required: false },
+  { key: 'name',       label: 'Name',                    required: true  },
+  { key: 'phone',      label: 'Phone',                   required: true  },
+  { key: 'email',      label: 'Email',                   required: false },
+  { key: 'city',       label: 'City',                    required: false },
+  { key: 'visit_date', label: 'Visit Date (YYYY-MM-DD)', required: false },
+  { key: 'notes',      label: 'Notes',                   required: false },
 ]
 
-const EMPTY_SINGLE = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', notes: '' }
+const EMPTY_SINGLE = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
 type SortKey = 'enrolled' | 'conversion' | 'assigned' | 'notCalled' | 'interested'
 
@@ -90,7 +90,7 @@ function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): num
   }
 }
 
-export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sources, customFields, unassignedCount }: Props) {
+export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sources, courses, customFields, unassignedCount }: Props) {
   const supabase = createClient()
   const today = new Date().toISOString().split('T')[0]
 
@@ -125,6 +125,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const [csvResult, setCsvResult] = useState({ imported: 0, skipped: 0 })
   const [csvPreview, setCsvPreview] = useState<Record<string, string>[]>([])
   const [csvSelectedSourceId, setCsvSelectedSourceId] = useState<string>('__none__')
+  const [csvSelectedCourseId, setCsvSelectedCourseId] = useState<string>('__none__')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const resetAddLeads = () => {
@@ -139,6 +140,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     setCsvResult({ imported: 0, skipped: 0 })
     setCsvPreview([])
     setCsvSelectedSourceId('__none__')
+    setCsvSelectedCourseId('__none__')
   }
 
   const openAddLeads = (c: Counsellor) => {
@@ -195,6 +197,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     setAddingSingle(true)
     try {
       const source = sources.find((s) => s.id === singleForm.source_id)
+      const course = courses.find((c) => c.id === singleForm.course_id)
       const res = await fetch('/api/admin/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -202,6 +205,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
           ...singleForm,
           source_name: source?.source_name || null,
           source_id: singleForm.source_id || null,
+          course_id: singleForm.course_id || null,
+          course_interest: course?.course_name || null,
           assigned_to: addLeadsTarget.id,
         }),
       })
@@ -334,6 +339,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     setCsvImporting(true)
     const phoneCol = columnMap['phone']
     const sourceEntry = csvSelectedSourceId !== '__none__' ? sources.find((s) => s.id === csvSelectedSourceId) : null
+    const courseEntry = csvSelectedCourseId !== '__none__' ? courses.find((c) => c.id === csvSelectedCourseId) : null
 
     const seenPhones = new Set<string>()
     const toImport = csvRows.filter((row) => {
@@ -347,12 +353,13 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       college_id: collegeId,
       name: row[columnMap['name']] || 'Unknown',
       phone: row[columnMap['phone']],
-      email:           columnMap['email']           ? row[columnMap['email']]           || null : null,
-      city:            columnMap['city']            ? row[columnMap['city']]            || null : null,
-      course_interest: columnMap['course_interest'] ? row[columnMap['course_interest']] || null : null,
-      visit_date:      columnMap['visit_date']      ? row[columnMap['visit_date']]      || null : null,
-      notes:           columnMap['notes']           ? row[columnMap['notes']]           || null : null,
+      email:      columnMap['email']      ? row[columnMap['email']]      || null : null,
+      city:       columnMap['city']       ? row[columnMap['city']]       || null : null,
+      visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
+      notes:      columnMap['notes']      ? row[columnMap['notes']]      || null : null,
       source_id:   sourceEntry?.id          ?? null,
+      course_id:       courseEntry?.id          ?? null,
+      course_interest: courseEntry?.course_name ?? null,
       source_name: sourceEntry?.source_name ?? null,
       assigned_to: addLeadsTarget.id,
       created_by: adminId,
@@ -799,10 +806,17 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                     <Label>City</Label>
                     <Input value={singleForm.city} onChange={(e) => setSingleForm({ ...singleForm, city: e.target.value })} placeholder="Mumbai" />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Course Interest</Label>
-                    <Input value={singleForm.course_interest} onChange={(e) => setSingleForm({ ...singleForm, course_interest: e.target.value })} placeholder="B.Tech CSE" />
-                  </div>
+                  {courses.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label>Course Interest</Label>
+                      <Select value={singleForm.course_id} onValueChange={(v) => setSingleForm({ ...singleForm, course_id: v })}>
+                        <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                        <SelectContent>
+                          {courses.map((c) => <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   {sources.length > 0 && (
                     <div className="space-y-1.5">
                       <Label>Source</Label>
@@ -969,6 +983,26 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                           <SelectItem value="__none__">— No source —</SelectItem>
                           {sources.map((s) => (
                             <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Course dropdown — batch-level, not per-row */}
+                  {courses.length > 0 && (
+                    <div className="pt-2 border-t border-gray-100">
+                      <Label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                        Course Interest <span className="text-gray-400 font-normal">(optional — applied to all leads)</span>
+                      </Label>
+                      <Select value={csvSelectedCourseId} onValueChange={setCsvSelectedCourseId}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select course..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— No course —</SelectItem>
+                          {courses.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

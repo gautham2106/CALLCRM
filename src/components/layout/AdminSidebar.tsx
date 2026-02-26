@@ -12,6 +12,7 @@ import {
   LogOut,
   GraduationCap,
   ChevronRight,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -23,6 +24,7 @@ const navItems = [
   { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck },
   { href: '/admin/super-fields', label: 'Super Fields', icon: Sliders },
   { href: '/admin/sources', label: 'Lead Sources', icon: Tags },
+  { href: '/admin/courses', label: 'Courses', icon: BookOpen },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ]
 

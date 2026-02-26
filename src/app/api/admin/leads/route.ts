@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { name, email, city, course_interest, source_id, source_name, notes, assigned_to, visit_date } = body
+  const { name, email, city, course_interest, course_id, source_id, source_name, notes, assigned_to, visit_date } = body
   // Normalize phone: trim whitespace so "9876543210" and " 9876543210 " are treated the same
   const phone: string = (body.phone ?? '').trim()
 
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       email: email || null,
       city: city || null,
       course_interest: course_interest || null,
+      course_id: course_id || null,
       source_id: source_id || null,
       source_name: source_name || null,
       notes: notes || null,
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       current_lead_stage: 'New Enquiry',
     })
     .select(`
-      id, name, phone, email, city, course_interest, source_name,
+      id, name, phone, email, city, course_interest, course_id, source_name,
       current_lead_stage, current_call_stage, visit_date, follow_up_date,
       is_active, created_at, updated_at, assigned_to,
       assigned_user:users!leads_assigned_to_fkey(id, name, email)

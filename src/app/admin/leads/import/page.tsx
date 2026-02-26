@@ -6,10 +6,15 @@ export default async function ImportLeadsPage() {
   const user = await requireAdmin()
   const supabase = createAdminClient()
 
-  const [{ data: sources }, { data: counsellors }, { data: customFields }] = await Promise.all([
+  const [{ data: sources }, { data: courses }, { data: counsellors }, { data: customFields }] = await Promise.all([
     supabase
       .from('lead_sources')
       .select('id, source_name')
+      .eq('college_id', user.college_id!)
+      .eq('is_active', true),
+    supabase
+      .from('courses')
+      .select('id, course_name')
       .eq('college_id', user.college_id!)
       .eq('is_active', true),
     supabase
@@ -32,6 +37,7 @@ export default async function ImportLeadsPage() {
       collegeId={user.college_id!}
       adminId={user.id}
       sources={sources || []}
+      courses={courses || []}
       counsellors={counsellors || []}
       customFields={customFields || []}
     />

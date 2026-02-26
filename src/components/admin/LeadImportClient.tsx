@@ -18,15 +18,14 @@ import {
   Loader2,
 } from 'lucide-react'
 
-// Static lead fields that are always mappable (source removed — it's a batch-level dropdown)
+// Static lead fields that are always mappable (source + course are batch-level dropdowns)
 const STATIC_FIELDS = [
-  { key: 'name',            label: 'Name',                    required: true  },
-  { key: 'phone',           label: 'Phone',                   required: true  },
-  { key: 'email',           label: 'Email',                   required: false },
-  { key: 'city',            label: 'City',                    required: false },
-  { key: 'course_interest', label: 'Course Interest',         required: false },
-  { key: 'visit_date',      label: 'Visit Date (YYYY-MM-DD)', required: false },
-  { key: 'notes',           label: 'Notes',                   required: false },
+  { key: 'name',       label: 'Name',                    required: true  },
+  { key: 'phone',      label: 'Phone',                   required: true  },
+  { key: 'email',      label: 'Email',                   required: false },
+  { key: 'city',       label: 'City',                    required: false },
+  { key: 'visit_date', label: 'Visit Date (YYYY-MM-DD)', required: false },
+  { key: 'notes',      label: 'Notes',                   required: false },
 ]
 
 interface CustomFieldDef {
@@ -40,13 +39,14 @@ interface Props {
   collegeId: string
   adminId: string
   sources: { id: string; source_name: string }[]
+  courses: { id: string; course_name: string }[]
   counsellors: { id: string; full_name: string }[]
   customFields: CustomFieldDef[]
 }
 
 type Step = 'upload' | 'map' | 'preview' | 'done'
 
-export function LeadImportClient({ collegeId, adminId, sources, counsellors, customFields }: Props) {
+export function LeadImportClient({ collegeId, adminId, sources, courses, counsellors, customFields }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -62,6 +62,7 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors, cus
   const [importResult, setImportResult] = useState({ imported: 0, skipped: 0 })
   const [assignCounsellorId, setAssignCounsellorId] = useState<string>('__none__')
   const [selectedSourceId, setSelectedSourceId] = useState<string>('__none__')
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('__none__')
 
   // All mappable fields: static + custom
   const allFields = useMemo(() => [
@@ -198,18 +199,20 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors, cus
 
     const counsellorId = assignCounsellorId !== '__none__' ? assignCounsellorId : null
     const sourceEntry = selectedSourceId !== '__none__' ? sources.find((s) => s.id === selectedSourceId) : null
+    const courseEntry = selectedCourseId !== '__none__' ? courses.find((c) => c.id === selectedCourseId) : null
 
     const leadsToInsert = toImport.map((row) => ({
       college_id: collegeId,
       name: row[nameCol] || 'Unknown',
       phone: row[phoneCol],
-      email:           columnMap['email']           ? row[columnMap['email']]           || null : null,
-      city:            columnMap['city']            ? row[columnMap['city']]            || null : null,
-      course_interest: columnMap['course_interest'] ? row[columnMap['course_interest']] || null : null,
-      visit_date:      columnMap['visit_date']      ? row[columnMap['visit_date']]      || null : null,
-      notes:           columnMap['notes']           ? row[columnMap['notes']]           || null : null,
-      source_id:   sourceEntry?.id           ?? null,
-      source_name: sourceEntry?.source_name  ?? null,
+      email:      columnMap['email']      ? row[columnMap['email']]      || null : null,
+      city:       columnMap['city']       ? row[columnMap['city']]       || null : null,
+      visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
+      notes:      columnMap['notes']      ? row[columnMap['notes']]      || null : null,
+      source_id:      sourceEntry?.id          ?? null,
+      source_name:    sourceEntry?.source_name ?? null,
+      course_id:      courseEntry?.id          ?? null,
+      course_interest: courseEntry?.course_name ?? null,
       created_by: adminId,
       ...(counsellorId ? { assigned_to: counsellorId } : {}),
     }))
@@ -465,6 +468,25 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors, cus
                         <SelectItem value="__none__">— No source —</SelectItem>
                         {sources.map((s) => (
                           <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {courses.length > 0 && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                      Course Interest <span className="text-gray-400 font-normal">(optional — applied to all imported leads)</span>
+                    </Label>
+                    <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
+                      <SelectTrigger className="max-w-xs">
+                        <SelectValue placeholder="Select course..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— No course —</SelectItem>
+                        {courses.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
