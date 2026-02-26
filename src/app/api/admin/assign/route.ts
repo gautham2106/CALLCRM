@@ -24,6 +24,16 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
+  // Validate the counsellor belongs to the same college as this admin
+  const { data: counsellor } = await admin
+    .from('users')
+    .select('id, college_id')
+    .eq('id', counsellorId)
+    .single()
+  if (!counsellor || counsellor.college_id !== profile.college_id) {
+    return NextResponse.json({ error: 'Counsellor not found in your college' }, { status: 403 })
+  }
+
   // Fetch current assignment state for history
   const { data: currentLeads } = await admin
     .from('leads')
@@ -122,6 +132,17 @@ export async function PATCH(request: NextRequest) {
   }
 
   const admin = createAdminClient()
+
+  // Validate all counsellors belong to the same college as this admin
+  const counsellorIds = counsellors.map((c: { id: string }) => c.id)
+  const { data: validCounsellors } = await admin
+    .from('users')
+    .select('id, college_id')
+    .in('id', counsellorIds)
+    .eq('college_id', profile.college_id)
+  if (!validCounsellors || validCounsellors.length !== counsellorIds.length) {
+    return NextResponse.json({ error: 'One or more counsellors not found in your college' }, { status: 403 })
+  }
 
   const { data: currentLeads } = await admin
     .from('leads')

@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -214,31 +215,65 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     }
   }
 
-  // CSV parse
-  const handleCsvFile = (file: File) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (result) => {
-        const headers = result.meta.fields || []
-        const rows = result.data as Record<string, string>[]
-        setCsvHeaders(headers)
-        setCsvRows(rows)
+  // Parse and apply headers/rows regardless of file type
+  const applyParsedData = (headers: string[], rows: Record<string, string>[]) => {
+    const trimmedHeaders = headers.map((h) => h.trim())
+    setCsvHeaders(trimmedHeaders)
+    setCsvRows(rows)
 
-        const autoMap: Record<string, string> = {}
-        CSV_FIELDS.forEach((field) => {
-          const match = headers.find(
-            (h) =>
-              h.toLowerCase().includes(field.key.toLowerCase()) ||
-              h.toLowerCase().includes(field.label.toLowerCase().split(' ')[0])
-          )
-          if (match) autoMap[field.key] = match
-        })
-        setColumnMap(autoMap)
-        setCsvStep('map')
-      },
-      error: () => toast({ title: 'Parse error', description: 'Could not read the CSV file.', variant: 'destructive' }),
+    const autoMap: Record<string, string> = {}
+    CSV_FIELDS.forEach((field) => {
+      const match = trimmedHeaders.find(
+        (h) =>
+          h.toLowerCase().includes(field.key.toLowerCase()) ||
+          h.toLowerCase().includes(field.label.toLowerCase().split(' ')[0])
+      )
+      if (match) autoMap[field.key] = match
     })
+    setColumnMap(autoMap)
+    setCsvStep('map')
+  }
+
+  // CSV / Excel parse
+  const handleCsvFile = (file: File) => {
+    const name = file.name.toLowerCase()
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result
+          const workbook = XLSX.read(data, { type: 'binary' })
+          const sheet = workbook.Sheets[workbook.SheetNames[0]]
+          const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as string[][]
+          if (!raw.length) {
+            toast({ title: 'Empty file', description: 'The Excel file has no data.', variant: 'destructive' })
+            return
+          }
+          const headers = raw[0].map((h) => String(h ?? ''))
+          const rows = raw.slice(1)
+            .filter((r) => r.some((v) => v !== null && v !== undefined && String(v).trim() !== ''))
+            .map((r) => {
+              const obj: Record<string, string> = {}
+              headers.forEach((h, i) => { obj[h] = String(r[i] ?? '') })
+              return obj
+            })
+          applyParsedData(headers, rows)
+        } catch {
+          toast({ title: 'Parse error', description: 'Could not read the Excel file.', variant: 'destructive' })
+        }
+      }
+      reader.onerror = () => toast({ title: 'Read error', description: 'Could not open the file.', variant: 'destructive' })
+      reader.readAsBinaryString(file)
+    } else {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          applyParsedData(result.meta.fields || [], result.data as Record<string, string>[])
+        },
+        error: () => toast({ title: 'Parse error', description: 'Could not read the CSV file.', variant: 'destructive' }),
+      })
+    }
   }
 
   const generateCsvPreview = async () => {
@@ -310,10 +345,19 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     try {
       const batchSize = 100
       let imported = 0
+      let failed = 0
       for (let i = 0; i < leadsToInsert.length; i += batchSize) {
         const batch = leadsToInsert.slice(i, i + batchSize)
         const { data: inserted, error: batchError } = await supabase.from('leads').insert(batch).select('id')
-        if (!batchError && inserted) imported += inserted.length
+        if (batchError || !inserted) {
+          failed += batch.length
+        } else {
+          imported += inserted.length
+        }
+      }
+
+      if (imported === 0 && failed > 0) {
+        throw new Error(`All ${failed} leads failed to save. Please try again.`)
       }
 
       // Update counsellor's lead count
@@ -333,9 +377,14 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
 
       setCsvResult({ imported, skipped: csvRows.length - imported })
       setCsvStep('done')
-      toast({ title: 'Import complete', description: `${imported} leads assigned to ${addLeadsTarget.name}.`, variant: 'success' })
-    } catch {
-      toast({ title: 'Import failed', description: 'Something went wrong during import.', variant: 'destructive' })
+      if (failed > 0) {
+        toast({ title: 'Partial import', description: `${imported} leads imported, ${failed} could not be saved.`, variant: 'destructive' })
+      } else {
+        toast({ title: 'Import complete', description: `${imported} leads assigned to ${addLeadsTarget.name}.`, variant: 'success' })
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Something went wrong during import.'
+      toast({ title: 'Import failed', description: message, variant: 'destructive' })
     } finally {
       setCsvImporting(false)
     }
@@ -762,14 +811,21 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   <div
                     className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.name.endsWith('.csv')) handleCsvFile(f) }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      const f = e.dataTransfer.files[0]
+                      if (f) {
+                        const n = f.name.toLowerCase()
+                        if (n.endsWith('.csv') || n.endsWith('.xlsx') || n.endsWith('.xls')) handleCsvFile(f)
+                      }
+                    }}
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-600 font-medium text-sm">Drop CSV file here or click to browse</p>
-                    <p className="text-gray-400 text-xs mt-1">Name and Phone are required columns</p>
+                    <p className="text-gray-600 font-medium text-sm">Drop CSV or Excel file here or click to browse</p>
+                    <p className="text-gray-400 text-xs mt-1">Supports .csv, .xlsx, .xls — Name and Phone required</p>
                   </div>
-                  <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleCsvFile(e.target.files[0])} />
+                  <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => e.target.files?.[0] && handleCsvFile(e.target.files[0])} />
                   <div className="mt-3 p-3 bg-green-50 rounded-lg text-xs text-green-700 flex items-center gap-2">
                     <CheckCircle className="h-3.5 w-3.5 shrink-0" />
                     All imported leads will be assigned to {addLeadsTarget?.name}

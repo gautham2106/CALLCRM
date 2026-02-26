@@ -772,12 +772,14 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                 )}
               </span>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setShowAll((v) => !v); setPage(0) }}
-                  className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
-                >
-                  {showAll ? 'Paginate' : `Show all ${filtered.length}`}
-                </button>
+                {(showAll || filtered.length > PAGE_SIZE) && (
+                  <button
+                    onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                    className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                  >
+                    {showAll ? 'Paginate' : `Show all ${filtered.length}`}
+                  </button>
+                )}
                 {!showAll && totalPages > 1 && (
                   <div className="flex items-center gap-1">
                     <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>

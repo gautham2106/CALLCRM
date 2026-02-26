@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -55,39 +56,76 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
   const [importResult, setImportResult] = useState({ imported: 0, skipped: 0 })
   const [assignCounsellorId, setAssignCounsellorId] = useState<string>('__none__')
 
-  const handleFileUpload = (file: File) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (result) => {
-        const headers = result.meta.fields || []
-        const rows = result.data as Record<string, string>[]
-        setCsvHeaders(headers)
-        setCsvRows(rows)
+  const applyParsedData = (headers: string[], rows: Record<string, string>[]) => {
+    const trimmedHeaders = headers.map((h) => h.trim())
+    setCsvHeaders(trimmedHeaders)
+    setCsvRows(rows)
 
-        // Auto-map columns
-        const autoMap: Record<string, string> = {}
-        LEAD_FIELDS.forEach((field) => {
-          const match = headers.find(
-            (h) =>
-              h.toLowerCase().includes(field.key.toLowerCase()) ||
-              h.toLowerCase().includes(field.label.toLowerCase().split(' ')[0])
-          )
-          if (match) autoMap[field.key] = match
-        })
-        setColumnMap(autoMap)
-        setStep('map')
-      },
-      error: () => {
-        toast({ title: 'Parse error', description: 'Could not read the CSV file.', variant: 'destructive' })
-      },
+    const autoMap: Record<string, string> = {}
+    LEAD_FIELDS.forEach((field) => {
+      const match = trimmedHeaders.find(
+        (h) =>
+          h.toLowerCase().includes(field.key.toLowerCase()) ||
+          h.toLowerCase().includes(field.label.toLowerCase().split(' ')[0])
+      )
+      if (match) autoMap[field.key] = match
     })
+    setColumnMap(autoMap)
+    setStep('map')
+  }
+
+  const handleFileUpload = (file: File) => {
+    const name = file.name.toLowerCase()
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result
+          const workbook = XLSX.read(data, { type: 'binary' })
+          const sheet = workbook.Sheets[workbook.SheetNames[0]]
+          const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as string[][]
+          if (!raw.length) {
+            toast({ title: 'Empty file', description: 'The Excel file has no data.', variant: 'destructive' })
+            return
+          }
+          const headers = raw[0].map((h) => String(h ?? ''))
+          const rows = raw.slice(1)
+            .filter((r) => r.some((v) => v !== null && v !== undefined && String(v).trim() !== ''))
+            .map((r) => {
+              const obj: Record<string, string> = {}
+              headers.forEach((h, i) => { obj[h] = String(r[i] ?? '') })
+              return obj
+            })
+          applyParsedData(headers, rows)
+        } catch {
+          toast({ title: 'Parse error', description: 'Could not read the Excel file.', variant: 'destructive' })
+        }
+      }
+      reader.onerror = () => toast({ title: 'Read error', description: 'Could not open the file.', variant: 'destructive' })
+      reader.readAsBinaryString(file)
+    } else {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          applyParsedData(result.meta.fields || [], result.data as Record<string, string>[])
+        },
+        error: () => {
+          toast({ title: 'Parse error', description: 'Could not read the CSV file.', variant: 'destructive' })
+        },
+      })
+    }
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
-    if (file && file.name.endsWith('.csv')) handleFileUpload(file)
+    if (file) {
+      const name = file.name.toLowerCase()
+      if (name.endsWith('.csv') || name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        handleFileUpload(file)
+      }
+    }
   }
 
   const generatePreview = async () => {
@@ -166,10 +204,19 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
     try {
       const batchSize = 100
       let imported = 0
+      let failed = 0
       for (let i = 0; i < leadsToInsert.length; i += batchSize) {
         const batch = leadsToInsert.slice(i, i + batchSize)
-        await supabase.from('leads').insert(batch)
-        imported += batch.length
+        const { data: inserted, error: batchError } = await supabase.from('leads').insert(batch).select('id')
+        if (batchError || !inserted) {
+          failed += batch.length
+        } else {
+          imported += inserted.length
+        }
+      }
+
+      if (imported === 0 && failed > 0) {
+        throw new Error(`All ${failed} leads failed to save. Please try again.`)
       }
 
       // Notify counsellor if directly assigned
@@ -181,10 +228,15 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
         })
       }
 
+      if (failed > 0) {
+        toast({ title: 'Partial import', description: `${imported} leads imported, ${failed} could not be saved.`, variant: 'destructive' })
+      }
+
       setImportResult({ imported, skipped: csvRows.length - imported })
       setStep('done')
-    } catch {
-      toast({ title: 'Import failed', description: 'Something went wrong during import.', variant: 'destructive' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Something went wrong during import.'
+      toast({ title: 'Import failed', description: message, variant: 'destructive' })
     } finally {
       setImporting(false)
     }
@@ -193,8 +245,8 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Import Leads from CSV</h1>
-        <p className="text-gray-500 text-sm mt-1">Upload a CSV file to bulk import leads</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Import Leads</h1>
+        <p className="text-gray-500 text-sm mt-1">Upload a CSV or Excel file to bulk import leads</p>
       </div>
 
       {/* Step Indicator */}
@@ -227,19 +279,20 @@ export function LeadImportClient({ collegeId, adminId, sources, counsellors }: P
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">Drop your CSV file here</p>
-              <p className="text-gray-400 text-sm mt-1">or click to browse</p>
+              <p className="text-gray-600 font-medium">Drop your CSV or Excel file here</p>
+              <p className="text-gray-400 text-sm mt-1">or click to browse (.csv, .xlsx, .xls)</p>
             </div>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
             />
             <div className="mt-4 p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
-              <p className="font-medium mb-1">CSV Format Tips:</p>
+              <p className="font-medium mb-1">Format Tips:</p>
               <ul className="list-disc pl-4 space-y-0.5 text-blue-600">
+                <li>Supports CSV, Excel (.xlsx) and older Excel (.xls)</li>
                 <li>First row should be headers</li>
                 <li>Phone and Name are required</li>
                 <li>Duplicate phones will be skipped automatically</li>
