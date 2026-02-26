@@ -187,6 +187,10 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
         }),
       })
       const json = await res.json()
+      if (res.status === 409) {
+        toast({ title: 'Duplicate phone number', description: json.error, variant: 'destructive' })
+        return
+      }
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
       setLeads((prev) => [json.lead, ...prev])
       setShowAddDialog(false)

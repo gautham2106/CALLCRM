@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/components/ui/use-toast'
 import { LEAD_STAGE_COLORS } from '@/lib/utils'
 import {
@@ -49,8 +48,6 @@ interface Props {
 
 export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId }: Props) {
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const supabase = createClient()
 
   const preSelectedIds = searchParams.get('leads')?.split(',').filter(Boolean) || []
 
@@ -105,46 +102,20 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
     if (!selectedCounsellorId || selectedIds.size === 0) return
     setAssigning(true)
 
-    const selectedLeadsList = leads.filter((l) => selectedIds.has(l.id))
     const counsellor = counsellors.find((c) => c.id === selectedCounsellorId)
 
     try {
-      // Update leads
-      await (supabase as any)
-        .from('leads')
-        .update({ assigned_to: selectedCounsellorId, updated_at: new Date().toISOString() })
-        .in('id', Array.from(selectedIds))
-
-      // Insert assignment history
-      const historyRows = selectedLeadsList.map((lead) => ({
-        lead_id: lead.id,
-        college_id: collegeId,
-        assigned_from: lead.assigned_to || null,
-        assigned_to: selectedCounsellorId,
-        assigned_by: adminId,
-        reason: reason || null,
-      }))
-      await (supabase as any).from('lead_assignment_history').insert(historyRows)
-
-      // Create notification
-      if (selectedIds.size === 1) {
-        const lead = selectedLeadsList[0]
-        await (supabase as any).from('notifications').insert({
-          user_id: selectedCounsellorId,
-          college_id: collegeId,
-          type: isReassign ? 'reassigned' : 'new_lead',
-          message: `${isReassign ? 'Lead reassigned to you' : 'New lead assigned'}: ${lead.name}`,
-          lead_id: lead.id,
-        })
-      } else {
-        await (supabase as any).from('notifications').insert({
-          user_id: selectedCounsellorId,
-          college_id: collegeId,
-          type: 'bulk_leads',
-          message: `${selectedIds.size} leads ${isReassign ? 'reassigned' : 'assigned'} to you`,
-          bulk_count: selectedIds.size,
-        })
-      }
+      const res = await fetch('/api/admin/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadIds: Array.from(selectedIds),
+          counsellorId: selectedCounsellorId,
+          reason: reason || null,
+          isReassign,
+        }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error || 'Assignment failed')
 
       // Update local state
       setLeads((prev) =>
@@ -166,8 +137,9 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
       setReason('')
       setShowAssignDialog(false)
       setShowReassignDialog(false)
-    } catch {
-      toast({ title: 'Assignment failed', description: 'Something went wrong.', variant: 'destructive' })
+    } catch (err: unknown) {
+      const error = err as Error
+      toast({ title: 'Assignment failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
     } finally {
       setAssigning(false)
     }
@@ -178,42 +150,26 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
     setAssigning(true)
 
     const leadIds = Array.from(selectedIds)
-    const assignments: Record<string, string[]> = {}
-
-    leadIds.forEach((id, idx) => {
-      const counsellor = counsellors[idx % counsellors.length]
-      if (!assignments[counsellor.id]) assignments[counsellor.id] = []
-      assignments[counsellor.id].push(id)
-    })
 
     try {
-      for (const [counsellorId, ids] of Object.entries(assignments)) {
-        await (supabase as any)
-          .from('leads')
-          .update({ assigned_to: counsellorId, updated_at: new Date().toISOString() })
-          .in('id', ids)
+      const res = await fetch('/api/admin/assign', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadIds,
+          counsellors: counsellors.map((c) => ({ id: c.id, name: c.name })),
+        }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error || 'Distribution failed')
 
-        const selectedLeadsList = leads.filter((l) => ids.includes(l.id))
-        const historyRows = selectedLeadsList.map((lead) => ({
-          lead_id: lead.id,
-          college_id: collegeId,
-          assigned_from: lead.assigned_to || null,
-          assigned_to: counsellorId,
-          assigned_by: adminId,
-          reason: 'Auto-distributed',
-        }))
-        await (supabase as any).from('lead_assignment_history').insert(historyRows)
+      // Rebuild local assignments (round-robin, same logic as server)
+      const assignments: Record<string, string[]> = {}
+      leadIds.forEach((id, idx) => {
+        const c = counsellors[idx % counsellors.length]
+        if (!assignments[c.id]) assignments[c.id] = []
+        assignments[c.id].push(id)
+      })
 
-        await (supabase as any).from('notifications').insert({
-          user_id: counsellorId,
-          college_id: collegeId,
-          type: 'bulk_leads',
-          message: `${ids.length} leads auto-assigned to you`,
-          bulk_count: ids.length,
-        })
-      }
-
-      // Update local state
       setLeads((prev) =>
         prev.map((l) => {
           for (const [counsellorId, ids] of Object.entries(assignments)) {
@@ -232,8 +188,9 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
         variant: 'success',
       })
       setSelectedIds(new Set())
-    } catch {
-      toast({ title: 'Distribution failed', description: 'Something went wrong.', variant: 'destructive' })
+    } catch (err: unknown) {
+      const error = err as Error
+      toast({ title: 'Distribution failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
     } finally {
       setAssigning(false)
     }

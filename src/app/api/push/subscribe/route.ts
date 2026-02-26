@@ -17,6 +17,7 @@ async function getProfile() {
 // POST — save or update a push subscription for this specific device.
 // Keyed by endpoint so a counsellor's phone and a shared college PC each
 // get their own row and both receive notifications simultaneously.
+// Falls back to user_id keying if the multi-device migration hasn't been run yet.
 export async function POST(request: NextRequest) {
   const profile = await getProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,7 +26,9 @@ export async function POST(request: NextRequest) {
   if (!subscription?.endpoint) return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 })
 
   const admin = createAdminClient()
-  await admin.from('push_subscriptions').upsert(
+
+  // Try multi-device approach first (requires migration 20240302_push_subscriptions_multidevice.sql)
+  const { error: endpointError } = await admin.from('push_subscriptions').upsert(
     {
       user_id: profile.id,
       college_id: profile.college_id,
@@ -34,6 +37,14 @@ export async function POST(request: NextRequest) {
     },
     { onConflict: 'endpoint' }
   )
+
+  if (endpointError) {
+    // Migration not run yet — fall back to single-device (one row per user)
+    await admin.from('push_subscriptions').upsert(
+      { user_id: profile.id, college_id: profile.college_id, subscription },
+      { onConflict: 'user_id' }
+    )
+  }
 
   return NextResponse.json({ success: true })
 }

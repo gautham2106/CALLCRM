@@ -183,6 +183,11 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
         }),
       })
       const json = await res.json()
+      if (res.status === 409) {
+        toast({ title: 'Duplicate phone number', description: json.error, variant: 'destructive' })
+        setAddingSingle(false)
+        return
+      }
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
 
       // Update counsellor's lead count in state

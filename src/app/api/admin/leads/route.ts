@@ -26,6 +26,23 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
+  // Prevent duplicate phone numbers within the same college
+  const { data: existing } = await admin
+    .from('leads')
+    .select('id, name')
+    .eq('college_id', profile.college_id)
+    .eq('phone', phone)
+    .eq('is_active', true)
+    .limit(1)
+    .single()
+
+  if (existing) {
+    return NextResponse.json(
+      { error: `A lead with this phone number already exists: "${existing.name}"` },
+      { status: 409 }
+    )
+  }
+
   const { data: lead, error } = await admin
     .from('leads')
     .insert({
