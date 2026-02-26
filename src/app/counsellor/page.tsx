@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { LEAD_STAGE_COLORS } from '@/lib/utils'
+import { PushNotificationSetup } from '@/components/shared/PushNotificationSetup'
 
 export default async function CounsellorDashboard() {
   const user = await requireCounsellor()
@@ -55,6 +56,8 @@ export default async function CounsellorDashboard() {
           </div>
         </div>
       </div>
+
+      <PushNotificationSetup todayFollowUps={todayFollowUps.length} todayVisits={todayVisits.length} />
 
       <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* KPI Cards */}

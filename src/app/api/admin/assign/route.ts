@@ -55,12 +55,16 @@ export async function POST(request: NextRequest) {
   await admin.from('lead_assignment_history').insert(historyRows)
 
   // Insert notification (uses admin client to bypass RLS on notifications)
+  const notifMessage = leadIds.length === 1
+    ? `${isReassign ? 'Lead reassigned to you' : 'New lead assigned'}: ${currentLeads[0].name}`
+    : `${leadIds.length} leads ${isReassign ? 'reassigned' : 'assigned'} to you`
+
   if (leadIds.length === 1) {
     await admin.from('notifications').insert({
       user_id: counsellorId,
       college_id: profile.college_id,
       type: isReassign ? 'reassigned' : 'new_lead',
-      message: `${isReassign ? 'Lead reassigned to you' : 'New lead assigned'}: ${currentLeads[0].name}`,
+      message: notifMessage,
       lead_id: leadIds[0],
     })
   } else {
@@ -68,9 +72,30 @@ export async function POST(request: NextRequest) {
       user_id: counsellorId,
       college_id: profile.college_id,
       type: 'bulk_leads',
-      message: `${leadIds.length} leads ${isReassign ? 'reassigned' : 'assigned'} to you`,
+      message: notifMessage,
       bulk_count: leadIds.length,
     })
+  }
+
+  // Send push notification if counsellor has subscribed
+  const { data: pushSubs } = await admin
+    .from('push_subscriptions')
+    .select('id, subscription')
+    .eq('user_id', counsellorId)
+
+  if (pushSubs?.length) {
+    const { sendPush } = await import('@/lib/webpush')
+    for (const row of pushSubs) {
+      const result = await sendPush(row.subscription, {
+        title: isReassign ? 'Lead Reassigned' : 'New Lead Assigned',
+        body: notifMessage,
+        url: '/counsellor/leads',
+        tag: 'lead-assignment',
+      })
+      if (result === 'expired') {
+        await admin.from('push_subscriptions').delete().eq('id', row.id)
+      }
+    }
   }
 
   return NextResponse.json({ success: true })
@@ -133,13 +158,34 @@ export async function PATCH(request: NextRequest) {
     }))
     await admin.from('lead_assignment_history').insert(historyRows)
 
+    const autoMsg = `${ids.length} leads auto-assigned to you`
     await admin.from('notifications').insert({
       user_id: counsellorId,
       college_id: profile.college_id,
       type: 'bulk_leads',
-      message: `${ids.length} leads auto-assigned to you`,
+      message: autoMsg,
       bulk_count: ids.length,
     })
+
+    // Push notification
+    const { data: pushSubs } = await admin
+      .from('push_subscriptions')
+      .select('id, subscription')
+      .eq('user_id', counsellorId)
+    if (pushSubs?.length) {
+      const { sendPush } = await import('@/lib/webpush')
+      for (const row of pushSubs) {
+        const result = await sendPush(row.subscription, {
+          title: 'Leads Assigned',
+          body: autoMsg,
+          url: '/counsellor/leads',
+          tag: 'lead-assignment',
+        })
+        if (result === 'expired') {
+          await admin.from('push_subscriptions').delete().eq('id', row.id)
+        }
+      }
+    }
   }
 
   return NextResponse.json({ success: true })
