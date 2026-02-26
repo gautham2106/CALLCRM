@@ -26,19 +26,6 @@ interface FunnelEntry {
   count: number
 }
 
-interface CounsellorStat {
-  id: string
-  name: string
-  assigned: number
-  called: number
-  notCalled: number
-  interested: number
-  enrolled: number
-  conversion: number
-  followUpsToday: number
-  visitsToday: number
-}
-
 interface StageEntry {
   stage: string
   count: number
@@ -67,7 +54,6 @@ interface SourceStat {
 interface Props {
   overview: Overview
   funnelData: FunnelEntry[]
-  counsellorStats: CounsellorStat[]
   sourceData: SourceStat[]
 }
 
@@ -94,22 +80,16 @@ const STAGE_PILL: Record<string, string> = {
   'Wrong Lead': 'bg-red-100 text-red-500',
 }
 
-const AVATAR_COLORS = [
-  'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
-  'bg-orange-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
-]
-
-type TabId = 'overview' | 'counsellors' | 'pipeline'
+type TabId = 'overview' | 'pipeline'
 
 // ============================================================
 // Root Component
 // ============================================================
-export function AdminAnalyticsClient({ overview, funnelData, counsellorStats, sourceData }: Props) {
+export function AdminAnalyticsClient({ overview, funnelData, sourceData }: Props) {
   const [tab, setTab] = useState<TabId>('overview')
 
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Team Overview', icon: TrendingUp },
-    { id: 'counsellors', label: 'Counsellors', icon: Users },
     { id: 'pipeline', label: 'Pipeline & Sources', icon: Activity },
   ]
 
@@ -140,7 +120,6 @@ export function AdminAnalyticsClient({ overview, funnelData, counsellorStats, so
 
       <div className="p-4 sm:p-6 space-y-6">
         {tab === 'overview' && <OverviewTab overview={overview} funnelData={funnelData} />}
-        {tab === 'counsellors' && <CounsellorTab stats={counsellorStats} />}
         {tab === 'pipeline' && <PipelineTab funnelData={funnelData} sourceData={sourceData} overview={overview} />}
       </div>
     </div>
@@ -215,202 +194,7 @@ function OverviewTab({ overview, funnelData }: { overview: Overview; funnelData:
 }
 
 // ============================================================
-// Tab 2 — Counsellor Performance
-// ============================================================
-type CounsellorSort = 'enrolled' | 'conversion' | 'assigned' | 'notCalled' | 'interested'
-
-const SORT_OPTIONS: { key: CounsellorSort; label: string; desc: string }[] = [
-  { key: 'enrolled', label: 'Enrolled', desc: 'Results' },
-  { key: 'conversion', label: 'Conversion %', desc: 'Efficiency' },
-  { key: 'assigned', label: 'Assigned', desc: 'Workload' },
-  { key: 'notCalled', label: 'Not Called', desc: 'At Risk' },
-  { key: 'interested', label: 'Interested', desc: 'Warm Pipeline' },
-]
-
-function CounsellorTab({ stats }: { stats: CounsellorStat[] }) {
-  const [sortBy, setSortBy] = useState<CounsellorSort>('enrolled')
-  const sorted = [...stats].sort((a, b) => b[sortBy] - a[sortBy])
-  const maxEnrolled = Math.max(...stats.map((s) => s.enrolled), 1)
-
-  if (stats.length === 0) {
-    return (
-      <div className="text-center py-20 text-gray-400">
-        <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
-        <p className="font-medium">No counsellors yet</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Sort Counsellors By</p>
-        <div className="flex flex-wrap gap-2">
-          {SORT_OPTIONS.map((opt) => (
-            <button
-              key={opt.key}
-              onClick={() => setSortBy(opt.key)}
-              className={`flex flex-col items-start px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                sortBy === opt.key
-                  ? opt.key === 'notCalled'
-                    ? 'bg-red-600 border-red-600 text-white'
-                    : 'bg-blue-600 border-blue-600 text-white'
-                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <span>{opt.label}</span>
-              <span className={`text-[10px] font-normal mt-0.5 ${sortBy === opt.key ? 'opacity-80' : 'text-gray-400'}`}>
-                {opt.desc}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {sorted.map((c, idx) => (
-          <CounsellorCard key={c.id} stat={c} rank={idx + 1} maxEnrolled={maxEnrolled} colorIndex={stats.indexOf(c)} />
-        ))}
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">Full Breakdown</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-500 whitespace-nowrap">Counsellor</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-500">Assigned</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-500">Called</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-500">Not Called</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-500">Interested</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-500">Enrolled</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500 min-w-[160px]">Conversion</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-500 whitespace-nowrap">Today</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {sorted.map((c) => (
-                <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${c.notCalled > 0 && sortBy === 'notCalled' ? 'bg-red-50/30' : ''}`}>
-                  <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{c.name}</td>
-                  <td className="px-4 py-3 text-center text-gray-700">{c.assigned}</td>
-                  <td className="px-4 py-3 text-center text-gray-700">{c.called}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={`font-semibold ${c.notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{c.notCalled}</span>
-                  </td>
-                  <td className="px-4 py-3 text-center text-indigo-600 font-medium">{c.interested}</td>
-                  <td className="px-4 py-3 text-center text-green-600 font-bold">{c.enrolled}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${c.conversion >= 20 ? 'bg-green-500' : c.conversion >= 10 ? 'bg-orange-400' : 'bg-gray-300'}`}
-                          style={{ width: `${c.conversion}%` }}
-                        />
-                      </div>
-                      <span className={`text-xs font-semibold w-9 text-right tabular-nums ${c.conversion >= 20 ? 'text-green-600' : c.conversion >= 10 ? 'text-orange-500' : 'text-gray-400'}`}>
-                        {c.conversion}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-2 text-xs">
-                      {c.followUpsToday > 0 && (
-                        <span className="flex items-center gap-0.5 text-amber-600 font-semibold">
-                          <Clock className="h-3 w-3" />{c.followUpsToday}
-                        </span>
-                      )}
-                      {c.visitsToday > 0 && (
-                        <span className="flex items-center gap-0.5 text-purple-600 font-semibold">
-                          <Building2 className="h-3 w-3" />{c.visitsToday}
-                        </span>
-                      )}
-                      {c.followUpsToday === 0 && c.visitsToday === 0 && <span className="text-gray-300">—</span>}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function CounsellorCard({ stat, rank, maxEnrolled, colorIndex }: {
-  stat: CounsellorStat; rank: number; maxEnrolled: number; colorIndex: number
-}) {
-  const avatarBg = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]
-  const enrollPct = maxEnrolled > 0 ? Math.round((stat.enrolled / maxEnrolled) * 100) : 0
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full ${avatarBg} text-white flex items-center justify-center font-bold text-sm shrink-0`}>
-            {stat.name.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900 text-sm leading-tight">{stat.name}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{stat.assigned} leads assigned</p>
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <p className={`text-xl font-bold tabular-nums ${stat.conversion >= 20 ? 'text-green-600' : stat.conversion >= 10 ? 'text-orange-500' : 'text-gray-400'}`}>
-            {stat.conversion}%
-          </p>
-          <p className="text-[10px] text-gray-400 leading-tight">conversion</p>
-        </div>
-      </div>
-
-      <div className="mb-4">
-        <div className="flex items-center justify-between text-xs mb-1.5">
-          <span className="text-gray-400">Enrolled</span>
-          <span className="font-bold text-green-600 tabular-nums">{stat.enrolled}</span>
-        </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${enrollPct}%` }} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-1 py-3 border-t border-gray-100">
-        <div className="text-center">
-          <p className="text-sm font-bold text-gray-900 tabular-nums">{stat.called}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">Called</p>
-        </div>
-        <div className="text-center border-x border-gray-100">
-          <p className={`text-sm font-bold tabular-nums ${stat.notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{stat.notCalled}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">Not Called</p>
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-bold text-indigo-600 tabular-nums">{stat.interested}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">Interested</p>
-        </div>
-      </div>
-
-      {(stat.followUpsToday > 0 || stat.visitsToday > 0) && (
-        <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100 flex-wrap">
-          {stat.followUpsToday > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded-full font-medium">
-              <Clock className="h-2.5 w-2.5" />{stat.followUpsToday} follow-up{stat.followUpsToday > 1 ? 's' : ''} today
-            </span>
-          )}
-          {stat.visitsToday > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded-full font-medium">
-              <Building2 className="h-2.5 w-2.5" />{stat.visitsToday} visit{stat.visitsToday > 1 ? 's' : ''} today
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ============================================================
-// Tab 3 — Pipeline & Sources
+// Tab 2 — Pipeline & Sources
 // ============================================================
 function PipelineTab({ funnelData, sourceData, overview }: {
   funnelData: FunnelEntry[]; sourceData: SourceStat[]; overview: Overview

@@ -56,11 +56,35 @@ const CSV_FIELDS = [
 
 const EMPTY_SINGLE = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', notes: '' }
 
+type SortKey = 'enrolled' | 'conversion' | 'assigned' | 'notCalled' | 'interested'
+
+const SORT_OPTIONS: { key: SortKey; label: string; desc: string }[] = [
+  { key: 'enrolled', label: 'Enrolled', desc: 'Results' },
+  { key: 'conversion', label: 'Conversion %', desc: 'Efficiency' },
+  { key: 'assigned', label: 'Assigned', desc: 'Workload' },
+  { key: 'notCalled', label: 'Not Called', desc: 'At Risk' },
+  { key: 'interested', label: 'Interested', desc: 'Warm Pipeline' },
+]
+
+function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): number {
+  const leads = c.assigned_leads || []
+  const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
+  switch (key) {
+    case 'enrolled': return enrolled
+    case 'conversion': return leads.length > 0 ? enrolled / leads.length : 0
+    case 'assigned': return leads.length
+    case 'notCalled': return leads.filter((l) => l.current_call_stage === null).length
+    case 'interested': return leads.filter((l) => l.current_call_stage === 'Interested').length
+    default: return 0
+  }
+}
+
 export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sources, unassignedCount }: Props) {
   const supabase = createClient()
   const today = new Date().toISOString().split('T')[0]
 
   const [counsellors, setCounsellors] = useState(initialCounsellors)
+  const [sortBy, setSortBy] = useState<SortKey>('enrolled')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
@@ -310,6 +334,33 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
         </Button>
       </div>
 
+      {/* Sort Controls */}
+      {counsellors.length > 1 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2.5">Sort By</p>
+          <div className="flex flex-wrap gap-2">
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setSortBy(opt.key)}
+                className={`flex flex-col items-start px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                  sortBy === opt.key
+                    ? opt.key === 'notCalled'
+                      ? 'bg-red-600 border-red-600 text-white'
+                      : 'bg-blue-600 border-blue-600 text-white'
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <span>{opt.label}</span>
+                <span className={`text-[10px] font-normal mt-0.5 ${sortBy === opt.key ? 'opacity-80' : 'text-gray-400'}`}>
+                  {opt.desc}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Counsellor Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {counsellors.length === 0 ? (
@@ -318,11 +369,13 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             <p>No counsellors yet. Add your first counsellor.</p>
           </div>
         ) : (
-          counsellors.map((c) => {
+          [...counsellors].sort((a, b) => getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today)).map((c) => {
             const leads = c.assigned_leads || []
             const total = leads.length
             const visitsToday = leads.filter((l) => l.visit_date === today).length
             const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
+            const notCalled = leads.filter((l) => l.current_call_stage === null).length
+            const interested = leads.filter((l) => l.current_call_stage === 'Interested').length
             const conversion = total > 0 ? Math.round((enrolled / total) * 100) : 0
             const overdueCount = leads.filter((l) => l.follow_up_date && l.follow_up_date < today).length
 
@@ -362,22 +415,26 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-4 gap-2 border-t border-gray-100 pt-4">
+                <div className="grid grid-cols-5 gap-1 border-t border-gray-100 pt-4">
                   <div className="text-center">
-                    <p className="text-xl font-bold text-gray-900">{total}</p>
-                    <p className="text-xs text-gray-400">Assigned</p>
+                    <p className="text-lg font-bold text-gray-900">{total}</p>
+                    <p className="text-[10px] text-gray-400">Assigned</p>
                   </div>
                   <div className="text-center">
-                    <p className={`text-xl font-bold ${visitsToday > 0 ? 'text-purple-600' : 'text-gray-400'}`}>{visitsToday}</p>
-                    <p className="text-xs text-gray-400">Visits Today</p>
+                    <p className={`text-lg font-bold ${notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{notCalled}</p>
+                    <p className="text-[10px] text-gray-400">Not Called</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-xl font-bold text-green-600">{enrolled}</p>
-                    <p className="text-xs text-gray-400">Enrolled</p>
+                    <p className={`text-lg font-bold ${interested > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>{interested}</p>
+                    <p className="text-[10px] text-gray-400">Interested</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-xl font-bold text-blue-600">{conversion}%</p>
-                    <p className="text-xs text-gray-400">Conv.</p>
+                    <p className="text-lg font-bold text-green-600">{enrolled}</p>
+                    <p className="text-[10px] text-gray-400">Enrolled</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-blue-600">{conversion}%</p>
+                    <p className="text-[10px] text-gray-400">Conv.</p>
                   </div>
                 </div>
 

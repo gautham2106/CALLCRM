@@ -157,7 +157,6 @@ export default async function AdminDashboard() {
           todayVisits: data.todayVisits,
         }}
         funnelData={funnelData}
-        counsellorStats={data.counsellorStats}
         sourceData={sourceArray}
       />
     </div>
