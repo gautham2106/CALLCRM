@@ -197,7 +197,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       // Update counsellor's lead count in state
       setCounsellors((prev) => prev.map((c) =>
         c.id === addLeadsTarget.id
-          ? { ...c, assigned_leads: [...c.assigned_leads, { id: json.lead.id, current_lead_stage: 'New Enquiry', current_call_stage: null, visit_date: null, follow_up_date: null }] }
+          ? { ...c, assigned_leads: [...c.assigned_leads, { id: json.lead.id, is_active: true, current_lead_stage: 'New Enquiry', current_call_stage: null, visit_date: null, follow_up_date: null }] }
           : c
       ))
       setSingleForm(EMPTY_SINGLE)
@@ -316,6 +316,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       // Update counsellor's lead count
       const newLeads = Array.from({ length: imported }, () => ({
         id: crypto.randomUUID(),
+        is_active: true as const,
         current_lead_stage: 'New Enquiry',
         current_call_stage: null,
         visit_date: null,
