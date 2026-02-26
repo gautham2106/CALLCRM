@@ -26,15 +26,16 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Prevent duplicate phone numbers within the same college
+  // Prevent duplicate phone numbers within the same college.
+  // Do NOT filter by is_active — leads imported without that flag have is_active = null
+  // and would be missed, allowing silent duplicates.
   const { data: existing } = await admin
     .from('leads')
     .select('id, name')
     .eq('college_id', profile.college_id)
     .eq('phone', phone)
-    .eq('is_active', true)
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (existing) {
     return NextResponse.json(
