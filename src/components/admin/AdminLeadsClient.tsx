@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,7 +62,6 @@ interface Lead {
 }
 
 interface Props {
-  initialLeads: Lead[]
   counsellors: { id: string; name: string; email: string }[]
   sources: { id: string; source_name: string }[]
   courses: { id: string; course_name: string }[]
@@ -70,115 +69,153 @@ interface Props {
   adminId: string
 }
 
+const PAGE_SIZE = 50
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
-export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, collegeId, adminId }: Props) {
+export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adminId }: Props) {
   const supabase = createClient()
-  const [leads, setLeads] = useState(initialLeads)
+
+  // ---- Server-side paginated lead state ----
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [total, setTotal] = useState(0)
+  const [unassignedTotal, setUnassignedTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  // ---- Filter state ----
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [stageFilter, setStageFilter] = useState('all')
+  const [counsellorFilter, setCounsellorFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [courseFilter, setCourseFilter] = useState('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
+  const [page, setPage] = useState(0)
+
+  // ---- UI state ----
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [addingLead, setAddingLead] = useState(false)
   const [leadForm, setLeadForm] = useState(EMPTY_LEAD_FORM)
-  const [stageFilter, setStageFilter] = useState('all')
-  const [counsellorFilter, setCounsellorFilter] = useState('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
-  const [sourceFilter, setSourceFilter] = useState('all')
-  const [courseFilter, setCourseFilter] = useState('all')
+  const [phoneWarning, setPhoneWarning] = useState<string | null>(null)
 
-  // Assignment state
+  // ---- Assignment state ----
   const [showAssignDialog, setShowAssignDialog] = useState(false)
   const [showReassignDialog, setShowReassignDialog] = useState(false)
   const [selectedCounsellorId, setSelectedCounsellorId] = useState('')
   const [reason, setReason] = useState('')
   const [assigning, setAssigning] = useState(false)
 
-  const today = new Date().toISOString().split('T')[0]
-  const [page, setPage] = useState(0)
-  const [showAll, setShowAll] = useState(false)
-  const [phoneWarning, setPhoneWarning] = useState<string | null>(null)
-
-  // Bulk operations
+  // ---- Bulk state ----
   const [showBulkStageDialog, setShowBulkStageDialog] = useState(false)
   const [bulkStageValue, setBulkStageValue] = useState('')
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false)
   const [bulkProcessing, setBulkProcessing] = useState(false)
 
-  const filtered = useMemo(() => {
-    let result = leads
-    if (activeTab === 'unassigned') result = result.filter((l) => !l.assigned_to)
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter(
-        (l) =>
-          l.name.toLowerCase().includes(q) ||
-          l.phone.includes(q) ||
-          (l.email || '').toLowerCase().includes(q) ||
-          (l.city || '').toLowerCase().includes(q)
-      )
-    }
-    if (stageFilter !== 'all') result = result.filter((l) => l.current_lead_stage === stageFilter)
-    if (counsellorFilter !== 'all') {
-      if (counsellorFilter === 'unassigned') result = result.filter((l) => !l.assigned_to)
-      else result = result.filter((l) => l.assigned_to === counsellorFilter)
-    }
+  const today = new Date().toISOString().split('T')[0]
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+
+  // ---- Debounce search ----
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // ---- Build API params from current filter state ----
+  const buildParams = useCallback((overridePage?: number) => {
+    const p = new URLSearchParams({
+      page: String(overridePage ?? page),
+      limit: String(PAGE_SIZE),
+    })
+    if (debouncedSearch)           p.set('search', debouncedSearch)
+    if (stageFilter !== 'all')     p.set('stage', stageFilter)
+    if (counsellorFilter !== 'all') p.set('counsellor', counsellorFilter)
+    if (activeTab === 'unassigned') p.set('tab', 'unassigned')
+
+    // Resolve source ID → source name for the API
     if (sourceFilter !== 'all') {
-      if (sourceFilter === '__none__') result = result.filter((l) => !l.source_name)
-      else {
-        const sName = sources.find((s) => s.id === sourceFilter)?.source_name
-        result = result.filter((l) => l.source_name === sName)
+      if (sourceFilter === '__none__') {
+        p.set('source', '__none__')
+      } else {
+        const name = sources.find((s) => s.id === sourceFilter)?.source_name
+        if (name) p.set('source', name)
       }
     }
     if (courseFilter !== 'all') {
-      if (courseFilter === '__none__') result = result.filter((l) => !l.course_id)
-      else result = result.filter((l) => l.course_id === courseFilter)
+      p.set('course', courseFilter === '__none__' ? '__none__' : courseFilter)
     }
-    return result
-  }, [leads, search, stageFilter, counsellorFilter, sourceFilter, courseFilter, activeTab, sources])
+    return p
+  }, [page, debouncedSearch, stageFilter, counsellorFilter, sourceFilter, courseFilter, activeTab, sources])
 
-  const PAGE_SIZE = 50
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const pageLeads = showAll ? filtered : filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  // ---- Core fetch function ----
+  const fetchLeads = useCallback(async (overridePage?: number) => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/admin/leads?${buildParams(overridePage)}`)
+      if (!res.ok) throw new Error('Failed to load leads')
+      const json = await res.json()
+      setLeads(json.leads || [])
+      setTotal(json.total || 0)
+      setUnassignedTotal(json.unassigned_total || 0)
+    } catch {
+      toast({ title: 'Failed to load leads', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }, [buildParams])
 
-  // Reset to page 0 whenever filters or tabs change
+  // ---- Fetch on filter / page change ----
+  useEffect(() => {
+    fetchLeads()
+  }, [fetchLeads])
+
+  // ---- Reset page to 0 when filters change (not when page itself changes) ----
   const resetPage = () => setPage(0)
 
-  const toggleSelect = (id: string) => {
+  // ---- Selection helpers ----
+  const toggleSelect = (id: string) =>
     setSelectedIds((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  }
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = () =>
     setSelectedIds(
-      selectedIds.size === filtered.length && filtered.length > 0
+      selectedIds.size === leads.length && leads.length > 0
         ? new Set()
-        : new Set(filtered.map((l) => l.id))
+        : new Set(leads.map((l) => l.id))
     )
+
+  // ---- Export all matching leads (bypasses pagination) ----
+  const exportCSV = async () => {
+    const p = buildParams(0)
+    p.set('export', 'true')
+    try {
+      const res = await fetch(`/api/admin/leads?${p}`)
+      const json = await res.json()
+      const rows = (json.leads || []).map((l: Lead) => ({
+        Name: l.name, Phone: l.phone, Email: l.email || '', City: l.city || '',
+        Course: l.course_interest || '', Source: l.source_name || '',
+        'Lead Stage': l.current_lead_stage, 'Call Stage': l.current_call_stage || '',
+        'Visit Date': l.visit_date || '', 'Follow-up Date': l.follow_up_date || '',
+        'Assigned To': l.assigned_user?.name || 'Unassigned',
+        'Created At': formatDate(l.created_at),
+      }))
+      const csv = Papa.unparse(rows)
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `leads-${today}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast({ title: 'Export ready', description: `${rows.length} leads exported.` })
+    } catch {
+      toast({ title: 'Export failed', variant: 'destructive' })
+    }
   }
 
-  const exportCSV = () => {
-    const rows = filtered.map((l) => ({
-      Name: l.name, Phone: l.phone, Email: l.email || '', City: l.city || '',
-      Course: l.course_interest || '', Source: l.source_name || '',
-      'Lead Stage': l.current_lead_stage, 'Call Stage': l.current_call_stage || '',
-      'Visit Date': l.visit_date || '', 'Follow-up Date': l.follow_up_date || '',
-      'Assigned To': l.assigned_user?.name || 'Unassigned',
-      'Created At': formatDate(l.created_at),
-    }))
-    const csv = Papa.unparse(rows)
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `leads-${today}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast({ title: 'Export ready', description: `${rows.length} leads exported.` })
-  }
-
+  // ---- Add lead ----
   const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault()
     setAddingLead(true)
@@ -202,11 +239,13 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
         return
       }
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
-      setLeads((prev) => [json.lead, ...prev])
       setShowAddDialog(false)
       setLeadForm(EMPTY_LEAD_FORM)
       setPhoneWarning(null)
       toast({ title: 'Lead added', description: `${leadForm.name} has been added.`, variant: 'success' })
+      // Refetch page 0 to show the new lead at the top
+      setPage(0)
+      fetchLeads(0)
     } catch (err: unknown) {
       const error = err as Error
       toast({ title: 'Failed to add lead', description: error?.message || 'Something went wrong.', variant: 'destructive' })
@@ -215,12 +254,11 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
     }
   }
 
+  // ---- Assign / Reassign ----
   const assignLeads = async (isReassign = false) => {
     if (!selectedCounsellorId || selectedIds.size === 0) return
     setAssigning(true)
-
     const counsellor = counsellors.find((c) => c.id === selectedCounsellorId)
-
     try {
       const res = await fetch('/api/admin/assign', {
         method: 'POST',
@@ -234,26 +272,17 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
-
-      setLeads((prev) =>
-        prev.map((l) =>
-          selectedIds.has(l.id)
-            ? { ...l, assigned_to: selectedCounsellorId, assigned_user: { id: selectedCounsellorId, name: counsellor?.name || '', email: '' } }
-            : l
-        )
-      )
-
       toast({
         title: 'Leads assigned',
         description: `${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''} assigned to ${counsellor?.name}`,
         variant: 'success',
       })
-
       setSelectedIds(new Set())
       setSelectedCounsellorId('')
       setReason('')
       setShowAssignDialog(false)
       setShowReassignDialog(false)
+      fetchLeads()
     } catch (err: unknown) {
       const error = err as Error
       toast({ title: 'Assignment failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
@@ -262,12 +291,11 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
     }
   }
 
+  // ---- Auto-distribute ----
   const autoDistribute = async () => {
     if (counsellors.length === 0 || selectedIds.size === 0) return
     setAssigning(true)
-
     const leadIds = Array.from(selectedIds)
-
     try {
       const res = await fetch('/api/admin/assign', {
         method: 'PATCH',
@@ -276,32 +304,13 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
-
-      const assignments: Record<string, string[]> = {}
-      leadIds.forEach((id, idx) => {
-        const c = counsellors[idx % counsellors.length]
-        if (!assignments[c.id]) assignments[c.id] = []
-        assignments[c.id].push(id)
-      })
-
-      setLeads((prev) =>
-        prev.map((l) => {
-          for (const [counsellorId, ids] of Object.entries(assignments)) {
-            if (ids.includes(l.id)) {
-              const c = counsellors.find((c) => c.id === counsellorId)
-              return { ...l, assigned_to: counsellorId, assigned_user: { id: counsellorId, name: c?.name || '', email: '' } }
-            }
-          }
-          return l
-        })
-      )
-
       toast({
         title: 'Auto-distributed!',
         description: `${leadIds.length} leads distributed equally among ${counsellors.length} counsellors`,
         variant: 'success',
       })
       setSelectedIds(new Set())
+      fetchLeads()
     } catch (err: unknown) {
       const error = err as Error
       toast({ title: 'Distribution failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
@@ -310,6 +319,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
     }
   }
 
+  // ---- Bulk stage change ----
   const bulkChangeStage = async () => {
     if (!bulkStageValue || selectedIds.size === 0) return
     setBulkProcessing(true)
@@ -319,17 +329,18 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
       .in('id', Array.from(selectedIds))
       .eq('college_id', collegeId)
     if (!error) {
-      setLeads((prev) => prev.map((l) => selectedIds.has(l.id) ? { ...l, current_lead_stage: bulkStageValue } : l))
       toast({ title: `${selectedIds.size} leads moved to "${bulkStageValue}"`, variant: 'success' })
       setSelectedIds(new Set())
       setBulkStageValue('')
       setShowBulkStageDialog(false)
+      fetchLeads()
     } else {
       toast({ title: 'Failed to update leads', description: error.message, variant: 'destructive' })
     }
     setBulkProcessing(false)
   }
 
+  // ---- Bulk delete ----
   const bulkDelete = async () => {
     if (selectedIds.size === 0) return
     setBulkProcessing(true)
@@ -341,10 +352,10 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Delete failed')
-      setLeads((prev) => prev.filter((l) => !selectedIds.has(l.id)))
       toast({ title: `${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''} permanently deleted`, variant: 'success' })
       setSelectedIds(new Set())
       setShowBulkDeleteDialog(false)
+      fetchLeads()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong.'
       toast({ title: 'Failed to delete leads', description: message, variant: 'destructive' })
@@ -356,8 +367,6 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
     (id) => leads.find((l) => l.id === id)?.assigned_to
   )
 
-  const unassignedCount = leads.filter((l) => !l.assigned_to).length
-
   return (
     <>
     <div className="min-h-full bg-gray-50">
@@ -367,9 +376,13 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Leads</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {leads.length.toLocaleString()} total
-              {unassignedCount > 0 && (
-                <span className="ml-2 text-orange-600 font-medium">· {unassignedCount} unassigned</span>
+              {loading ? 'Loading…' : (
+                <>
+                  {total.toLocaleString()} total
+                  {unassignedTotal > 0 && (
+                    <span className="ml-2 text-orange-600 font-medium">· {unassignedTotal.toLocaleString()} unassigned</span>
+                  )}
+                </>
               )}
             </p>
           </div>
@@ -450,7 +463,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                 activeTab === tab ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
               }`}>
-                {tab === 'all' ? leads.length : unassignedCount}
+                {tab === 'all' ? total.toLocaleString() : unassignedTotal.toLocaleString()}
               </span>
             </button>
           ))}
@@ -525,7 +538,11 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
 
         {/* Mobile: Card Grid */}
         <div className="sm:hidden space-y-3">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            </div>
+          ) : leads.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 flex flex-col items-center justify-center py-12 text-gray-400">
               <Users className="h-8 w-8 mb-2 opacity-20" />
               <p className="text-sm font-medium">No leads found</p>
@@ -535,16 +552,16 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
               <div className="flex items-center justify-between px-1">
                 <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
                   <Checkbox
-                    checked={selectedIds.size === filtered.length && filtered.length > 0}
+                    checked={selectedIds.size === leads.length && leads.length > 0}
                     onCheckedChange={toggleSelectAll}
                   />
-                  Select all ({filtered.length})
+                  Select page ({leads.length})
                 </label>
                 {selectedIds.size > 0 && (
                   <span className="text-xs text-blue-600 font-medium">{selectedIds.size} selected</span>
                 )}
               </div>
-              {filtered.map((lead) => {
+              {leads.map((lead) => {
                 const isOverdue = lead.follow_up_date && lead.follow_up_date < today
                 const isVisitToday = lead.visit_date === today
                 return (
@@ -630,24 +647,13 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
 
         {/* Desktop: Table */}
         <div className="hidden sm:block bg-white rounded-xl border border-gray-200 overflow-hidden">
-          {filtered.length > PAGE_SIZE && (
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50/60">
-              <span className="text-xs text-gray-400">{filtered.length.toLocaleString()} leads</span>
-              <button
-                onClick={() => { setShowAll((v) => !v); setPage(0) }}
-                className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
-              >
-                {showAll ? 'Paginate' : `Show all ${filtered.length.toLocaleString()}`}
-              </button>
-            </div>
-          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/80">
                   <th className="w-10 px-4 py-3">
                     <Checkbox
-                      checked={selectedIds.size === filtered.length && filtered.length > 0}
+                      checked={selectedIds.size === leads.length && leads.length > 0}
                       onCheckedChange={toggleSelectAll}
                     />
                   </th>
@@ -662,7 +668,15 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={9}>
+                      <div className="flex items-center justify-center py-16">
+                        <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
+                      </div>
+                    </td>
+                  </tr>
+                ) : leads.length === 0 ? (
                   <tr>
                     <td colSpan={9}>
                       <div className="flex flex-col items-center justify-center py-16 text-gray-400">
@@ -673,7 +687,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
                     </td>
                   </tr>
                 ) : (
-                  pageLeads.map((lead) => {
+                  leads.map((lead) => {
                     const isOverdue = lead.follow_up_date && lead.follow_up_date <= today
                     const isVisitToday = lead.visit_date === today
                     const isVisitOverdue = lead.visit_date && lead.visit_date < today
@@ -779,14 +793,16 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
               </tbody>
             </table>
           </div>
-          {filtered.length > 0 && (
+
+          {/* Pagination footer */}
+          {total > 0 && (
             <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-xs text-gray-500">
               <span>
                 Showing{' '}
                 <span className="font-medium text-gray-700">
-                  {showAll ? filtered.length.toLocaleString() : `${(page * PAGE_SIZE + 1).toLocaleString()}–${Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()}`}
+                  {(page * PAGE_SIZE + 1).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, total).toLocaleString()}
                 </span>{' '}
-                of <span className="font-medium text-gray-700">{filtered.length.toLocaleString()}</span> leads
+                of <span className="font-medium text-gray-700">{total.toLocaleString()}</span> leads
                 {selectedIds.size > 0 && (
                   <span className="ml-2 text-blue-600 font-medium">· {selectedIds.size} selected</span>
                 )}
@@ -796,27 +812,17 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
                   </button>
                 )}
               </span>
-              <div className="flex items-center gap-2">
-                {(showAll || filtered.length > PAGE_SIZE) && (
-                  <button
-                    onClick={() => { setShowAll((v) => !v); setPage(0) }}
-                    className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
-                  >
-                    {showAll ? 'Paginate' : `Show all ${filtered.length}`}
-                  </button>
-                )}
-                {!showAll && totalPages > 1 && (
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </Button>
-                    <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0 || loading}>
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1 || loading}>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -852,7 +858,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
                   if (phone.length >= 6) {
                     const norm = phone.replace(/\D/g, '')
                     const dup = leads.find((l) => l.phone.replace(/\D/g, '') === norm)
-                    setPhoneWarning(dup ? `Duplicate: "${dup.name}" already has this number` : null)
+                    setPhoneWarning(dup ? `Duplicate on this page: "${dup.name}" already has this number` : null)
                   } else {
                     setPhoneWarning(null)
                   }
@@ -952,9 +958,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, courses, 
               </SelectTrigger>
               <SelectContent>
                 {counsellors.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name} — {leads.filter((l) => l.assigned_to === c.id).length} leads
-                  </SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

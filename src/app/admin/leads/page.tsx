@@ -2,27 +2,18 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 import { AdminLeadsClient } from '@/components/admin/AdminLeadsClient'
 
+// Leads are no longer fetched server-side — the client fetches paginated
+// pages via GET /api/admin/leads so the browser never loads 1L+ rows.
+// Only small reference lists (counsellors, sources, courses) are fetched here.
 export default async function AdminLeadsPage() {
   const user = await requireAdmin()
   const supabase = createAdminClient()
 
   const [
-    { data: leads },
     { data: counsellors },
     { data: sources },
     { data: courses },
   ] = await Promise.all([
-    supabase
-      .from('leads')
-      .select(`
-        id, name, phone, email, city, course_interest, course_id, source_name,
-        current_lead_stage, current_call_stage, visit_date, follow_up_date,
-        is_active, created_at, updated_at, assigned_to,
-        assigned_user:users!leads_assigned_to_fkey(id, name, email)
-      `)
-      .eq('college_id', user.college_id!)
-      .or('is_active.is.null,is_active.eq.true')
-      .order('created_at', { ascending: false }),
     supabase
       .from('users')
       .select('id, name, email')
@@ -43,7 +34,6 @@ export default async function AdminLeadsPage() {
 
   return (
     <AdminLeadsClient
-      initialLeads={(leads || []) as any}
       counsellors={(counsellors || []) as any}
       sources={(sources || []) as any}
       courses={(courses || []) as any}

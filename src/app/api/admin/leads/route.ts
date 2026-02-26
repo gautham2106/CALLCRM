@@ -2,6 +2,95 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
+// GET /api/admin/leads — paginated, server-side filtered lead list
+// Query params:
+//   page        number  (default 0)
+//   limit       number  (default 50)
+//   search      string  name/phone/email/city ilike
+//   stage       string  current_lead_stage exact match
+//   counsellor  string  assigned_to UUID, or 'unassigned'
+//   source      string  source_name exact match, or '__none__'
+//   course      string  course_id UUID, or '__none__'
+//   tab         string  'unassigned' filters to is_active leads with no counsellor
+//   export      'true'  skips pagination limit — returns all matching rows for CSV
+export async function GET(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data: profile } = await supabase
+    .from('users').select('id, role, college_id').eq('auth_id', user.id).single()
+  if (!profile || profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const admin = createAdminClient()
+  const sp = new URL(request.url).searchParams
+
+  const isExport   = sp.get('export') === 'true'
+  const page       = Math.max(0, parseInt(sp.get('page')  || '0'))
+  const limit      = Math.min(200, Math.max(1, parseInt(sp.get('limit') || '50')))
+  const search     = (sp.get('search')     || '').trim()
+  const stage      = sp.get('stage')      || ''
+  const counsellor = sp.get('counsellor') || ''
+  const source     = sp.get('source')     || ''   // source_name value or '__none__'
+  const course     = sp.get('course')     || ''   // course_id or '__none__'
+  const tab        = sp.get('tab')        || ''   // 'unassigned'
+
+  let query = admin
+    .from('leads')
+    .select(`
+      id, name, phone, email, city, course_interest, course_id, source_name,
+      current_lead_stage, current_call_stage, visit_date, follow_up_date,
+      is_active, created_at, updated_at, assigned_to,
+      assigned_user:users!leads_assigned_to_fkey(id, name, email)
+    `, { count: 'exact' })
+    .eq('college_id', profile.college_id)
+    .or('is_active.is.null,is_active.eq.true')
+    .order('created_at', { ascending: false })
+
+  // Apply server-side pagination (skipped for export)
+  if (!isExport) query = query.range(page * limit, page * limit + limit - 1)
+
+  // Filters
+  if (tab === 'unassigned' || counsellor === 'unassigned') {
+    query = query.is('assigned_to', null)
+  } else if (counsellor) {
+    query = query.eq('assigned_to', counsellor)
+  }
+  if (stage)              query = query.eq('current_lead_stage', stage)
+  if (source === '__none__') query = query.is('source_name', null)
+  else if (source)        query = query.eq('source_name', source)
+  if (course === '__none__') query = query.is('course_id', null)
+  else if (course)        query = query.eq('course_id', course)
+  if (search) {
+    query = query.or(
+      `name.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%,city.ilike.%${search}%`
+    )
+  }
+
+  // Unassigned count for tab badge (separate fast COUNT query)
+  const unassignedCountPromise = admin
+    .from('leads')
+    .select('*', { count: 'exact', head: true })
+    .eq('college_id', profile.college_id)
+    .is('assigned_to', null)
+    .or('is_active.is.null,is_active.eq.true')
+
+  const [{ data, count, error }, { count: unassignedTotal }] = await Promise.all([
+    query,
+    unassignedCountPromise,
+  ])
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({
+    leads: data || [],
+    total: count || 0,
+    unassigned_total: unassignedTotal || 0,
+  })
+}
+
 // POST /api/admin/leads — create a single lead
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
