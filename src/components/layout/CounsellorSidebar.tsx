@@ -59,6 +59,25 @@ export function CounsellorSidebar({ onClose }: Props) {
   }, [supabase])
 
   const handleSignOut = async () => {
+    // Unsubscribe this device's push subscription before signing out.
+    // This prevents the next user on this device from receiving notifications
+    // meant for the current user.
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration('/')
+        const sub = await reg?.pushManager.getSubscription()
+        if (sub) {
+          await fetch('/api/push/subscribe', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          })
+          await sub.unsubscribe()
+        }
+      } catch {
+        // Push cleanup failure should not block sign-out
+      }
+    }
     await supabase.auth.signOut()
     router.push('/auth/login')
   }
