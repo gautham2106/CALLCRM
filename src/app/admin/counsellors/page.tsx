@@ -12,7 +12,7 @@ export default async function CounsellorsPage() {
       .select(`
         id, name, email, phone, is_active, created_at,
         assigned_leads:leads!leads_assigned_to_fkey(
-          id, current_lead_stage, current_call_stage, visit_date, follow_up_date
+          id, is_active, current_lead_stage, current_call_stage, visit_date, follow_up_date
         )
       `)
       .eq('college_id', user.college_id!)
@@ -28,7 +28,7 @@ export default async function CounsellorsPage() {
       .select('id', { count: 'exact', head: true })
       .eq('college_id', user.college_id!)
       .is('assigned_to', null)
-      .eq('is_active', true),
+      .or('is_active.is.null,is_active.eq.true'),
   ])
 
   return (

@@ -28,7 +28,7 @@ export default async function CounsellorDetailPage({
       .select('id, name, phone, email, city, course_interest, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, created_at')
       .eq('assigned_to', id)
       .eq('college_id', user.college_id!)
-      .eq('is_active', true)
+      .or('is_active.is.null,is_active.eq.true')
       .order('created_at', { ascending: false }),
   ])
 

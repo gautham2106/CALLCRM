@@ -18,7 +18,7 @@ async function AssignmentContent({ collegeId, adminId }: { collegeId: string; ad
         assigned_user:users!leads_assigned_to_fkey(id, name)
       `)
       .eq('college_id', collegeId)
-      .eq('is_active', true)
+      .or('is_active.is.null,is_active.eq.true')
       .order('created_at', { ascending: false }),
     supabase
       .from('users')

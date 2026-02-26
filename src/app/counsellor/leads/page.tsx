@@ -14,7 +14,7 @@ async function LeadsContent({ userId, collegeId }: { userId: string; collegeId: 
       is_active, created_at, updated_at
     `)
     .eq('assigned_to', userId)
-    .eq('is_active', true)
+    .or('is_active.is.null,is_active.eq.true')
     .order('follow_up_date', { ascending: true, nullsFirst: false })
 
   return (

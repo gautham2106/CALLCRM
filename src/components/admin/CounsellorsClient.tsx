@@ -19,6 +19,7 @@ import {
 
 interface CounsellorLead {
   id: string
+  is_active: boolean | null
   current_lead_stage: string
   current_call_stage: string | null
   visit_date: string | null
@@ -67,7 +68,8 @@ const SORT_OPTIONS: { key: SortKey; label: string; desc: string }[] = [
 ]
 
 function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): number {
-  const leads = c.assigned_leads || []
+  // Exclude soft-deleted leads (is_active = false) from all stats
+  const leads = (c.assigned_leads || []).filter((l) => l.is_active !== false)
   const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
   switch (key) {
     case 'enrolled': return enrolled
@@ -397,7 +399,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             {[...counsellors]
               .sort((a, b) => getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today))
               .map((c, idx) => {
-                const leads = c.assigned_leads || []
+                const leads = (c.assigned_leads || []).filter((l) => l.is_active !== false)
                 const total = leads.length
                 const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
                 const notCalled = leads.filter((l) => l.current_call_stage === null).length
@@ -505,7 +507,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   {[...counsellors]
                     .sort((a, b) => getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today))
                     .map((c, idx) => {
-                      const leads = c.assigned_leads || []
+                      const leads = (c.assigned_leads || []).filter((l) => l.is_active !== false)
                       const total = leads.length
                       const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
                       const notCalled = leads.filter((l) => l.current_call_stage === null).length

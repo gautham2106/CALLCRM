@@ -20,6 +20,7 @@ export default async function AdminLeadsPage() {
         assigned_user:users!leads_assigned_to_fkey(id, name, email)
       `)
       .eq('college_id', user.college_id!)
+      .or('is_active.is.null,is_active.eq.true')
       .order('created_at', { ascending: false }),
     supabase
       .from('users')
