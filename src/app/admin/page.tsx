@@ -23,7 +23,7 @@ async function getDashboardData(collegeId: string) {
     supabase.from('leads')
       .select('id, assigned_to, current_lead_stage, current_call_stage, visit_date, follow_up_date')
       .eq('college_id', collegeId).eq('is_active', true).not('assigned_to', 'is', null),
-    supabase.from('leads').select('source_name, current_lead_stage, created_at').eq('college_id', collegeId).eq('is_active', true),
+    supabase.from('leads').select('id, name, phone, source_name, current_lead_stage, created_at, assigned_to').eq('college_id', collegeId).eq('is_active', true),
     supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).eq('follow_up_date', today),
     supabase.from('leads').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).lte('updated_at', threeDaysAgo).not('current_lead_stage', 'in', '("Enrolled","Cold Lead","Wrong Lead")'),
     supabase.from('call_diary').select('*', { count: 'exact', head: true }).eq('college_id', collegeId).gte('created_at', today),
@@ -54,6 +54,9 @@ async function getDashboardData(collegeId: string) {
     }
   })
 
+  const counsellorMap: Record<string, string> = {}
+  ;(counsellorList || []).forEach((c: any) => { counsellorMap[c.id] = c.name })
+
   const thisMonthStr = new Date().toISOString().substring(0, 7)
   const lastMonthDate = new Date()
   lastMonthDate.setMonth(lastMonthDate.getMonth() - 1)
@@ -63,16 +66,25 @@ async function getDashboardData(collegeId: string) {
     total: number; enrolled: number
     stages: Record<string, number>
     thisMonth: number; lastMonth: number
+    leads: Array<{ id: string; name: string; phone: string; stage: string; counsellor: string; createdAt: string }>
   }> = {}
   ;(sourceData || []).forEach((l: any) => {
     const s = l.source_name || 'Unknown'
-    if (!sourceStats[s]) sourceStats[s] = { total: 0, enrolled: 0, stages: {}, thisMonth: 0, lastMonth: 0 }
+    if (!sourceStats[s]) sourceStats[s] = { total: 0, enrolled: 0, stages: {}, thisMonth: 0, lastMonth: 0, leads: [] }
     sourceStats[s].total++
     if (l.current_lead_stage === 'Enrolled') sourceStats[s].enrolled++
     sourceStats[s].stages[l.current_lead_stage] = (sourceStats[s].stages[l.current_lead_stage] || 0) + 1
     const month = l.created_at?.substring(0, 7)
     if (month === thisMonthStr) sourceStats[s].thisMonth++
     if (month === lastMonthStr) sourceStats[s].lastMonth++
+    sourceStats[s].leads.push({
+      id: l.id,
+      name: l.name || 'Unknown',
+      phone: l.phone || '',
+      stage: l.current_lead_stage,
+      counsellor: l.assigned_to ? (counsellorMap[l.assigned_to] || 'Unknown') : 'Unassigned',
+      createdAt: l.created_at,
+    })
   })
 
   return {
@@ -108,6 +120,7 @@ export default async function AdminDashboard() {
         .map((st) => ({ stage: st, count: s.stages[st] })),
       thisMonth: s.thisMonth,
       lastMonth: s.lastMonth,
+      leads: s.leads.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     }))
     .sort((a, b) => b.total - a.total)
   const conversionRate = data.totalLeads > 0 ? Math.round((data.enrolled / data.totalLeads) * 100) : 0
