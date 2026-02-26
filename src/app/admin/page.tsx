@@ -1,9 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 import { AdminAnalyticsClient } from '@/components/admin/AdminAnalyticsClient'
 
 async function getDashboardData(collegeId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const today = new Date().toISOString().split('T')[0]
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
 
