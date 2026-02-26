@@ -204,6 +204,17 @@ export function LeadSourcesClient({ initialSources, collegeId, adminId, initialS
 
     return (
       <div>
+        {leads.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-white/80">
+            <span className="text-xs text-gray-400">{leads.length} leads</span>
+            <button
+              onClick={() => setShowAllMap((prev) => ({ ...prev, [sourceKey]: !isShowAll }))}
+              className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+            >
+              {isShowAll ? 'Paginate' : `Show all ${leads.length}`}
+            </button>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

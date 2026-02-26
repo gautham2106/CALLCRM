@@ -132,8 +132,16 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
 
       {/* Leads Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100">
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">Assigned Leads ({leads.length})</h2>
+          {leads.length > PAGE_SIZE && (
+            <button
+              onClick={() => { setShowAll((v) => !v); setPage(0) }}
+              className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+            >
+              {showAll ? 'Paginate' : `Show all ${leads.length}`}
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

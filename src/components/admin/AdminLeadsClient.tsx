@@ -536,6 +536,17 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
 
         {/* Desktop: Table */}
         <div className="hidden sm:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {filtered.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50/60">
+              <span className="text-xs text-gray-400">{filtered.length.toLocaleString()} leads</span>
+              <button
+                onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+              >
+                {showAll ? 'Paginate' : `Show all ${filtered.length.toLocaleString()}`}
+              </button>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
