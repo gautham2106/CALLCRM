@@ -564,108 +564,60 @@ function PipelineTab({ funnelData, sourceData, overview }: {
 // ============================================================
 function SourceLeadPanel({ source: s }: { source: SourceStat }) {
   const [showAll, setShowAll] = useState(false)
-  const [filterStage, setFilterStage] = useState<string>('All')
-
-  const filtered = filterStage === 'All' ? s.leads : s.leads.filter((l) => l.stage === filterStage)
-  const displayed = showAll ? filtered : filtered.slice(0, 25)
-  const hasMore = filtered.length > 25 && !showAll
+  const displayed = showAll ? s.leads : s.leads.slice(0, 30)
 
   function fmt(iso: string) {
     if (!iso) return '—'
-    const d = new Date(iso)
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
   }
 
   return (
-    <div className="border-t border-gray-100 bg-gray-50">
-      {/* Stage breakdown pills */}
-      {s.stages.length > 0 && (
-        <div className="px-5 pt-4 pb-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-            Stage breakdown — {s.source}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFilterStage('All')}
-              className={`text-xs px-2.5 py-1 rounded-full font-medium border transition-colors ${filterStage === 'All' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-            >
-              All {s.total}
+    <div className="border-t border-gray-100 bg-gray-50 px-5 py-4">
+      {/* Summary stats */}
+      <div className="flex items-center gap-6 mb-3 text-xs text-gray-500">
+        <span><span className="font-bold text-gray-900">{s.total}</span> total leads</span>
+        <span><span className="font-bold text-green-600">{s.enrolled}</span> enrolled</span>
+        <span><span className={`font-bold ${s.rate >= 20 ? 'text-green-600' : s.rate >= 10 ? 'text-orange-500' : 'text-gray-400'}`}>{s.rate}%</span> conversion</span>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Name</th>
+                <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Phone</th>
+                <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Stage</th>
+                <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Counsellor</th>
+                <th className="text-left px-4 py-2.5 font-semibold text-gray-500 whitespace-nowrap">Added On</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {displayed.map((lead) => (
+                <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{lead.name}</td>
+                  <td className="px-4 py-2.5 text-gray-500 tabular-nums">{lead.phone || '—'}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${STAGE_PILL[lead.stage] || 'bg-gray-100 text-gray-500'}`}>
+                      {lead.stage}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">
+                    {lead.counsellor === 'Unassigned'
+                      ? <span className="text-orange-500 font-medium">Unassigned</span>
+                      : lead.counsellor}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-400 whitespace-nowrap">{fmt(lead.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!showAll && s.leads.length > 30 && (
+          <div className="border-t border-gray-100 px-4 py-3 text-center">
+            <button onClick={() => setShowAll(true)} className="text-xs text-blue-600 font-medium hover:underline">
+              Show all {s.leads.length} leads
             </button>
-            {s.stages.map((st) => (
-              <button
-                key={st.stage}
-                onClick={() => setFilterStage(st.stage === filterStage ? 'All' : st.stage)}
-                className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border transition-colors ${
-                  filterStage === st.stage
-                    ? 'ring-2 ring-offset-1 ring-blue-400 ' + (STAGE_PILL[st.stage] || 'bg-gray-100 text-gray-500')
-                    : STAGE_PILL[st.stage] || 'bg-gray-100 text-gray-500'
-                }`}
-              >
-                {st.stage}
-                <span className="font-bold">{st.count}</span>
-                <span className="opacity-60">({s.total > 0 ? Math.round((st.count / s.total) * 100) : 0}%)</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Lead list */}
-      <div className="px-5 pb-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
-            Lead History
-            {filterStage !== 'All' && <span className="ml-1 normal-case font-normal text-gray-500">· filtered by {filterStage}</span>}
-          </p>
-          <p className="text-xs text-gray-400">{filtered.length} lead{filtered.length !== 1 ? 's' : ''} · newest first</p>
-        </div>
-
-        {filtered.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">No leads for this filter</p>
-        ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Name</th>
-                    <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Phone</th>
-                    <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Stage</th>
-                    <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Counsellor</th>
-                    <th className="text-left px-4 py-2.5 font-semibold text-gray-500 whitespace-nowrap">Added On</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {displayed.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{lead.name}</td>
-                      <td className="px-4 py-2.5 text-gray-500 font-mono tracking-wide">{lead.phone || '—'}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${STAGE_PILL[lead.stage] || 'bg-gray-100 text-gray-500'}`}>
-                          {lead.stage}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">
-                        {lead.counsellor === 'Unassigned'
-                          ? <span className="text-orange-500 font-medium">Unassigned</span>
-                          : lead.counsellor}
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-400 whitespace-nowrap">{fmt(lead.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {hasMore && (
-              <div className="border-t border-gray-100 px-4 py-3 text-center">
-                <button
-                  onClick={() => setShowAll(true)}
-                  className="text-xs text-blue-600 font-medium hover:underline"
-                >
-                  Show all {filtered.length} leads
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>
