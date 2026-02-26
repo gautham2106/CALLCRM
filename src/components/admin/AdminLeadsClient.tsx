@@ -87,6 +87,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
 
   const today = new Date().toISOString().split('T')[0]
   const [page, setPage] = useState(0)
+  const [showAll, setShowAll] = useState(false)
 
   const filtered = useMemo(() => {
     let result = leads
@@ -118,7 +119,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
 
   const PAGE_SIZE = 50
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const pageLeads = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const pageLeads = showAll ? filtered : filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   // Reset to page 0 whenever filters or tabs change
   const resetPage = () => setPage(0)
@@ -678,7 +679,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
               <span>
                 Showing{' '}
                 <span className="font-medium text-gray-700">
-                  {(page * PAGE_SIZE + 1).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()}
+                  {showAll ? filtered.length.toLocaleString() : `${(page * PAGE_SIZE + 1).toLocaleString()}–${Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()}`}
                 </span>{' '}
                 of <span className="font-medium text-gray-700">{filtered.length.toLocaleString()}</span> leads
                 {selectedIds.size > 0 && (
@@ -690,17 +691,25 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                   </button>
                 )}
               </span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </Button>
-                  <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
-                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                >
+                  {showAll ? 'Paginate' : `Show all ${filtered.length}`}
+                </button>
+                {!showAll && totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

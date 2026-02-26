@@ -87,6 +87,7 @@ export function LeadSourcesClient({ initialSources, collegeId, adminId, initialS
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
   const [sourceLeadsMap, setSourceLeadsMap] = useState<Record<string, { leads: SourceLead[]; loading: boolean }>>({})
   const [pageMap, setPageMap] = useState<Record<string, number>>({})
+  const [showAllMap, setShowAllMap] = useState<Record<string, boolean>>({})
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null)
 
   const getStat = (sourceId: string) => sourceStats.find((s) => s.sourceId === sourceId) ?? null
@@ -197,8 +198,9 @@ export function LeadSourcesClient({ initialSources, collegeId, adminId, initialS
   // Shared leads table renderer — matches main table column structure
   const renderLeadsTable = (leads: SourceLead[], sourceKey: string) => {
     const currentPage = pageMap[sourceKey] || 0
+    const isShowAll = showAllMap[sourceKey] || false
     const totalPages = Math.ceil(leads.length / PAGE_SIZE)
-    const pageLeads = leads.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
+    const pageLeads = isShowAll ? leads : leads.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
 
     return (
       <div>
@@ -307,28 +309,38 @@ export function LeadSourcesClient({ initialSources, collegeId, adminId, initialS
           </table>
         </div>
 
-        {totalPages > 1 && (
+        {leads.length > 0 && (
           <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-500">
-            <span>{leads.length} leads · Page {currentPage + 1} of {totalPages}</span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => setPageMap((prev) => ({ ...prev, [sourceKey]: currentPage - 1 }))}
-                disabled={currentPage === 0}
+            <span>{leads.length} leads{!isShowAll && totalPages > 1 ? ` · Page ${currentPage + 1} of ${totalPages}` : ''}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowAllMap((prev) => ({ ...prev, [sourceKey]: !isShowAll }))}
+                className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => setPageMap((prev) => ({ ...prev, [sourceKey]: currentPage + 1 }))}
-                disabled={currentPage >= totalPages - 1}
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
+                {isShowAll ? 'Paginate' : `Show all ${leads.length}`}
+              </button>
+              {!isShowAll && totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={() => setPageMap((prev) => ({ ...prev, [sourceKey]: currentPage - 1 }))}
+                    disabled={currentPage === 0}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={() => setPageMap((prev) => ({ ...prev, [sourceKey]: currentPage + 1 }))}
+                    disabled={currentPage >= totalPages - 1}
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}

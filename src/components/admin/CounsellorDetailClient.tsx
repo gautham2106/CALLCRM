@@ -71,9 +71,10 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
   const [leads, setLeads] = useState<CounsellorLead[]>(initialLeads)
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
+  const [showAll, setShowAll] = useState(false)
 
   const totalPages = Math.ceil(leads.length / PAGE_SIZE)
-  const pageLeads = leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const pageLeads = showAll ? leads : leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const handleLeadUpdated = (id: string, updated: Partial<CounsellorLead>) => {
     setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...updated } : l))
@@ -246,20 +247,30 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
             </tbody>
           </table>
         </div>
-        {totalPages > 1 && (
+        {leads.length > 0 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50 text-xs text-gray-500">
             <span>
               Showing <span className="font-medium text-gray-700">{pageLeads.length}</span> of{' '}
               <span className="font-medium text-gray-700">{leads.length}</span> leads
             </span>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-              <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
-              <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+              >
+                {showAll ? 'Paginate' : `Show all ${leads.length}`}
+              </button>
+              {!showAll && totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
