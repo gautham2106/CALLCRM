@@ -116,6 +116,7 @@ export function LeadSourcesClient({ initialSources, collegeId, adminId, initialS
       .select('id, name, phone, email, city, course_interest, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
       .eq('college_id', collegeId)
       .is('source_id', null)
+      .eq('is_active', true)
       .order('created_at', { ascending: false })
     setSourceLeadsMap((prev) => ({
       ...prev,
@@ -172,6 +173,7 @@ export function LeadSourcesClient({ initialSources, collegeId, adminId, initialS
       .select('id, name, phone, email, city, course_interest, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
       .eq('college_id', collegeId)
       .eq('source_id', source.id)
+      .eq('is_active', true)
       .order('created_at', { ascending: false })
     setSourceLeadsMap((prev) => ({
       ...prev,
