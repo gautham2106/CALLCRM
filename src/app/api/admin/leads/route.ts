@@ -49,8 +49,10 @@ export async function GET(request: NextRequest) {
     .or('is_active.is.null,is_active.eq.true')
     .order('created_at', { ascending: false })
 
-  // Apply server-side pagination (skipped for export)
-  if (!isExport) query = query.range(page * limit, page * limit + limit - 1)
+  const isIdsOnly = sp.get('ids_only') === 'true'
+
+  // Apply server-side pagination (skipped for export and ids_only)
+  if (!isExport && !isIdsOnly) query = query.range(page * limit, page * limit + limit - 1)
 
   // Filters
   if (tab === 'unassigned' || counsellor === 'unassigned') {
@@ -67,6 +69,12 @@ export async function GET(request: NextRequest) {
     query = query.or(
       `name.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%,city.ilike.%${search}%`
     )
+  }
+
+  // ids_only=true — return just IDs for "Select All Matching" across all pages
+  if (isIdsOnly) {
+    const { data: idRows } = await query.select('id')
+    return NextResponse.json({ ids: (idRows || []).map((r: any) => r.id) })
   }
 
   // Unassigned count for tab badge (separate fast COUNT query)

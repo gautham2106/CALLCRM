@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -90,6 +90,8 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
   const [courseFilter, setCourseFilter] = useState('all')
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
   const [page, setPage] = useState(0)
+  const [selectAllMatching, setSelectAllMatching] = useState(false)
+  const [loadingIds, setLoadingIds] = useState(false)
 
   // ---- UI state ----
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -165,26 +167,49 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
 
   // ---- Fetch on filter / page change ----
   useEffect(() => {
+    // Clear select-all-matching whenever filters or page change
+    setSelectAllMatching(false)
     fetchLeads()
   }, [fetchLeads])
 
   // ---- Reset page to 0 when filters change (not when page itself changes) ----
   const resetPage = () => setPage(0)
 
+  // ---- Fetch ALL matching IDs (for Select All Matching across pages) ----
+  const fetchAllIds = useCallback(async () => {
+    setLoadingIds(true)
+    try {
+      const p = buildParams(0)
+      p.set('ids_only', 'true')
+      const res = await fetch(`/api/admin/leads?${p}`)
+      const json = await res.json()
+      setSelectedIds(new Set(json.ids || []))
+      setSelectAllMatching(true)
+    } catch {
+      toast({ title: 'Failed to select all leads', variant: 'destructive' })
+    } finally {
+      setLoadingIds(false)
+    }
+  }, [buildParams])
+
   // ---- Selection helpers ----
-  const toggleSelect = (id: string) =>
+  const toggleSelect = (id: string) => {
+    setSelectAllMatching(false)
     setSelectedIds((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
 
-  const toggleSelectAll = () =>
-    setSelectedIds(
-      selectedIds.size === leads.length && leads.length > 0
-        ? new Set()
-        : new Set(leads.map((l) => l.id))
-    )
+  const toggleSelectAll = () => {
+    if (selectedIds.size > 0) {
+      setSelectedIds(new Set())
+      setSelectAllMatching(false)
+    } else {
+      setSelectedIds(new Set(leads.map((l) => l.id)))
+    }
+  }
 
   // ---- Export all matching leads (bypasses pagination) ----
   const exportCSV = async () => {
@@ -536,6 +561,38 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
           </div>
         </div>
 
+        {/* Select All Matching banner */}
+        {selectedIds.size > 0 && total > leads.length && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-sm">
+            {selectAllMatching ? (
+              <span className="text-blue-700 font-medium">
+                All <strong>{selectedIds.size.toLocaleString()}</strong> matching leads selected
+              </span>
+            ) : (
+              <span className="text-blue-700">
+                <strong>{selectedIds.size}</strong> leads on this page selected
+              </span>
+            )}
+            {selectAllMatching ? (
+              <button
+                onClick={() => { setSelectedIds(new Set()); setSelectAllMatching(false) }}
+                className="text-blue-600 hover:text-blue-800 underline font-medium"
+              >
+                Clear selection
+              </button>
+            ) : (
+              <button
+                onClick={fetchAllIds}
+                disabled={loadingIds}
+                className="text-blue-600 hover:text-blue-800 underline font-medium flex items-center gap-1"
+              >
+                {loadingIds && <Loader2 className="h-3 w-3 animate-spin" />}
+                Select all {total.toLocaleString()} matching leads
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Mobile: Card Grid */}
         <div className="sm:hidden space-y-3">
           {loading ? (
@@ -562,7 +619,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
                 )}
               </div>
               {leads.map((lead) => {
-                const isOverdue = lead.follow_up_date && lead.follow_up_date < today
+                const isOverdue  = lead.follow_up_date && lead.follow_up_date < today
                 const isVisitToday = lead.visit_date === today
                 return (
                   <div
@@ -641,6 +698,21 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
                   </div>
                 )
               })}
+              {/* Mobile pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
+                  <span>{(page * PAGE_SIZE + 1)}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total.toLocaleString()}</span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0 || loading}>
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1 || loading}>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
