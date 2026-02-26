@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { PushNotificationButton } from '@/components/shared/PushNotificationButton'
 
 const navItems = [
   { href: '/counsellor', label: 'My Dashboard', icon: LayoutDashboard, exact: true },
@@ -110,8 +111,12 @@ export function CounsellorSidebar({ onClose }: Props) {
         })}
       </nav>
 
-      {/* Sign Out */}
-      <div className="px-3 pb-4 border-t border-gray-800 pt-3">
+      {/* Footer actions */}
+      <div className="px-3 pb-4 border-t border-gray-800 pt-3 space-y-0.5">
+        <PushNotificationButton
+          label
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white transition-all w-full"
+        />
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white transition-all w-full"

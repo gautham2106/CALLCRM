@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { CounsellorSidebar } from './CounsellorSidebar'
 import { Menu, GraduationCap } from 'lucide-react'
+import { PushNotificationButton } from '@/components/shared/PushNotificationButton'
 
 export function CounsellorShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -44,12 +45,13 @@ export function CounsellorShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1">
             <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
               <GraduationCap className="h-4 w-4 text-white" />
             </div>
             <span className="font-bold text-gray-900 text-sm">CallCRM</span>
           </div>
+          <PushNotificationButton className="p-2 rounded-lg hover:bg-gray-100 transition-colors" />
         </div>
 
         {children}
