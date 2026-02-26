@@ -14,7 +14,7 @@ import { toast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
 import {
   UserPlus, Mail, Phone, Eye, Loader2, Users, Upload, Plus,
-  Building2, AlertCircle, CheckCircle, ArrowRight, X, FileText,
+  Building2, AlertCircle, CheckCircle, ArrowRight, X, FileText, AlertTriangle,
 } from 'lucide-react'
 
 interface CounsellorLead {
@@ -97,6 +97,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   // Single lead form
   const [singleForm, setSingleForm] = useState(EMPTY_SINGLE)
   const [addingSingle, setAddingSingle] = useState(false)
+  const [singlePhoneWarning, setSinglePhoneWarning] = useState<string | null>(null)
 
   // CSV import state
   const [csvStep, setCsvStep] = useState<'upload' | 'map' | 'preview' | 'done'>('upload')
@@ -112,6 +113,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
 
   const resetAddLeads = () => {
     setSingleForm(EMPTY_SINGLE)
+    setSinglePhoneWarning(null)
     setCsvStep('upload')
     setCsvHeaders([])
     setCsvRows([])
@@ -201,6 +203,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
           : c
       ))
       setSingleForm(EMPTY_SINGLE)
+      setSinglePhoneWarning(null)
       toast({ title: 'Lead added', description: `${singleForm.name} assigned to ${addLeadsTarget.name}.`, variant: 'success' })
       setAddLeadsTarget(null)
     } catch (err: unknown) {
@@ -663,7 +666,34 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   </div>
                   <div className="col-span-2 space-y-1.5">
                     <Label>Phone <span className="text-red-500">*</span></Label>
-                    <Input value={singleForm.phone} onChange={(e) => setSingleForm({ ...singleForm, phone: e.target.value })} placeholder="9876543210" required />
+                    <Input
+                      value={singleForm.phone}
+                      onChange={async (e) => {
+                        const phone = e.target.value
+                        setSingleForm({ ...singleForm, phone })
+                        const norm = phone.trim()
+                        if (norm.length >= 6) {
+                          const { data } = await supabase
+                            .from('leads')
+                            .select('id, name')
+                            .eq('college_id', collegeId)
+                            .eq('phone', norm)
+                            .limit(1)
+                            .maybeSingle()
+                          setSinglePhoneWarning(data ? `Duplicate: "${data.name}" already has this number` : null)
+                        } else {
+                          setSinglePhoneWarning(null)
+                        }
+                      }}
+                      placeholder="9876543210"
+                      required
+                      className={singlePhoneWarning ? 'border-orange-400 focus-visible:ring-orange-300' : ''}
+                    />
+                    {singlePhoneWarning && (
+                      <p className="text-xs text-orange-500 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />{singlePhoneWarning}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label>Email</Label>
