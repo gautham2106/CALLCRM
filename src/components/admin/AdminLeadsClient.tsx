@@ -90,6 +90,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
   const [courseFilter, setCourseFilter] = useState('all')
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
   const [page, setPage] = useState(0)
+  const [showAll, setShowAll] = useState(false)
   const [selectAllMatching, setSelectAllMatching] = useState(false)
   const [loadingIds, setLoadingIds] = useState(false)
 
@@ -123,11 +124,12 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
   }, [search])
 
   // ---- Build API params from current filter state ----
-  const buildParams = useCallback((overridePage?: number) => {
+  const buildParams = useCallback((overridePage?: number, forceExport?: boolean) => {
     const p = new URLSearchParams({
       page: String(overridePage ?? page),
       limit: String(PAGE_SIZE),
     })
+    if (showAll || forceExport) p.set('export', 'true')
     if (debouncedSearch)           p.set('search', debouncedSearch)
     if (stageFilter !== 'all')     p.set('stage', stageFilter)
     if (counsellorFilter !== 'all') p.set('counsellor', counsellorFilter)
@@ -146,7 +148,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
       p.set('course', courseFilter === '__none__' ? '__none__' : courseFilter)
     }
     return p
-  }, [page, debouncedSearch, stageFilter, counsellorFilter, sourceFilter, courseFilter, activeTab, sources])
+  }, [page, showAll, debouncedSearch, stageFilter, counsellorFilter, sourceFilter, courseFilter, activeTab, sources])
 
   // ---- Core fetch function ----
   const fetchLeads = useCallback(async (overridePage?: number) => {
@@ -172,8 +174,8 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
     fetchLeads()
   }, [fetchLeads])
 
-  // ---- Reset page to 0 when filters change (not when page itself changes) ----
-  const resetPage = () => setPage(0)
+  // ---- Reset page to 0 and exit showAll when filters change ----
+  const resetPage = () => { setPage(0); setShowAll(false) }
 
   // ---- Fetch ALL matching IDs (for Select All Matching across pages) ----
   const fetchAllIds = useCallback(async () => {
@@ -213,8 +215,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
 
   // ---- Export all matching leads (bypasses pagination) ----
   const exportCSV = async () => {
-    const p = buildParams(0)
-    p.set('export', 'true')
+    const p = buildParams(0, true) // forceExport=true
     try {
       const res = await fetch(`/api/admin/leads?${p}`)
       const json = await res.json()
@@ -719,6 +720,37 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
 
         {/* Desktop: Table */}
         <div className="hidden sm:block bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {/* Table toolbar: count + show-all toggle + pagination */}
+          {total > 0 && (
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-gray-50/60">
+              <span className="text-xs text-gray-500">
+                {showAll
+                  ? `${total.toLocaleString()} leads`
+                  : `${(page * PAGE_SIZE + 1).toLocaleString()}–${Math.min((page + 1) * PAGE_SIZE, total).toLocaleString()} of ${total.toLocaleString()}`}
+              </span>
+              <div className="flex items-center gap-3">
+                {!showAll && totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0 || loading}>
+                      <ChevronLeft className="h-3 w-3" />
+                    </Button>
+                    <span className="text-xs font-medium text-gray-600 px-1">{page + 1} / {totalPages}</span>
+                    <Button variant="outline" size="sm" className="h-6 w-6 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1 || loading}>
+                      <ChevronRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                {total > PAGE_SIZE && (
+                  <button
+                    onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                    className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                  >
+                    {showAll ? 'Paginate' : `Show all ${total.toLocaleString()}`}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -866,8 +898,8 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
             </table>
           </div>
 
-          {/* Pagination footer */}
-          {total > 0 && (
+          {/* Pagination footer (hidden when showing all) */}
+          {total > 0 && !showAll && (
             <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-xs text-gray-500">
               <span>
                 Showing{' '}
