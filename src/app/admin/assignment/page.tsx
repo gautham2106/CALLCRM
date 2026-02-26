@@ -1,11 +1,11 @@
 import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 import { AssignmentClient } from '@/components/admin/AssignmentClient'
 import { LeadsTableSkeleton } from '@/components/ui/skeletons'
 
 async function AssignmentContent({ collegeId, adminId }: { collegeId: string; adminId: string }) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const [
     { data: leads },
     { data: counsellors },
