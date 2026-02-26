@@ -34,9 +34,12 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Trash2,
+  Tag,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { toast } from '@/components/ui/use-toast'
+import { createClient } from '@/lib/supabase/client'
 
 interface Lead {
   id: string
@@ -67,6 +70,7 @@ interface Props {
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_interest: '', source_id: '', notes: '' }
 
 export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId, adminId }: Props) {
+  const supabase = createClient()
   const [leads, setLeads] = useState(initialLeads)
   const [search, setSearch] = useState('')
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -89,6 +93,12 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const [page, setPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
   const [phoneWarning, setPhoneWarning] = useState<string | null>(null)
+
+  // Bulk operations
+  const [showBulkStageDialog, setShowBulkStageDialog] = useState(false)
+  const [bulkStageValue, setBulkStageValue] = useState('')
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false)
+  const [bulkProcessing, setBulkProcessing] = useState(false)
 
   const filtered = useMemo(() => {
     let result = leads
@@ -285,6 +295,45 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
     }
   }
 
+  const bulkChangeStage = async () => {
+    if (!bulkStageValue || selectedIds.size === 0) return
+    setBulkProcessing(true)
+    const { error } = await supabase
+      .from('leads')
+      .update({ current_lead_stage: bulkStageValue })
+      .in('id', Array.from(selectedIds))
+      .eq('college_id', collegeId)
+    if (!error) {
+      setLeads((prev) => prev.map((l) => selectedIds.has(l.id) ? { ...l, current_lead_stage: bulkStageValue } : l))
+      toast({ title: `${selectedIds.size} leads moved to "${bulkStageValue}"`, variant: 'success' })
+      setSelectedIds(new Set())
+      setBulkStageValue('')
+      setShowBulkStageDialog(false)
+    } else {
+      toast({ title: 'Failed to update leads', description: error.message, variant: 'destructive' })
+    }
+    setBulkProcessing(false)
+  }
+
+  const bulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    setBulkProcessing(true)
+    const { error } = await supabase
+      .from('leads')
+      .update({ is_active: false })
+      .in('id', Array.from(selectedIds))
+      .eq('college_id', collegeId)
+    if (!error) {
+      setLeads((prev) => prev.filter((l) => !selectedIds.has(l.id)))
+      toast({ title: `${selectedIds.size} leads deleted`, variant: 'success' })
+      setSelectedIds(new Set())
+      setShowBulkDeleteDialog(false)
+    } else {
+      toast({ title: 'Failed to delete leads', description: error.message, variant: 'destructive' })
+    }
+    setBulkProcessing(false)
+  }
+
   const hasReassignableSelected = Array.from(selectedIds).some(
     (id) => leads.find((l) => l.id === id)?.assigned_to
   )
@@ -328,6 +377,19 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                 <Button size="sm" onClick={() => setShowAssignDialog(true)} disabled={assigning} className="gap-1.5">
                   <UserPlus className="h-4 w-4" />
                   Assign {selectedIds.size}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowBulkStageDialog(true)} className="gap-1.5">
+                  <Tag className="h-4 w-4" />
+                  <span className="hidden sm:inline">Change Stage</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Delete</span>
                 </Button>
               </>
             )}
@@ -904,6 +966,60 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
           <Button onClick={() => assignLeads(true)} disabled={!selectedCounsellorId || assigning}>
             {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Reassign Leads
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Bulk Change Stage Dialog */}
+    <Dialog open={showBulkStageDialog} onOpenChange={(open) => { setShowBulkStageDialog(open); if (!open) setBulkStageValue('') }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Change Stage for {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <Label>New Stage</Label>
+          <Select value={bulkStageValue} onValueChange={setBulkStageValue}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a stage..." />
+            </SelectTrigger>
+            <SelectContent>
+              {LEAD_STAGES.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowBulkStageDialog(false)}>Cancel</Button>
+          <Button onClick={bulkChangeStage} disabled={!bulkStageValue || bulkProcessing}>
+            {bulkProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
+            Apply to {selectedIds.size} Leads
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Bulk Delete Confirmation Dialog */}
+    <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}?</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-gray-500 py-2">
+          This will permanently remove {selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} from your system.
+          This action cannot be undone.
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowBulkDeleteDialog(false)}>Cancel</Button>
+          <Button
+            variant="destructive"
+            onClick={bulkDelete}
+            disabled={bulkProcessing}
+            className="gap-1.5"
+          >
+            {bulkProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Delete {selectedIds.size} Leads
           </Button>
         </DialogFooter>
       </DialogContent>

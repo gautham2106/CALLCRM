@@ -4,7 +4,7 @@ import { requireCounsellor } from '@/lib/auth'
 import { CounsellorLeadsClient } from '@/components/counsellor/CounsellorLeadsClient'
 import { LeadsTableSkeleton } from '@/components/ui/skeletons'
 
-async function LeadsContent({ userId }: { userId: string }) {
+async function LeadsContent({ userId, collegeId }: { userId: string; collegeId: string }) {
   const supabase = await createClient()
   const { data: leads } = await supabase
     .from('leads')
@@ -21,6 +21,7 @@ async function LeadsContent({ userId }: { userId: string }) {
     <CounsellorLeadsClient
       initialLeads={(leads || []) as any}
       counsellorId={userId}
+      collegeId={collegeId}
     />
   )
 }
@@ -30,7 +31,7 @@ export default async function CounsellorLeadsPage() {
 
   return (
     <Suspense fallback={<LeadsTableSkeleton />}>
-      <LeadsContent userId={user.id} />
+      <LeadsContent userId={user.id} collegeId={user.college_id!} />
     </Suspense>
   )
 }

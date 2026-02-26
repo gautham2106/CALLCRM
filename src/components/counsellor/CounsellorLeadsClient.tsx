@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -13,6 +12,7 @@ import {
   formatDate,
 } from '@/lib/utils'
 import { Search, Phone, Eye, Users, Clock, PhoneOff, MapPin, BookOpen, Calendar, Building2 } from 'lucide-react'
+import { LeadSlidePanel } from '@/components/shared/LeadSlidePanel'
 
 interface Lead {
   id: string
@@ -33,13 +33,15 @@ interface Lead {
 interface Props {
   initialLeads: Lead[]
   counsellorId: string
+  collegeId: string
 }
 
-export function CounsellorLeadsClient({ initialLeads }: Props) {
+export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }: Props) {
   const searchParams = useSearchParams()
   const initialFilter = searchParams.get('filter') || 'all'
 
-  const [leads] = useState(initialLeads)
+  const [leads, setLeads] = useState(initialLeads)
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('all')
   const [filterTab, setFilterTab] = useState<'all' | 'today' | 'visits' | 'not-called'>(
@@ -71,6 +73,10 @@ export function CounsellorLeadsClient({ initialLeads }: Props) {
     today: leads.filter((l) => l.follow_up_date === today).length,
     visits: leads.filter((l) => l.visit_date === today).length,
     'not-called': leads.filter((l) => !l.current_call_stage).length,
+  }
+
+  const handleLeadUpdated = (id: string, updated: Partial<Lead>) => {
+    setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...updated } : l))
   }
 
   const tabs = [
@@ -232,12 +238,15 @@ export function CounsellorLeadsClient({ initialLeads }: Props) {
                           Call
                         </Button>
                       </a>
-                      <Link href={`/counsellor/leads/${lead.id}`} className="flex-1">
-                        <Button variant="outline" size="sm" className="w-full gap-1.5 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700">
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </Button>
-                      </Link>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-1.5 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700"
+                        onClick={() => setEditingLeadId(lead.id)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        View
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -252,6 +261,14 @@ export function CounsellorLeadsClient({ initialLeads }: Props) {
           </p>
         )}
       </div>
+
+      <LeadSlidePanel
+        leadId={editingLeadId}
+        collegeId={collegeId}
+        currentUserId={counsellorId}
+        onClose={() => setEditingLeadId(null)}
+        onLeadUpdated={handleLeadUpdated}
+      />
     </div>
   )
 }
