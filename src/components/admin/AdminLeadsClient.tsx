@@ -32,6 +32,8 @@ import {
   CheckCircle,
   Building2,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { toast } from '@/components/ui/use-toast'
@@ -84,6 +86,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
   const [assigning, setAssigning] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
+  const [page, setPage] = useState(0)
 
   const filtered = useMemo(() => {
     let result = leads
@@ -112,6 +115,13 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
     }
     return result
   }, [leads, search, stageFilter, counsellorFilter, sourceFilter, activeTab, sources])
+
+  const PAGE_SIZE = 50
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const pageLeads = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  // Reset to page 0 whenever filters or tabs change
+  const resetPage = () => setPage(0)
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -342,7 +352,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
           {(['all', 'unassigned'] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { setActiveTab(tab); resetPage() }}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
                 activeTab === tab
                   ? 'border-blue-600 text-blue-600'
@@ -372,11 +382,11 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
               <Input
                 placeholder="Search name, phone, email..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); resetPage() }}
                 className="pl-9 h-9"
               />
             </div>
-            <Select value={stageFilter} onValueChange={setStageFilter}>
+            <Select value={stageFilter} onValueChange={(v) => { setStageFilter(v); resetPage() }}>
               <SelectTrigger className="w-full sm:w-40 h-9">
                 <SelectValue placeholder="Stage" />
               </SelectTrigger>
@@ -385,7 +395,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                 {LEAD_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={counsellorFilter} onValueChange={setCounsellorFilter}>
+            <Select value={counsellorFilter} onValueChange={(v) => { setCounsellorFilter(v); resetPage() }}>
               <SelectTrigger className="w-full sm:w-40 h-9">
                 <SelectValue placeholder="Counsellor" />
               </SelectTrigger>
@@ -396,7 +406,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
               </SelectContent>
             </Select>
             {sources.length > 0 && (
-              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); resetPage() }}>
                 <SelectTrigger className="w-full sm:w-40 h-9">
                   <SelectValue placeholder="Source" />
                 </SelectTrigger>
@@ -409,7 +419,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
             )}
             {(search || stageFilter !== 'all' || counsellorFilter !== 'all' || sourceFilter !== 'all') && (
               <button
-                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all') }}
+                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all'); resetPage() }}
                 className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 Clear
@@ -557,7 +567,7 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((lead) => {
+                  pageLeads.map((lead) => {
                     const isOverdue = lead.follow_up_date && lead.follow_up_date <= today
                     const isVisitToday = lead.visit_date === today
                     const isVisitOverdue = lead.visit_date && lead.visit_date < today
@@ -666,16 +676,30 @@ export function AdminLeadsClient({ initialLeads, counsellors, sources, collegeId
           {filtered.length > 0 && (
             <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between text-xs text-gray-500">
               <span>
-                Showing <span className="font-medium text-gray-700">{filtered.length.toLocaleString()}</span> of{' '}
-                <span className="font-medium text-gray-700">{leads.length.toLocaleString()}</span> leads
+                Showing{' '}
+                <span className="font-medium text-gray-700">
+                  {(page * PAGE_SIZE + 1).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()}
+                </span>{' '}
+                of <span className="font-medium text-gray-700">{filtered.length.toLocaleString()}</span> leads
                 {selectedIds.size > 0 && (
                   <span className="ml-2 text-blue-600 font-medium">· {selectedIds.size} selected</span>
                 )}
+                {selectedIds.size > 0 && (
+                  <button onClick={() => setSelectedIds(new Set())} className="ml-2 text-gray-400 hover:text-gray-600 underline">
+                    Clear
+                  </button>
+                )}
               </span>
-              {selectedIds.size > 0 && (
-                <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-gray-600">
-                  Clear selection
-                </button>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               )}
             </div>
           )}

@@ -18,6 +18,11 @@ import {
   Phone, MessageCircle, X, Save, Loader2, Clock, ArrowRight, History,
 } from 'lucide-react'
 
+interface LeadSource {
+  id: string
+  source_name: string
+}
+
 interface SlideLeadData {
   id: string
   name: string
@@ -25,6 +30,7 @@ interface SlideLeadData {
   email: string | null
   city: string | null
   course_interest: string | null
+  source_id: string | null
   source_name: string | null
   current_lead_stage: string
   current_call_stage: string | null
@@ -55,6 +61,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
   const supabase = createClient()
   const [lead, setLead] = useState<SlideLeadData | null>(null)
   const [diary, setDiary] = useState<CallEntry[]>([])
+  const [sources, setSources] = useState<LeadSource[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loggingCall, setLoggingCall] = useState(false)
@@ -62,10 +69,10 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
 
   const fetchData = useCallback(async (id: string) => {
     setLoading(true)
-    const [{ data: leadData }, { data: diaryData }] = await Promise.all([
+    const [{ data: leadData }, { data: diaryData }, { data: sourcesData }] = await Promise.all([
       supabase
         .from('leads')
-        .select('id, name, phone, email, city, course_interest, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
+        .select('id, name, phone, email, city, course_interest, source_id, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
         .eq('id', id)
         .single(),
       supabase
@@ -74,12 +81,20 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
         .eq('lead_id', id)
         .order('created_at', { ascending: false })
         .limit(50),
+      supabase
+        .from('lead_sources')
+        .select('id, source_name')
+        .eq('college_id', collegeId)
+        .eq('is_active', true)
+        .order('source_name'),
     ])
 
     if (leadData) {
       setLead(leadData as SlideLeadData)
       setCallForm((prev) => ({ ...prev, lead_stage: (leadData as SlideLeadData).current_lead_stage }))
     }
+
+    if (sourcesData) setSources(sourcesData as LeadSource[])
 
     if (diaryData && diaryData.length > 0) {
       const callerIds = [...new Set((diaryData as any[]).map((d) => d.called_by).filter(Boolean))]
@@ -99,7 +114,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
       setDiary([])
     }
     setLoading(false)
-  }, [supabase])
+  }, [supabase, collegeId])
 
   useEffect(() => {
     if (leadId) {
@@ -116,9 +131,13 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
     const { error } = await supabase
       .from('leads')
       .update({
+        name: lead.name,
+        phone: lead.phone,
         email: lead.email,
         city: lead.city,
         course_interest: lead.course_interest,
+        source_id: lead.source_id,
+        source_name: lead.source_name,
         current_lead_stage: lead.current_lead_stage,
         current_call_stage: lead.current_call_stage,
         visit_date: lead.visit_date || null,
@@ -226,7 +245,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
                   <a href={`tel:${lead.phone}`} className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors" title="Call">
                     <Phone className="h-4 w-4" />
                   </a>
-                  <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors" title="WhatsApp">
+                  <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="WhatsApp">
                     <MessageCircle className="h-4 w-4" />
                   </a>
                   <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
@@ -255,11 +274,11 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</Label>
-                      <Input value={lead.name} disabled className="bg-gray-50" />
+                      <Input value={lead.name} onChange={(e) => setLead({ ...lead, name: e.target.value })} placeholder="Full name" />
                     </div>
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Phone</Label>
-                      <Input value={lead.phone} disabled className="bg-gray-50 font-mono" />
+                      <Input value={lead.phone} onChange={(e) => setLead({ ...lead, phone: e.target.value })} placeholder="Phone number" className="font-mono" />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</Label>
@@ -275,7 +294,23 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Source</Label>
-                      <Input value={lead.source_name || '—'} disabled className="bg-gray-50" />
+                      <Select
+                        value={lead.source_id || '__none__'}
+                        onValueChange={(val) => {
+                          const src = sources.find((s) => s.id === val)
+                          setLead({
+                            ...lead,
+                            source_id: val === '__none__' ? null : val,
+                            source_name: src?.source_name || null,
+                          })
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— No source —</SelectItem>
+                          {sources.map((s) => <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Lead Stage</Label>

@@ -217,7 +217,7 @@ export function LeadSourcesClient({ initialSources, collegeId, adminId, initialS
             </thead>
             <tbody className="divide-y divide-gray-100">
               {pageLeads.map((lead) => {
-                const isOverdue = lead.follow_up_date && lead.follow_up_date < today &&
+                const isOverdue = lead.follow_up_date && lead.follow_up_date <= today &&
                   !['Enrolled', 'Cold Lead', 'Wrong Lead'].includes(lead.current_lead_stage)
                 return (
                   <tr key={lead.id} className="bg-white hover:bg-blue-50/30 transition-colors">

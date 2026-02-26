@@ -9,7 +9,10 @@ import { LeadSlidePanel } from '@/components/shared/LeadSlidePanel'
 import { formatDate } from '@/lib/utils'
 import {
   ArrowLeft, Mail, Phone, Users, GraduationCap, TrendingUp, MessageCircle, Pencil,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
+
+const PAGE_SIZE = 25
 
 interface CounsellorInfo {
   id: string
@@ -67,6 +70,10 @@ const today = new Date().toISOString().split('T')[0]
 export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, adminId }: Props) {
   const [leads, setLeads] = useState<CounsellorLead[]>(initialLeads)
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+
+  const totalPages = Math.ceil(leads.length / PAGE_SIZE)
+  const pageLeads = leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const handleLeadUpdated = (id: string, updated: Partial<CounsellorLead>) => {
     setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...updated } : l))
@@ -148,8 +155,8 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
                   </td>
                 </tr>
               ) : (
-                leads.map((lead) => {
-                  const isOverdue = lead.follow_up_date && lead.follow_up_date < today &&
+                pageLeads.map((lead) => {
+                  const isOverdue = lead.follow_up_date && lead.follow_up_date <= today &&
                     !['Enrolled', 'Cold Lead', 'Wrong Lead'].includes(lead.current_lead_stage)
                   return (
                     <tr key={lead.id} className="hover:bg-blue-50/30 transition-colors">
@@ -239,6 +246,23 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50 text-xs text-gray-500">
+            <span>
+              Showing <span className="font-medium text-gray-700">{pageLeads.length}</span> of{' '}
+              <span className="font-medium text-gray-700">{leads.length}</span> leads
+            </span>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
+              <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1}>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Full-featured Lead Slide Panel */}
