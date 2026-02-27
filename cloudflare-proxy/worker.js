@@ -21,43 +21,50 @@ const CORS_HEADERS = {
 
 export default {
   async fetch(request, env) {
-    // Respond to CORS preflight immediately — don't forward to Supabase
+    // Respond to CORS preflight immediately
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS })
     }
 
-    const supabaseOrigin = new URL(env.SUPABASE_URL).origin
-    const url = new URL(request.url)
-    const targetUrl = supabaseOrigin + url.pathname + url.search
+    try {
+      // Normalize SUPABASE_URL — add https:// if missing, strip trailing slash
+      let base = (env.SUPABASE_URL || '').trim().replace(/\/$/, '')
+      if (!base.startsWith('http')) base = 'https://' + base
 
-    // Strip Cloudflare-injected and hop-by-hop headers before forwarding
-    const headers = new Headers(request.headers)
-    headers.delete('host')
-    headers.delete('content-length')   // let fetch recalculate
-    headers.delete('cf-connecting-ip')
-    headers.delete('cf-ipcountry')
-    headers.delete('cf-ray')
-    headers.delete('cf-visitor')
+      const target = new URL(base)
+      const incoming = new URL(request.url)
 
-    const response = await fetch(
-      new Request(targetUrl, {
+      // Build the destination URL: Supabase origin + incoming path + query
+      const dest = target.origin + incoming.pathname + incoming.search
+
+      // Strip Cloudflare-injected and hop-by-hop headers
+      const headers = new Headers(request.headers)
+      for (const h of ['host', 'content-length', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor']) {
+        headers.delete(h)
+      }
+
+      const response = await fetch(dest, {
         method: request.method,
         headers,
-        body: request.body,
+        // GET and HEAD must not have a body
+        body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
         redirect: 'follow',
       })
-    )
 
-    // Attach CORS headers to every response so the browser accepts it
-    const newHeaders = new Headers(response.headers)
-    for (const [k, v] of Object.entries(CORS_HEADERS)) {
-      newHeaders.set(k, v)
+      const out = new Headers(response.headers)
+      for (const [k, v] of Object.entries(CORS_HEADERS)) out.set(k, v)
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: out,
+      })
+    } catch (err) {
+      // Surface errors as JSON so they're visible in the browser / Supabase client
+      return new Response(JSON.stringify({ proxy_error: err.message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+      })
     }
-
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: newHeaders,
-    })
   },
 }
