@@ -1010,7 +1010,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
           <DialogTitle>Add New Lead</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleAddLead} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-1">
             <div className="col-span-2 space-y-1.5">
               <Label htmlFor="lead-name">Full Name <span className="text-red-500">*</span></Label>
               <Input
