@@ -1051,46 +1051,6 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                     )}
                   </div>
 
-                  {/* Source dropdown — batch-level, not per-row */}
-                  {sources.length > 0 && (
-                    <div className="pt-2 border-t border-gray-100">
-                      <Label className="text-xs font-medium text-gray-600 mb-1.5 block">
-                        Lead Source <span className="text-gray-400 font-normal">(optional — applied to all leads)</span>
-                      </Label>
-                      <Select value={csvSelectedSourceId} onValueChange={setCsvSelectedSourceId}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Select source..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— No source —</SelectItem>
-                          {sources.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Course dropdown — batch-level, not per-row */}
-                  {courses.length > 0 && (
-                    <div className="pt-2 border-t border-gray-100">
-                      <Label className="text-xs font-medium text-gray-600 mb-1.5 block">
-                        Course Interest <span className="text-gray-400 font-normal">(optional — applied to all leads)</span>
-                      </Label>
-                      <Select value={csvSelectedCourseId} onValueChange={setCsvSelectedCourseId}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Select course..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">— No course —</SelectItem>
-                          {courses.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
                   {csvPreview.length > 0 && (
                     <div className="overflow-x-auto border rounded-lg">
                       <table className="w-full text-xs">
@@ -1100,6 +1060,43 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                       {csvRows.length > 5 && <p className="text-center text-xs text-gray-400 py-1.5">Showing 5 of {csvRows.length} rows</p>}
                     </div>
                   )}
+
+                  {/* Source dropdown — batch-level, always shown below preview */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <Label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                      Lead Source <span className="text-gray-400 font-normal">(optional — applied to all leads)</span>
+                    </Label>
+                    <Select value={csvSelectedSourceId} onValueChange={setCsvSelectedSourceId}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select source..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— No source —</SelectItem>
+                        {sources.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Course dropdown — batch-level, always shown below preview */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <Label className="text-xs font-medium text-gray-600 mb-1.5 block">
+                      Course Interest <span className="text-gray-400 font-normal">(optional — applied to all leads)</span>
+                    </Label>
+                    <Select value={csvSelectedCourseId} onValueChange={setCsvSelectedCourseId}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select course..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— No course —</SelectItem>
+                        {courses.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.course_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setCsvStep('map')}>Back</Button>
                     <Button size="sm" onClick={handleCsvImport} disabled={csvImporting}>
