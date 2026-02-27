@@ -45,7 +45,10 @@ async function handler(
 
   const responseHeaders = new Headers()
   response.headers.forEach((value, key) => {
-    if (!['connection', 'transfer-encoding'].includes(key.toLowerCase())) {
+    // Strip hop-by-hop and encoding headers: Vercel's fetch already decompresses
+    // the body, so forwarding Content-Encoding would make the browser try to
+    // decompress again → ERR_CONTENT_DECODING_FAILED.
+    if (!['connection', 'transfer-encoding', 'content-encoding', 'content-length'].includes(key.toLowerCase())) {
       responseHeaders.set(key, value)
     }
   })
