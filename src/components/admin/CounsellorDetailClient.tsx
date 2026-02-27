@@ -391,17 +391,17 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ec-pin">New PIN <span className="text-gray-400 font-normal text-xs">(5 digits — leave blank to keep current)</span></Label>
+              <Label htmlFor="ec-pin">New PIN <span className="text-gray-400 font-normal text-xs">(6 digits — leave blank to keep current)</span></Label>
               <Input
                 id="ec-pin"
                 type="text"
                 inputMode="numeric"
                 value={editForm.newPin}
-                onChange={(e) => setEditForm({ ...editForm, newPin: e.target.value.replace(/\D/g, '').slice(0, 5) })}
-                placeholder="e.g. 12345"
-                maxLength={5}
-                minLength={editForm.newPin ? 5 : undefined}
-                pattern={editForm.newPin ? '[0-9]{5}' : undefined}
+                onChange={(e) => setEditForm({ ...editForm, newPin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                placeholder="e.g. 123456"
+                maxLength={6}
+                minLength={editForm.newPin ? 6 : undefined}
+                pattern={editForm.newPin ? '[0-9]{6}' : undefined}
               />
             </div>
             <DialogFooter>

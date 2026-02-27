@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
   if (!name || !email || !pin) {
     return NextResponse.json({ error: 'name, email and pin are required' }, { status: 400 })
   }
-  if (!/^\d{5}$/.test(pin)) {
-    return NextResponse.json({ error: 'PIN must be exactly 5 digits' }, { status: 400 })
+  if (!/^\d{6}$/.test(pin)) {
+    return NextResponse.json({ error: 'PIN must be exactly 6 digits' }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -94,8 +94,8 @@ export async function PATCH(request: NextRequest) {
   if (!name || !email) {
     return NextResponse.json({ error: 'name and email are required' }, { status: 400 })
   }
-  if (newPin !== undefined && newPin !== '' && !/^\d{5}$/.test(newPin)) {
-    return NextResponse.json({ error: 'New PIN must be exactly 5 digits' }, { status: 400 })
+  if (newPin !== undefined && newPin !== '' && !/^\d{6}$/.test(newPin)) {
+    return NextResponse.json({ error: 'New PIN must be exactly 6 digits' }, { status: 400 })
   }
 
   // Fetch auth_id — must belong to this college and be a counsellor

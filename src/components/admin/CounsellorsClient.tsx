@@ -751,8 +751,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
               <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="9876543210" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pin">5-Digit PIN</Label>
-              <Input id="pin" type="text" inputMode="numeric" value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 5) })} placeholder="e.g. 12345" required minLength={5} maxLength={5} pattern="[0-9]{5}" />
+              <Label htmlFor="pin">6-Digit PIN</Label>
+              <Input id="pin" type="text" inputMode="numeric" value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })} placeholder="e.g. 123456" required minLength={6} maxLength={6} pattern="[0-9]{6}" />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
