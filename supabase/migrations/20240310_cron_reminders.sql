@@ -7,8 +7,8 @@ select cron.schedule(
   'daily-reminders',
   '0 3,6,9,12 * * *',
   $$
-  select extensions.http_get(
-    url   := 'YOUR_APP_URL/api/cron/reminders',
+  select net.http_get(
+    url     := 'YOUR_APP_URL/api/cron/reminders',
     headers := jsonb_build_object('Authorization', 'Bearer YOUR_CRON_SECRET')
   )
   $$
