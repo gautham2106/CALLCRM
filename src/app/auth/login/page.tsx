@@ -26,28 +26,40 @@ export default function LoginPage() {
         toast({ title: 'Login failed', description: error.message, variant: 'destructive' })
         return
       }
-      if (data.user) {
-        const { data: profile } = await supabase
-          .from('users')
-          .select('role, is_active')
-          .eq('auth_id', data.user.id)
-          .single()
-        if (!profile) {
-          // Auth user exists but has no profile row — sign out to prevent session abuse
-          await supabase.auth.signOut()
-          toast({ title: 'Access denied', description: 'Account not set up. Contact your administrator.', variant: 'destructive' })
-        } else if (profile.is_active === false) {
-          await supabase.auth.signOut()
-          toast({ title: 'Account disabled', description: 'Your account has been deactivated. Contact your administrator.', variant: 'destructive' })
-        } else if (profile.role === 'admin') {
-          router.push('/admin')
-        } else if (profile.role === 'counsellor') {
-          router.push('/counsellor')
-        } else {
-          await supabase.auth.signOut()
-          toast({ title: 'Access denied', description: 'Unrecognized role. Contact your administrator.', variant: 'destructive' })
-        }
+      if (!data.user) {
+        toast({ title: 'Login failed', description: 'No user returned. Try again.', variant: 'destructive' })
+        return
       }
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('role, is_active')
+        .eq('auth_id', data.user.id)
+        .single()
+      if (profileError || !profile) {
+        // Auth user exists but has no profile row — sign out to prevent session abuse
+        await supabase.auth.signOut()
+        toast({ title: 'Access denied', description: 'Account not set up. Contact your administrator.', variant: 'destructive' })
+        return
+      }
+      if (profile.is_active === false) {
+        await supabase.auth.signOut()
+        toast({ title: 'Account disabled', description: 'Your account has been deactivated. Contact your administrator.', variant: 'destructive' })
+        return
+      }
+      // Use a full-page navigation so the browser sends fresh session cookies
+      // to the server. Next.js's client-side router.push uses an RSC fetch that
+      // can race with cookie writes; window.location guarantees cookies are present.
+      if (profile.role === 'admin') {
+        window.location.href = '/admin'
+      } else if (profile.role === 'counsellor') {
+        window.location.href = '/counsellor'
+      } else {
+        await supabase.auth.signOut()
+        toast({ title: 'Access denied', description: 'Unrecognized role. Contact your administrator.', variant: 'destructive' })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast({ title: 'Unexpected error', description: msg, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
