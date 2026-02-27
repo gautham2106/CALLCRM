@@ -27,8 +27,8 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Public paths
-  if (pathname.startsWith('/api/cron')) {
+  // Public paths — proxy and cron must never be redirected to login
+  if (pathname.startsWith('/api/cron') || pathname.startsWith('/api/supabase')) {
     return supabaseResponse
   }
 
