@@ -55,6 +55,15 @@ interface CallEntry {
   caller_name: string | null
 }
 
+interface CustomField {
+  id: string
+  field_name: string
+  field_type: string
+  dropdown_options: unknown
+  is_required: boolean
+  display_order: number
+}
+
 interface Props {
   leadId: string | null
   collegeId: string
@@ -69,6 +78,8 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
   const [diary, setDiary] = useState<CallEntry[]>([])
   const [sources, setSources] = useState<LeadSource[]>([])
   const [courses, setCourses] = useState<LeadCourse[]>([])
+  const [customFields, setCustomFields] = useState<CustomField[]>([])
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loggingCall, setLoggingCall] = useState(false)
@@ -79,7 +90,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
 
   const fetchData = useCallback(async (id: string) => {
     setLoading(true)
-    const [{ data: leadData }, { data: diaryData }, { data: sourcesData }, { data: coursesData }] = await Promise.all([
+    const [{ data: leadData }, { data: diaryData }, { data: sourcesData }, { data: coursesData }, { data: cfDefs }, { data: cfVals }] = await Promise.all([
       supabase
         .from('leads')
         .select('id, name, phone, email, city, course_interest, course_id, source_id, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
@@ -103,6 +114,16 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
         .eq('college_id', collegeId)
         .eq('is_active', true)
         .order('course_name'),
+      supabase
+        .from('custom_field_definitions')
+        .select('id, field_name, field_type, dropdown_options, is_required, display_order')
+        .eq('college_id', collegeId)
+        .eq('is_active', true)
+        .order('display_order'),
+      supabase
+        .from('custom_field_values')
+        .select('field_id, value')
+        .eq('lead_id', id),
     ])
 
     if (leadData) {
@@ -114,6 +135,8 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
 
     if (sourcesData) setSources(sourcesData as LeadSource[])
     if (coursesData) setCourses(coursesData as LeadCourse[])
+    if (cfDefs) setCustomFields(cfDefs as CustomField[])
+    if (cfVals) setFieldValues(Object.fromEntries((cfVals as any[]).map((v) => [v.field_id, v.value || ''])))
 
     if (diaryData && diaryData.length > 0) {
       const callerIds = [...new Set((diaryData as any[]).map((d) => d.called_by).filter(Boolean))]
@@ -167,6 +190,18 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
       })
       .eq('id', lead.id)
     if (!error) {
+      // Save custom field values
+      for (const [fieldId, value] of Object.entries(fieldValues)) {
+        await supabase
+          .from('custom_field_values')
+          .upsert({
+            lead_id: lead.id,
+            field_id: fieldId,
+            college_id: collegeId,
+            value: value || null,
+            updated_by: currentUserId,
+          }, { onConflict: 'lead_id,field_id' })
+      }
       onLeadUpdated?.(lead.id, lead)
       toast({ title: 'Lead updated', variant: 'success' })
     } else {
@@ -418,6 +453,60 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</Label>
                       <Textarea value={lead.notes || ''} onChange={(e) => setLead({ ...lead, notes: e.target.value })} placeholder="Notes about this lead..." rows={3} />
                     </div>
+                    {/* Custom / Additional fields */}
+                    {customFields.length > 0 && (
+                      <>
+                        <div className="col-span-2 pt-1 border-t border-gray-100">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Additional Information</p>
+                        </div>
+                        {customFields.map((field) => {
+                          const value = fieldValues[field.id] || ''
+                          const options = Array.isArray(field.dropdown_options) ? field.dropdown_options as string[] : []
+                          return (
+                            <div key={field.id} className={`space-y-1 ${field.field_type === 'textarea' ? 'col-span-2' : ''}`}>
+                              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                {field.field_name}
+                                {field.is_required && <span className="text-red-500 ml-1">*</span>}
+                              </Label>
+                              {field.field_type === 'textarea' ? (
+                                <Textarea
+                                  value={value}
+                                  onChange={(e) => setFieldValues({ ...fieldValues, [field.id]: e.target.value })}
+                                  rows={2}
+                                />
+                              ) : field.field_type === 'dropdown' ? (
+                                <Select
+                                  value={value || '__none__'}
+                                  onValueChange={(val) => setFieldValues({ ...fieldValues, [field.id]: val === '__none__' ? '' : val })}
+                                >
+                                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">— Select —</SelectItem>
+                                    {options.map((opt) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              ) : field.field_type === 'checkbox' ? (
+                                <div className="flex items-center gap-2 h-9">
+                                  <input
+                                    type="checkbox"
+                                    checked={value === 'true'}
+                                    onChange={(e) => setFieldValues({ ...fieldValues, [field.id]: e.target.checked ? 'true' : 'false' })}
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                                  />
+                                  <span className="text-sm text-gray-600">{field.field_name}</span>
+                                </div>
+                              ) : (
+                                <Input
+                                  type={field.field_type === 'date' ? 'date' : field.field_type === 'number' ? 'number' : 'text'}
+                                  value={value}
+                                  onChange={(e) => setFieldValues({ ...fieldValues, [field.id]: e.target.value })}
+                                />
+                              )}
+                            </div>
+                          )
+                        })}
+                      </>
+                    )}
                   </div>
                   <Button onClick={saveLead} disabled={saving} className="w-full gap-1.5">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

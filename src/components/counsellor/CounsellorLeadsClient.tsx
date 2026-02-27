@@ -11,8 +11,8 @@ import {
   formatDate,
 } from '@/lib/utils'
 import {
-  Search, Phone, MessageCircle, Eye, Users, Clock, PhoneOff, Building2, Pencil,
-  ChevronLeft, ChevronRight,
+  Search, Phone, MessageCircle, Users, Clock, PhoneOff, Building2, Pencil,
+  ChevronLeft, ChevronRight, Calendar,
 } from 'lucide-react'
 import { LeadSlidePanel } from '@/components/shared/LeadSlidePanel'
 
@@ -216,40 +216,74 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
                 </div>
               )}
               {paginated.map((lead) => {
-                const isOverdue = lead.follow_up_date && lead.follow_up_date <= today &&
+                const isOverdue = lead.follow_up_date && lead.follow_up_date < today &&
                   !['Enrolled', 'Cold Lead', 'Wrong Lead'].includes(lead.current_lead_stage)
+                const isVisitToday = lead.visit_date === today
                 return (
-                  <div
-                    key={lead.id}
-                    className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 text-sm truncate">{lead.name}</p>
-                      <p className="text-xs font-mono text-gray-500">{lead.phone}</p>
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${STAGE_PILL[lead.current_lead_stage] || 'bg-gray-100 text-gray-600'}`}>
-                          {lead.current_lead_stage}
-                        </span>
+                  <div key={lead.id} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+                    {/* Name + stage */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{lead.name}</p>
+                        <p className="text-sm font-mono text-gray-500 mt-0.5">{lead.phone}</p>
+                        {lead.city && <p className="text-xs text-gray-400 mt-0.5">{lead.city}</p>}
+                      </div>
+                      <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STAGE_PILL[lead.current_lead_stage] || 'bg-gray-100 text-gray-600'}`}>
+                        {lead.current_lead_stage}
+                      </span>
+                    </div>
+                    {/* Tags: call stage + course + source */}
+                    {(lead.current_call_stage || lead.course_interest || lead.source_name) && (
+                      <div className="flex flex-wrap gap-1.5">
                         {lead.current_call_stage && (
-                          <span className={`text-[10px] font-medium ${CALL_PILL[lead.current_call_stage] || 'text-gray-400'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 ${CALL_PILL[lead.current_call_stage] || 'text-gray-600'}`}>
                             {lead.current_call_stage}
                           </span>
                         )}
-                        {isOverdue && lead.follow_up_date && (
-                          <span className="text-[10px] text-red-500 font-medium">⚠ {formatDate(lead.follow_up_date)}</span>
+                        {lead.course_interest && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
+                            {lead.course_interest}
+                          </span>
+                        )}
+                        {lead.source_name && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+                            {lead.source_name}
+                          </span>
                         )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <a href={`tel:${lead.phone}`} className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
-                        <Phone className="h-4 w-4" />
+                    )}
+                    {/* Dates */}
+                    {(lead.follow_up_date || lead.visit_date) && (
+                      <div className="flex items-center flex-wrap gap-3 text-xs">
+                        {lead.follow_up_date && (
+                          <span className={`flex items-center gap-1 font-medium ${isOverdue ? 'text-red-500' : 'text-orange-500'}`}>
+                            {isOverdue && '⚠ '}<Calendar className="h-3 w-3" />
+                            Follow-up: {formatDate(lead.follow_up_date)}
+                          </span>
+                        )}
+                        {lead.visit_date && (
+                          <span className={`flex items-center gap-1 font-medium ${isVisitToday ? 'text-purple-600' : 'text-gray-500'}`}>
+                            <Calendar className="h-3 w-3" />
+                            Visit: {formatDate(lead.visit_date)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {/* Action buttons */}
+                    <div className="flex gap-2 pt-1 border-t border-gray-100">
+                      <a href={`tel:${lead.phone}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full gap-1 text-green-700 border-green-200">
+                          <Phone className="h-3.5 w-3.5" /> Call
+                        </Button>
                       </a>
-                      <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors">
-                        <MessageCircle className="h-4 w-4" />
+                      <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full gap-1 text-emerald-600 border-emerald-200">
+                          <MessageCircle className="h-3.5 w-3.5" /> WA
+                        </Button>
                       </a>
-                      <button onClick={() => setEditingLeadId(lead.id)} className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
-                        <Pencil className="h-4 w-4" />
-                      </button>
+                      <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={() => setEditingLeadId(lead.id)}>
+                        <Pencil className="h-3.5 w-3.5" /> View
+                      </Button>
                     </div>
                   </div>
                 )
