@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
-// Maximum rows returned in a single export to prevent data exfiltration at scale
-const EXPORT_ROW_LIMIT = 10_000
-
 // GET /api/admin/leads — paginated, server-side filtered lead list
 // Query params:
 //   page        number  (default 0)
@@ -15,7 +12,7 @@ const EXPORT_ROW_LIMIT = 10_000
 //   source      string  source_name exact match, or '__none__'
 //   course      string  course_id UUID, or '__none__'
 //   tab         string  'unassigned' filters to is_active leads with no counsellor
-//   export      'true'  skips pagination limit — returns all matching rows for CSV (capped at 10 000)
+//   export      'true'  skips pagination limit — returns all matching rows for CSV
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -57,12 +54,7 @@ export async function GET(request: NextRequest) {
   const isIdsOnly = sp.get('ids_only') === 'true'
 
   // Apply server-side pagination (skipped for export and ids_only)
-  // Exports are capped at EXPORT_ROW_LIMIT to prevent data exfiltration at scale
-  if (isExport) {
-    query = query.limit(EXPORT_ROW_LIMIT)
-  } else if (!isIdsOnly) {
-    query = query.range(page * limit, page * limit + limit - 1)
-  }
+  if (!isExport && !isIdsOnly) query = query.range(page * limit, page * limit + limit - 1)
 
   // Filters
   if (tab === 'unassigned' || counsellor === 'unassigned') {
@@ -258,11 +250,6 @@ export async function DELETE(request: NextRequest) {
   const { ids } = await request.json()
   if (!Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json({ error: 'ids array is required' }, { status: 400 })
-  }
-
-  // Limit bulk delete size to prevent accidental mass deletions
-  if (ids.length > 1000) {
-    return NextResponse.json({ error: 'Cannot delete more than 1000 leads at once' }, { status: 400 })
   }
 
   const admin = createAdminClient()
