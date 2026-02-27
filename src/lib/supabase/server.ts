@@ -4,10 +4,8 @@ import { cookies } from 'next/headers'
 export async function createClient() {
   const cookieStore = await cookies()
 
-  // Server runs on Vercel — use SUPABASE_DIRECT_URL to skip the proxy and hit Supabase directly.
-  const supabaseUrl = process.env.SUPABASE_DIRECT_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
   return createServerClient(
-    supabaseUrl,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
