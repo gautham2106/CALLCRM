@@ -92,6 +92,30 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // When exporting, also fetch custom field definitions and values for all leads
+  if (isExport && data && data.length > 0) {
+    const leadIds = (data as any[]).map((l) => l.id)
+    const [{ data: fieldDefs }, { data: fieldValues }] = await Promise.all([
+      admin
+        .from('custom_field_definitions')
+        .select('id, field_name, display_order')
+        .eq('college_id', profile.college_id)
+        .eq('is_active', true)
+        .order('display_order'),
+      admin
+        .from('custom_field_values')
+        .select('lead_id, field_id, value')
+        .in('lead_id', leadIds),
+    ])
+    return NextResponse.json({
+      leads: data || [],
+      total: count || 0,
+      unassigned_total: unassignedTotal || 0,
+      custom_field_definitions: fieldDefs || [],
+      custom_field_values: fieldValues || [],
+    })
+  }
+
   return NextResponse.json({
     leads: data || [],
     total: count || 0,

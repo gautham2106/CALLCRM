@@ -242,14 +242,34 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
     try {
       const res = await fetch(`/api/admin/leads?${p}`)
       const json = await res.json()
-      const rows = (json.leads || []).map((l: Lead) => ({
-        Name: l.name, Phone: l.phone, Email: l.email || '', City: l.city || '',
-        Course: l.course_interest || '', Source: l.source_name || '',
-        'Lead Stage': l.current_lead_stage, 'Call Stage': l.current_call_stage || '',
-        'Visit Date': l.visit_date || '', 'Follow-up Date': l.follow_up_date || '',
-        'Assigned To': l.assigned_user?.name || 'Unassigned',
-        'Created At': formatDate(l.created_at),
-      }))
+
+      const fieldDefs: { id: string; field_name: string; display_order: number }[] =
+        json.custom_field_definitions || []
+      const fieldValues: { lead_id: string; field_id: string; value: string | null }[] =
+        json.custom_field_values || []
+
+      // Build lookup: lead_id -> { field_id -> value }
+      const valueLookup: Record<string, Record<string, string>> = {}
+      for (const fv of fieldValues) {
+        if (!valueLookup[fv.lead_id]) valueLookup[fv.lead_id] = {}
+        valueLookup[fv.lead_id][fv.field_id] = fv.value || ''
+      }
+
+      const rows = (json.leads || []).map((l: Lead) => {
+        const customCols: Record<string, string> = {}
+        for (const fd of fieldDefs) {
+          customCols[fd.field_name] = valueLookup[l.id]?.[fd.id] || ''
+        }
+        return {
+          Name: l.name, Phone: l.phone, Email: l.email || '', City: l.city || '',
+          Course: l.course_interest || '', Source: l.source_name || '',
+          'Lead Stage': l.current_lead_stage, 'Call Stage': l.current_call_stage || '',
+          'Visit Date': l.visit_date || '', 'Follow-up Date': l.follow_up_date || '',
+          'Assigned To': l.assigned_user?.name || 'Unassigned',
+          'Created At': formatDate(l.created_at),
+          ...customCols,
+        }
+      })
       const csv = Papa.unparse(rows)
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
