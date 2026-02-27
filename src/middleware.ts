@@ -2,6 +2,15 @@ import { createServerClient } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Short-circuit before touching Supabase for paths that are always public.
+  // /api/supabase is the Supabase proxy rewrite — it must pass through
+  // untouched so Next.js can forward it to the real Supabase endpoint.
+  if (pathname.startsWith('/api/cron') || pathname.startsWith('/api/supabase')) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -24,13 +33,6 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-
-  const { pathname } = request.nextUrl
-
-  // Public paths — proxy and cron must never be redirected to login
-  if (pathname.startsWith('/api/cron') || pathname.startsWith('/api/supabase')) {
-    return supabaseResponse
-  }
 
   if (pathname.startsWith('/auth')) {
     if (user) {
