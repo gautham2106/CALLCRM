@@ -7,6 +7,9 @@ export function createClient() {
   // traffic never goes directly to Supabase from the client (avoids ISP blocks).
   const isClient = typeof window !== 'undefined'
 
+  // Strip trailing slash once so URL concatenation is always clean.
+  const supabaseOrigin = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
+
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -15,10 +18,10 @@ export function createClient() {
           global: {
             fetch: (url: RequestInfo | URL, init?: RequestInit) => {
               const original = url.toString()
-              const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL!
               const proxyBase = `${window.location.origin}/api/supabase`
-              const proxied = original.startsWith(supabaseOrigin)
-                ? original.replace(supabaseOrigin, proxyBase)
+              // Rewrite only requests that target the Supabase project URL.
+              const proxied = supabaseOrigin && original.startsWith(supabaseOrigin)
+                ? proxyBase + original.slice(supabaseOrigin.length)
                 : original
               return fetch(proxied, init)
             },

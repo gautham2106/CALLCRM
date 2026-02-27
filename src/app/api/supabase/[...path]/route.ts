@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const SUPABASE_URL = process.env.SUPABASE_DIRECT_URL
+// Prefer an explicit server-only URL; fall back to the public URL which is
+// always present in every Vercel environment (production + preview).
+const SUPABASE_URL = (
+  process.env.SUPABASE_DIRECT_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+).replace(/\/$/, '') // strip trailing slash so we never get double slashes
 
 async function handler(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
-  if (!SUPABASE_URL || SUPABASE_URL === 'your_supabase_project_url') {
+  if (!SUPABASE_URL) {
     return NextResponse.json(
-      { error: 'SUPABASE_DIRECT_URL is not configured. Set it to your Supabase project URL in .env.local.' },
+      { error: 'Supabase URL is not configured. Set NEXT_PUBLIC_SUPABASE_URL in your environment.' },
       { status: 503 }
     )
   }
