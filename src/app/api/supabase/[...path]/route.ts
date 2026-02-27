@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const SUPABASE_URL = process.env.SUPABASE_DIRECT_URL!
+const SUPABASE_URL = process.env.SUPABASE_DIRECT_URL
 
 async function handler(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
+  if (!SUPABASE_URL || SUPABASE_URL === 'your_supabase_project_url') {
+    return NextResponse.json(
+      { error: 'SUPABASE_DIRECT_URL is not configured. Set it to your Supabase project URL in .env.local.' },
+      { status: 503 }
+    )
+  }
+
   const { path } = await params
   const url = new URL(req.url)
   const targetUrl = `${SUPABASE_URL}/${path.join('/')}${url.search}`
@@ -19,13 +26,22 @@ async function handler(
 
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD'
 
-  const response = await fetch(targetUrl, {
-    method: req.method,
-    headers,
-    body: hasBody ? req.body : undefined,
-    // @ts-ignore — duplex required for streaming request bodies
-    duplex: 'half',
-  })
+  let response: Response
+  try {
+    response = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: hasBody ? req.body : undefined,
+      // @ts-ignore — duplex required for streaming request bodies
+      duplex: 'half',
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return NextResponse.json(
+      { error: `Proxy failed to reach Supabase: ${message}` },
+      { status: 502 }
+    )
+  }
 
   const responseHeaders = new Headers()
   response.headers.forEach((value, key) => {
