@@ -5,19 +5,12 @@ import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
 import { toast } from '@/components/ui/use-toast'
 import { LEAD_STAGE_COLORS } from '@/lib/utils'
 import {
-  UserPlus,
   Shuffle,
   Search,
-  Users,
-  CheckCircle,
   Loader2,
 } from 'lucide-react'
 
@@ -46,7 +39,7 @@ interface Props {
   adminId: string
 }
 
-export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId }: Props) {
+export function AssignmentClient({ initialLeads, counsellors }: Props) {
   const searchParams = useSearchParams()
 
   const preSelectedIds = searchParams.get('leads')?.split(',').filter(Boolean) || []
@@ -54,18 +47,16 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
   const [leads, setLeads] = useState(initialLeads)
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(preSelectedIds))
-  const [showAssignDialog, setShowAssignDialog] = useState(false)
-  const [showReassignDialog, setShowReassignDialog] = useState(false)
-  const [selectedCounsellorId, setSelectedCounsellorId] = useState('')
-  const [reason, setReason] = useState('')
-  const [assigning, setAssigning] = useState(false)
-  const [filterMode, setFilterMode] = useState<'all' | 'unassigned'>('unassigned')
+  const [filterCounsellor, setFilterCounsellor] = useState<string>('unassigned')
+  const [distributing, setDistributing] = useState(false)
 
   const filtered = useMemo(() => {
     let result = leads
 
-    if (filterMode === 'unassigned') {
+    if (filterCounsellor === 'unassigned') {
       result = result.filter((l) => !l.assigned_to)
+    } else if (filterCounsellor) {
+      result = result.filter((l) => l.assigned_to === filterCounsellor)
     }
 
     if (search) {
@@ -79,7 +70,7 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
     }
 
     return result
-  }, [leads, search, filterMode])
+  }, [leads, search, filterCounsellor])
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -98,56 +89,9 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
     }
   }
 
-  const assignLeads = async (isReassign = false) => {
-    if (!selectedCounsellorId || selectedIds.size === 0) return
-    setAssigning(true)
-
-    const counsellor = counsellors.find((c) => c.id === selectedCounsellorId)
-
-    try {
-      const res = await fetch('/api/admin/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadIds: Array.from(selectedIds),
-          counsellorId: selectedCounsellorId,
-          reason: reason || null,
-          isReassign,
-        }),
-      })
-      if (!res.ok) throw new Error((await res.json()).error || 'Assignment failed')
-
-      // Update local state
-      setLeads((prev) =>
-        prev.map((l) =>
-          selectedIds.has(l.id)
-            ? { ...l, assigned_to: selectedCounsellorId, assigned_user: { id: selectedCounsellorId, name: counsellor?.name || '' } }
-            : l
-        )
-      )
-
-      toast({
-        title: 'Leads assigned',
-        description: `${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''} assigned to ${counsellor?.name}`,
-        variant: 'success',
-      })
-
-      setSelectedIds(new Set())
-      setSelectedCounsellorId('')
-      setReason('')
-      setShowAssignDialog(false)
-      setShowReassignDialog(false)
-    } catch (err: unknown) {
-      const error = err as Error
-      toast({ title: 'Assignment failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
-    } finally {
-      setAssigning(false)
-    }
-  }
-
   const autoDistribute = async () => {
     if (counsellors.length === 0 || selectedIds.size === 0) return
-    setAssigning(true)
+    setDistributing(true)
 
     const leadIds = Array.from(selectedIds)
 
@@ -192,59 +136,49 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
       const error = err as Error
       toast({ title: 'Distribution failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
     } finally {
-      setAssigning(false)
+      setDistributing(false)
     }
   }
 
-  const hasReassignableSelected = Array.from(selectedIds).some(
-    (id) => leads.find((l) => l.id === id)?.assigned_to
-  )
+  const unassignedCount = leads.filter((l) => !l.assigned_to).length
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Assignment</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Assign leads to counsellors</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Auto-Distribute</h1>
+          <p className="text-gray-500 text-sm mt-0.5">
+            Evenly split leads across all counsellors. For manual assignment, use the{' '}
+            <a href="/admin/leads" className="text-blue-600 hover:underline">Leads page</a>.
+          </p>
         </div>
         {selectedIds.size > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500 font-medium">{selectedIds.size} selected</span>
             <Button
-              variant="outline"
               size="sm"
               onClick={autoDistribute}
-              disabled={assigning}
+              disabled={distributing || counsellors.length === 0}
             >
-              <Shuffle className="h-4 w-4" />
-              <span className="hidden xs:inline">Auto-Distribute</span>
-              <span className="xs:hidden">Auto</span>
-            </Button>
-            {hasReassignableSelected && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowReassignDialog(true)}
-              >
-                <UserPlus className="h-4 w-4" />
-                Reassign
-              </Button>
-            )}
-            <Button
-              size="sm"
-              onClick={() => setShowAssignDialog(true)}
-              disabled={assigning}
-            >
-              <UserPlus className="h-4 w-4" />
-              Assign
+              {distributing
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Shuffle className="h-4 w-4" />
+              }
+              Distribute Evenly
             </Button>
           </div>
         )}
       </div>
 
-      {/* Counsellor Summary */}
+      {/* Counsellor workload summary */}
       {counsellors.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+            <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm mx-auto mb-1">?</div>
+            <p className="text-xs font-medium text-gray-700">Unassigned</p>
+            <p className="text-lg font-bold text-orange-600">{unassignedCount}</p>
+            <p className="text-xs text-gray-400">leads</p>
+          </div>
           {counsellors.map((c) => {
             const count = leads.filter((l) => l.assigned_to === c.id).length
             return (
@@ -261,22 +195,28 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
         </div>
       )}
 
+      {counsellors.length === 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+          No active counsellors found. Add counsellors first before distributing leads.
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex gap-1 border border-gray-200 rounded-md p-1 self-start">
-          <button
-            onClick={() => setFilterMode('unassigned')}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${filterMode === 'unassigned' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Unassigned ({leads.filter((l) => !l.assigned_to).length})
-          </button>
-          <button
-            onClick={() => setFilterMode('all')}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${filterMode === 'all' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            All Leads
-          </button>
-        </div>
+        <Select value={filterCounsellor} onValueChange={setFilterCounsellor}>
+          <SelectTrigger className="w-full sm:w-52">
+            <SelectValue placeholder="Filter by counsellor..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unassigned">Unassigned ({unassignedCount})</SelectItem>
+            <SelectItem value="all">All Leads</SelectItem>
+            {counsellors.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name} ({leads.filter((l) => l.assigned_to === c.id).length})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -292,7 +232,7 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
       <div className="sm:hidden space-y-2">
         {filtered.length === 0 ? (
           <div className="bg-white rounded-lg border border-gray-200 px-4 py-12 text-center text-gray-400 text-sm">
-            {filterMode === 'unassigned' ? 'All leads are assigned!' : 'No leads found'}
+            {filterCounsellor === 'unassigned' ? 'All leads are assigned!' : 'No leads found'}
           </div>
         ) : (
           <>
@@ -367,7 +307,7 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
-                  {filterMode === 'unassigned' ? 'All leads are assigned!' : 'No leads found'}
+                  {filterCounsellor === 'unassigned' ? 'All leads are assigned!' : 'No leads found'}
                 </td>
               </tr>
             ) : (
@@ -404,78 +344,6 @@ export function AssignmentClient({ initialLeads, counsellors, collegeId, adminId
           </tbody>
         </table>
       </div>
-
-      {/* Assign Dialog */}
-      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Counsellor</Label>
-              <Select value={selectedCounsellorId} onValueChange={setSelectedCounsellorId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a counsellor..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {counsellors.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} — {leads.filter((l) => l.assigned_to === c.id).length} leads
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAssignDialog(false)}>Cancel</Button>
-            <Button onClick={() => assignLeads(false)} disabled={!selectedCounsellorId || assigning}>
-              {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-              Assign Leads
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reassign Dialog */}
-      <Dialog open={showReassignDialog} onOpenChange={setShowReassignDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reassign {selectedIds.size} Lead{selectedIds.size > 1 ? 's' : ''}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Assign To</Label>
-              <Select value={selectedCounsellorId} onValueChange={setSelectedCounsellorId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose new counsellor..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {counsellors.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Reason for reassignment</Label>
-              <Textarea
-                placeholder="Why are these leads being reassigned? (optional)"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReassignDialog(false)}>Cancel</Button>
-            <Button onClick={() => assignLeads(true)} disabled={!selectedCounsellorId || assigning}>
-              {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Reassign Leads
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

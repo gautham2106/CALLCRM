@@ -13,6 +13,7 @@ import {
   GraduationCap,
   ChevronRight,
   BookOpen,
+  Shuffle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -21,6 +22,7 @@ import { useRouter } from 'next/navigation'
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/leads', label: 'Leads', icon: Users },
+  { href: '/admin/assignment', label: 'Auto-Distribute', icon: Shuffle },
   { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck },
   { href: '/admin/super-fields', label: 'Super Fields', icon: Sliders },
   { href: '/admin/sources', label: 'Lead Sources', icon: Tags },
