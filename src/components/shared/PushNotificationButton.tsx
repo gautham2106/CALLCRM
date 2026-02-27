@@ -12,12 +12,18 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 async function subscribeAndSave() {
+  const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  if (!vapidKey) {
+    console.error('[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set — rebuild the app after adding the env var')
+    return
+  }
+
   const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
   await navigator.serviceWorker.ready
   const existing = await reg.pushManager.getSubscription()
   const sub = existing ?? await reg.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+    applicationServerKey: urlBase64ToUint8Array(vapidKey),
   })
   await fetch('/api/push/subscribe', {
     method: 'POST',

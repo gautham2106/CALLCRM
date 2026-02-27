@@ -95,13 +95,19 @@ export function PushNotificationSetup({ todayFollowUps, todayVisits }: Props) {
 
 async function registerAndSubscribe() {
   try {
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    if (!vapidKey) {
+      console.error('[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set — rebuild the app after adding the env var')
+      return
+    }
+
     const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
     await navigator.serviceWorker.ready
 
     const existing = await registration.pushManager.getSubscription()
     const subscription = existing ?? await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+      applicationServerKey: urlBase64ToUint8Array(vapidKey),
     })
 
     await fetch('/api/push/subscribe', {
