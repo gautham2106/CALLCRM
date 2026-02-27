@@ -36,7 +36,7 @@ export default async function CounsellorsPage() {
       .or('is_active.is.null,is_active.eq.true'),
     supabase
       .from('custom_field_definitions')
-      .select('id, field_name, field_type, is_required')
+      .select('id, field_name, field_type, is_required, dropdown_options')
       .eq('college_id', user.college_id!)
       .eq('is_active', true)
       .order('display_order'),

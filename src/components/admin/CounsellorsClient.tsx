@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -42,6 +44,7 @@ interface CustomFieldDef {
   field_name: string
   field_type: string
   is_required: boolean
+  dropdown_options: string[] | null
 }
 
 interface Props {
@@ -111,6 +114,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
 
   // Single lead form
   const [singleForm, setSingleForm] = useState(EMPTY_SINGLE)
+  const [singleCustomValues, setSingleCustomValues] = useState<Record<string, string>>({})
   const [addingSingle, setAddingSingle] = useState(false)
   const [singlePhoneWarning, setSinglePhoneWarning] = useState<string | null>(null)
 
@@ -130,6 +134,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
 
   const resetAddLeads = () => {
     setSingleForm(EMPTY_SINGLE)
+    setSingleCustomValues({})
     setSinglePhoneWarning(null)
     setCsvStep('upload')
     setCsvHeaders([])
@@ -218,6 +223,22 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       }
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
 
+      // Save custom field values if any
+      if (customFields.length > 0 && json.lead?.id) {
+        const cfValues = customFields
+          .filter((f) => singleCustomValues[f.id] && String(singleCustomValues[f.id]).trim())
+          .map((f) => ({
+            lead_id: json.lead.id,
+            field_id: f.id,
+            college_id: collegeId,
+            value: String(singleCustomValues[f.id]),
+            updated_by: adminId,
+          }))
+        if (cfValues.length > 0) {
+          await supabase.from('custom_field_values').insert(cfValues)
+        }
+      }
+
       // Update counsellor's lead count in state
       setCounsellors((prev) => prev.map((c) =>
         c.id === addLeadsTarget.id
@@ -225,6 +246,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
           : c
       ))
       setSingleForm(EMPTY_SINGLE)
+      setSingleCustomValues({})
       setSinglePhoneWarning(null)
       toast({ title: 'Lead added', description: `${singleForm.name} assigned to ${addLeadsTarget.name}.`, variant: 'success' })
       setAddLeadsTarget(null)
@@ -239,8 +261,14 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   // Parse and apply headers/rows regardless of file type
   const applyParsedData = (headers: string[], rows: Record<string, string>[]) => {
     const trimmedHeaders = headers.map((h) => h.trim())
+    // Normalize row keys to trimmed headers so columnMap lookups always work
+    const normalizedRows = rows.map((row) => {
+      const norm: Record<string, string> = {}
+      headers.forEach((h, i) => { norm[trimmedHeaders[i]] = String(row[h] ?? '') })
+      return norm
+    })
     setCsvHeaders(trimmedHeaders)
-    setCsvRows(rows)
+    setCsvRows(normalizedRows)
 
     const autoMap: Record<string, string> = {}
     allCsvFields.forEach((field) => {
@@ -832,6 +860,60 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                     <Label>Notes</Label>
                     <Input value={singleForm.notes} onChange={(e) => setSingleForm({ ...singleForm, notes: e.target.value })} placeholder="Optional notes..." />
                   </div>
+                  {customFields.length > 0 && (
+                    <>
+                      <div className="col-span-2 pt-1">
+                        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Custom Fields</p>
+                        <div className="space-y-2">
+                          {customFields.map((field) => (
+                            <div key={field.id} className="space-y-1.5">
+                              <Label className="text-xs">
+                                {field.field_name}
+                                {field.is_required && <span className="text-red-500 ml-0.5">*</span>}
+                              </Label>
+                              {field.field_type === 'dropdown' ? (
+                                <Select
+                                  value={singleCustomValues[field.id] || '__none__'}
+                                  onValueChange={(v) => setSingleCustomValues({ ...singleCustomValues, [field.id]: v === '__none__' ? '' : v })}
+                                >
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={`Select ${field.field_name}`} /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">— Select —</SelectItem>
+                                    {(field.dropdown_options || []).map((opt) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              ) : field.field_type === 'textarea' ? (
+                                <Textarea
+                                  value={singleCustomValues[field.id] || ''}
+                                  onChange={(e) => setSingleCustomValues({ ...singleCustomValues, [field.id]: e.target.value })}
+                                  placeholder={`Enter ${field.field_name}`}
+                                  className="text-xs min-h-[60px]"
+                                />
+                              ) : field.field_type === 'checkbox' ? (
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`scf-${field.id}`}
+                                    checked={singleCustomValues[field.id] === 'true'}
+                                    onCheckedChange={(c) => setSingleCustomValues({ ...singleCustomValues, [field.id]: c ? 'true' : 'false' })}
+                                  />
+                                  <label htmlFor={`scf-${field.id}`} className="text-xs text-gray-600 cursor-pointer">{field.field_name}</label>
+                                </div>
+                              ) : (
+                                <Input
+                                  type={field.field_type === 'number' ? 'number' : field.field_type === 'phone' ? 'tel' : field.field_type === 'date' ? 'date' : 'text'}
+                                  value={singleCustomValues[field.id] || ''}
+                                  onChange={(e) => setSingleCustomValues({ ...singleCustomValues, [field.id]: e.target.value })}
+                                  placeholder={`Enter ${field.field_name}`}
+                                  className="h-8 text-xs"
+                                  required={field.is_required}
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="pt-1 p-3 bg-green-50 rounded-lg text-xs text-green-700 flex items-center gap-2">
                   <CheckCircle className="h-3.5 w-3.5 shrink-0" />

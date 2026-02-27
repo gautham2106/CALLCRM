@@ -13,6 +13,7 @@ export default async function AdminLeadsPage() {
     { data: counsellors },
     { data: sources },
     { data: courses },
+    { data: customFields },
   ] = await Promise.all([
     supabase
       .from('users')
@@ -30,6 +31,12 @@ export default async function AdminLeadsPage() {
       .select('id, course_name')
       .eq('college_id', user.college_id!)
       .eq('is_active', true),
+    supabase
+      .from('custom_field_definitions')
+      .select('id, field_name, field_type, is_required, dropdown_options')
+      .eq('college_id', user.college_id!)
+      .eq('is_active', true)
+      .order('display_order'),
   ])
 
   return (
@@ -37,6 +44,7 @@ export default async function AdminLeadsPage() {
       counsellors={(counsellors || []) as any}
       sources={(sources || []) as any}
       courses={(courses || []) as any}
+      customFields={(customFields || []) as any}
       collegeId={user.college_id!}
       adminId={user.id}
     />

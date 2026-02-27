@@ -61,10 +61,19 @@ interface Lead {
   assigned_user: { id: string; name: string; email: string } | null
 }
 
+interface CustomFieldDef {
+  id: string
+  field_name: string
+  field_type: string
+  is_required: boolean
+  dropdown_options: string[] | null
+}
+
 interface Props {
   counsellors: { id: string; name: string; email: string }[]
   sources: { id: string; source_name: string }[]
   courses: { id: string; course_name: string }[]
+  customFields: CustomFieldDef[]
   collegeId: string
   adminId: string
 }
@@ -72,7 +81,7 @@ interface Props {
 const PAGE_SIZE = 50
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
-export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adminId }: Props) {
+export function AdminLeadsClient({ counsellors, sources, courses, customFields, collegeId, adminId }: Props) {
   const supabase = createClient()
 
   // ---- Server-side paginated lead state ----
@@ -98,6 +107,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [addingLead, setAddingLead] = useState(false)
   const [leadForm, setLeadForm] = useState(EMPTY_LEAD_FORM)
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({})
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [phoneWarning, setPhoneWarning] = useState<string | null>(null)
 
@@ -278,8 +288,26 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
         return
       }
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
+
+      // Save custom field values if any
+      if (customFields.length > 0 && json.lead?.id) {
+        const cfValues = customFields
+          .filter((f) => customFieldValues[f.id] && String(customFieldValues[f.id]).trim())
+          .map((f) => ({
+            lead_id: json.lead.id,
+            field_id: f.id,
+            college_id: collegeId,
+            value: String(customFieldValues[f.id]),
+            updated_by: adminId,
+          }))
+        if (cfValues.length > 0) {
+          await supabase.from('custom_field_values').insert(cfValues)
+        }
+      }
+
       setShowAddDialog(false)
       setLeadForm(EMPTY_LEAD_FORM)
+      setCustomFieldValues({})
       setPhoneWarning(null)
       toast({ title: 'Lead added', description: `${leadForm.name} has been added.`, variant: 'success' })
       // Refetch page 0 to show the new lead at the top
@@ -956,7 +984,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
     </div>
 
     {/* Add Lead Dialog */}
-    <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) { setLeadForm(EMPTY_LEAD_FORM); setPhoneWarning(null) } }}>
+    <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) { setLeadForm(EMPTY_LEAD_FORM); setCustomFieldValues({}); setPhoneWarning(null) } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add New Lead</DialogTitle>
@@ -1057,6 +1085,55 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
                 placeholder="Optional notes..."
               />
             </div>
+            {customFields.length > 0 && (
+              <div className="col-span-2 pt-1 space-y-2">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Custom Fields</p>
+                {customFields.map((field) => (
+                  <div key={field.id} className="space-y-1.5">
+                    <Label className="text-sm">
+                      {field.field_name}
+                      {field.is_required && <span className="text-red-500 ml-0.5">*</span>}
+                    </Label>
+                    {field.field_type === 'dropdown' ? (
+                      <Select
+                        value={customFieldValues[field.id] || '__none__'}
+                        onValueChange={(v) => setCustomFieldValues({ ...customFieldValues, [field.id]: v === '__none__' ? '' : v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder={`Select ${field.field_name}`} /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Select —</SelectItem>
+                          {(field.dropdown_options || []).map((opt) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : field.field_type === 'textarea' ? (
+                      <Textarea
+                        value={customFieldValues[field.id] || ''}
+                        onChange={(e) => setCustomFieldValues({ ...customFieldValues, [field.id]: e.target.value })}
+                        placeholder={`Enter ${field.field_name}`}
+                        className="min-h-[60px]"
+                      />
+                    ) : field.field_type === 'checkbox' ? (
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`cf-${field.id}`}
+                          checked={customFieldValues[field.id] === 'true'}
+                          onCheckedChange={(c) => setCustomFieldValues({ ...customFieldValues, [field.id]: c ? 'true' : 'false' })}
+                        />
+                        <label htmlFor={`cf-${field.id}`} className="text-sm text-gray-600 cursor-pointer">{field.field_name}</label>
+                      </div>
+                    ) : (
+                      <Input
+                        type={field.field_type === 'number' ? 'number' : field.field_type === 'phone' ? 'tel' : field.field_type === 'date' ? 'date' : 'text'}
+                        value={customFieldValues[field.id] || ''}
+                        onChange={(e) => setCustomFieldValues({ ...customFieldValues, [field.id]: e.target.value })}
+                        placeholder={`Enter ${field.field_name}`}
+                        required={field.is_required}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
