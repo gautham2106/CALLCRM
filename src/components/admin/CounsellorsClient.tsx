@@ -767,7 +767,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
 
       {/* Add Leads to Counsellor Dialog */}
       <Dialog open={!!addLeadsTarget} onOpenChange={(open) => { if (!open) setAddLeadsTarget(null) }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-sm">
@@ -777,8 +777,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             </DialogTitle>
           </DialogHeader>
 
-          <Tabs defaultValue="single" className="mt-2">
-            <TabsList className="w-full">
+          <Tabs defaultValue="single" className="mt-2 flex flex-col flex-1 overflow-hidden">
+            <TabsList className="w-full shrink-0">
               <TabsTrigger value="single" className="flex-1 gap-1.5">
                 <Plus className="h-3.5 w-3.5" /> Single Lead
               </TabsTrigger>
@@ -788,7 +788,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             </TabsList>
 
             {/* Single Lead Tab */}
-            <TabsContent value="single" className="mt-4">
+            <TabsContent value="single" className="mt-4 overflow-y-auto flex-1">
               <form onSubmit={handleAddSingle} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 space-y-1.5">
@@ -930,7 +930,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             </TabsContent>
 
             {/* CSV Import Tab */}
-            <TabsContent value="csv" className="mt-4 space-y-4">
+            <TabsContent value="csv" className="mt-4 space-y-4 overflow-y-auto flex-1">
               {/* Step indicator */}
               <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1">
                 {(['upload', 'map', 'preview', 'done'] as const).map((s, idx) => (
@@ -1052,8 +1052,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   </div>
 
                   {csvPreview.length > 0 && (
-                    <div className="overflow-x-auto border rounded-lg">
-                      <table className="w-full text-xs">
+                    <div className="overflow-x-auto border rounded-lg min-w-0">
+                      <table className="min-w-full text-xs">
                         <thead><tr className="bg-gray-50">{Object.keys(csvPreview[0]).map((h) => <th key={h} className="px-2 py-1.5 text-left font-medium text-gray-500 border-b">{h}</th>)}</tr></thead>
                         <tbody>{csvPreview.map((row, i) => <tr key={i}>{Object.values(row).map((v, j) => <td key={j} className="px-2 py-1.5 text-gray-700 border-b border-gray-50">{v || '—'}</td>)}</tr>)}</tbody>
                       </table>
