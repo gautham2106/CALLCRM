@@ -5,11 +5,15 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { LeadSlidePanel } from '@/components/shared/LeadSlidePanel'
+import { toast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
 import {
   ArrowLeft, Mail, Phone, Users, GraduationCap, TrendingUp, MessageCircle, Pencil,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Loader2, Settings,
 } from 'lucide-react'
 
 const PAGE_SIZE = 25
@@ -73,6 +77,41 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
   const [page, setPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
 
+  // Edit counsellor profile
+  const [counsellorInfo, setCounsellorInfo] = useState(counsellor)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [editForm, setEditForm] = useState({ name: counsellor.name, email: counsellor.email, phone: counsellor.phone || '', newPassword: '' })
+  const [editSaving, setEditSaving] = useState(false)
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setEditSaving(true)
+    try {
+      const res = await fetch('/api/admin/counsellors', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: counsellorInfo.id,
+          name: editForm.name,
+          email: editForm.email,
+          phone: editForm.phone || null,
+          newPassword: editForm.newPassword || undefined,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Something went wrong.')
+      setCounsellorInfo((prev) => ({ ...prev, name: editForm.name, email: editForm.email, phone: editForm.phone || null }))
+      setEditForm((f) => ({ ...f, newPassword: '' }))
+      setShowEditDialog(false)
+      toast({ title: 'Profile updated', description: `${editForm.name}'s details have been saved.`, variant: 'success' })
+    } catch (err: unknown) {
+      const error = err as Error
+      toast({ title: 'Update failed', description: error?.message || 'Something went wrong.', variant: 'destructive' })
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   const totalPages = Math.ceil(leads.length / PAGE_SIZE)
   const pageLeads = showAll ? leads : leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
@@ -96,22 +135,29 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
         </Link>
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xl sm:text-2xl shrink-0">
-            {counsellor.name.charAt(0).toUpperCase()}
+            {counsellorInfo.name.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{counsellor.name}</h1>
-              <Badge variant={counsellor.is_active ? 'success' : 'secondary'}>
-                {counsellor.is_active ? 'Active' : 'Inactive'}
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{counsellorInfo.name}</h1>
+              <Badge variant={counsellorInfo.is_active ? 'success' : 'secondary'}>
+                {counsellorInfo.is_active ? 'Active' : 'Inactive'}
               </Badge>
             </div>
             <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap mt-0.5">
-              <span className="flex items-center gap-1 truncate"><Mail className="h-4 w-4 shrink-0" />{counsellor.email}</span>
-              {counsellor.phone && (
-                <span className="flex items-center gap-1"><Phone className="h-4 w-4 shrink-0" />{counsellor.phone}</span>
+              <span className="flex items-center gap-1 truncate"><Mail className="h-4 w-4 shrink-0" />{counsellorInfo.email}</span>
+              {counsellorInfo.phone && (
+                <span className="flex items-center gap-1"><Phone className="h-4 w-4 shrink-0" />{counsellorInfo.phone}</span>
               )}
             </div>
           </div>
+          <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => {
+            setEditForm({ name: counsellorInfo.name, email: counsellorInfo.email, phone: counsellorInfo.phone || '', newPassword: '' })
+            setShowEditDialog(true)
+          }}>
+            <Settings className="h-3.5 w-3.5" />
+            Edit Profile
+          </Button>
         </div>
       </div>
 
@@ -306,6 +352,66 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
         onClose={() => setEditingLeadId(null)}
         onLeadUpdated={handleLeadUpdated}
       />
+
+      {/* Edit Counsellor Profile Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Counsellor Profile</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSave} className="space-y-4 pt-1">
+            <div className="space-y-2">
+              <Label htmlFor="ec-name">Full Name</Label>
+              <Input
+                id="ec-name"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="Full name"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ec-email">Email Address</Label>
+              <Input
+                id="ec-email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="email@college.edu"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ec-phone">Phone Number</Label>
+              <Input
+                id="ec-phone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                placeholder="9876543210 (optional)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ec-pw">New Password <span className="text-gray-400 font-normal text-xs">(leave blank to keep current)</span></Label>
+              <Input
+                id="ec-pw"
+                type="password"
+                value={editForm.newPassword}
+                onChange={(e) => setEditForm({ ...editForm, newPassword: e.target.value })}
+                placeholder="Min. 8 characters"
+                minLength={editForm.newPassword ? 8 : undefined}
+                autoComplete="new-password"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+              <Button type="submit" disabled={editSaving} className="gap-1.5">
+                {editSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
