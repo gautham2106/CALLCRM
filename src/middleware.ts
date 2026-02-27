@@ -28,6 +28,10 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public paths
+  if (pathname.startsWith('/api/cron')) {
+    return supabaseResponse
+  }
+
   if (pathname.startsWith('/auth')) {
     if (user) {
       return NextResponse.redirect(new URL('/', request.url))
