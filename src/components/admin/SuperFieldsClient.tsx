@@ -96,11 +96,11 @@ export function SuperFieldsClient({ initialFields, collegeId, adminId }: Props) 
 
   const addDropdownOption = () => {
     if (!form.newOption.trim()) return
-    setForm({ ...form, dropdown_options: [...form.dropdown_options, form.newOption.trim()], newOption: '' })
+    setForm((prev) => ({ ...prev, dropdown_options: [...prev.dropdown_options, prev.newOption.trim()], newOption: '' }))
   }
 
-  const removeOption = (opt: string) => {
-    setForm({ ...form, dropdown_options: form.dropdown_options.filter((o) => o !== opt) })
+  const removeOption = (idx: number) => {
+    setForm((prev) => ({ ...prev, dropdown_options: prev.dropdown_options.filter((_, i) => i !== idx) }))
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -282,10 +282,10 @@ export function SuperFieldsClient({ initialFields, collegeId, adminId }: Props) 
               <div className="space-y-2">
                 <Label>Dropdown Options</Label>
                 <div className="space-y-2">
-                  {form.dropdown_options.map((opt) => (
-                    <div key={opt} className="flex items-center gap-2">
+                  {form.dropdown_options.map((opt, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
                       <span className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded px-3 py-1.5">{opt}</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeOption(opt)}>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeOption(idx)}>
                         <Trash2 className="h-3 w-3 text-red-400" />
                       </Button>
                     </div>

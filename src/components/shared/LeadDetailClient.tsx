@@ -540,7 +540,7 @@ export function LeadDetailClient({
                               <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__none__">— Select —</SelectItem>
-                                {options.map((opt) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                {options.map((opt, i) => <SelectItem key={i} value={opt}>{opt}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           ) : field.field_type === 'checkbox' ? (
