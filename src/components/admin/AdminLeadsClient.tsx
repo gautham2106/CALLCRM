@@ -620,17 +620,41 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between px-1">
-                <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
-                  <Checkbox
-                    checked={allCurrentPageSelected}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                  Select page ({leads.length})
-                </label>
-                {selectedIds.size > 0 && (
-                  <span className="text-xs text-blue-600 font-medium">{selectedIds.size} selected</span>
-                )}
+              {/* Mobile toolbar — top */}
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={allCurrentPageSelected}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                    <span>{showAll ? `${total.toLocaleString()} leads` : `${(page * PAGE_SIZE + 1)}–${Math.min((page + 1) * PAGE_SIZE, total)} of ${total.toLocaleString()}`}</span>
+                  </label>
+                  {selectedIds.size > 0 && (
+                    <span className="text-blue-600 font-medium">{selectedIds.size} selected</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {total > PAGE_SIZE && (
+                    <button
+                      onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                      className="text-blue-600 hover:text-blue-800 underline font-medium"
+                    >
+                      {showAll ? 'Paginate' : 'Show all'}
+                    </button>
+                  )}
+                  {!showAll && totalPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0 || loading}>
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <span className="px-1 font-medium text-gray-700">{page + 1} / {totalPages}</span>
+                      <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1 || loading}>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
               {leads.map((lead) => {
                 const isOverdue  = lead.follow_up_date && lead.follow_up_date < today
@@ -712,21 +736,6 @@ export function AdminLeadsClient({ counsellors, sources, courses, collegeId, adm
                   </div>
                 )
               })}
-              {/* Mobile pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
-                  <span>{(page * PAGE_SIZE + 1)}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total.toLocaleString()}</span>
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={page === 0 || loading}>
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </Button>
-                    <span className="px-2 font-medium text-gray-700">{page + 1} / {totalPages}</span>
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages - 1 || loading}>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>

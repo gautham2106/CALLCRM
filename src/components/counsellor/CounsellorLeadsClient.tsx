@@ -184,6 +184,37 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
           <>
             {/* Mobile: Cards */}
             <div className="sm:hidden space-y-2">
+              {/* Mobile toolbar — top */}
+              {filtered.length > 0 && (
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>
+                    {showAll
+                      ? `${filtered.length.toLocaleString()} leads`
+                      : `${Math.min(safePage * PAGE_SIZE + 1, filtered.length)}–${Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length.toLocaleString()}`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {filtered.length > PAGE_SIZE && (
+                      <button
+                        onClick={() => { setShowAll((v) => !v); setPage(0) }}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                      >
+                        {showAll ? 'Paginate' : 'Show all'}
+                      </button>
+                    )}
+                    {!showAll && totalPages > 1 && (
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={safePage === 0}>
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="px-1 font-medium text-gray-700">{safePage + 1} / {totalPages}</span>
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={safePage >= totalPages - 1}>
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {paginated.map((lead) => {
                 const isOverdue = lead.follow_up_date && lead.follow_up_date <= today &&
                   !['Enrolled', 'Cold Lead', 'Wrong Lead'].includes(lead.current_lead_stage)
@@ -223,37 +254,6 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
                   </div>
                 )
               })}
-              {/* Mobile pagination */}
-              {filtered.length > 0 && (
-                <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
-                  <span>
-                    {showAll
-                      ? `${filtered.length.toLocaleString()} leads`
-                      : `${Math.min(safePage * PAGE_SIZE + 1, filtered.length)}–${Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length.toLocaleString()}`}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {filtered.length > PAGE_SIZE && (
-                      <button
-                        onClick={() => { setShowAll((v) => !v); setPage(0) }}
-                        className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
-                      >
-                        {showAll ? 'Paginate' : `Show all`}
-                      </button>
-                    )}
-                    {!showAll && totalPages > 1 && (
-                      <div className="flex items-center gap-1">
-                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p - 1)} disabled={safePage === 0}>
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <span className="px-2 font-medium text-gray-700">{safePage + 1} / {totalPages}</span>
-                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => p + 1)} disabled={safePage >= totalPages - 1}>
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Desktop: Standardised Table */}
