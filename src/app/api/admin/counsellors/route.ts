@@ -20,9 +20,12 @@ export async function POST(request: NextRequest) {
   const profile = await getAdminProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { name, email, phone, password } = await request.json()
-  if (!name || !email || !password) {
-    return NextResponse.json({ error: 'name, email and password are required' }, { status: 400 })
+  const { name, email, phone, pin } = await request.json()
+  if (!name || !email || !pin) {
+    return NextResponse.json({ error: 'name, email and pin are required' }, { status: 400 })
+  }
+  if (!/^\d{5}$/.test(pin)) {
+    return NextResponse.json({ error: 'PIN must be exactly 5 digits' }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -30,7 +33,7 @@ export async function POST(request: NextRequest) {
   // Create Supabase Auth user using service role
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
-    password,
+    password: pin,
     email_confirm: true,
   })
   if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/admin/counsellors
 // Handles two operations based on body:
 //   { id, is_active }                          → toggle active status
-//   { id, name, email, phone?, newPassword? }  → update profile + auth
+//   { id, name, email, phone?, newPin? }       → update profile + auth
 export async function PATCH(request: NextRequest) {
   const profile = await getAdminProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -86,10 +89,13 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ user: data })
   }
 
-  // --- Edit profile (name / email / phone / password) ---
-  const { name, email, phone, newPassword } = body
+  // --- Edit profile (name / email / phone / pin) ---
+  const { name, email, phone, newPin } = body
   if (!name || !email) {
     return NextResponse.json({ error: 'name and email are required' }, { status: 400 })
+  }
+  if (newPin !== undefined && newPin !== '' && !/^\d{5}$/.test(newPin)) {
+    return NextResponse.json({ error: 'New PIN must be exactly 5 digits' }, { status: 400 })
   }
 
   // Fetch auth_id — must belong to this college and be a counsellor
@@ -105,9 +111,9 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Counsellor not found' }, { status: 404 })
   }
 
-  // Update Supabase Auth (email always; password only if provided)
+  // Update Supabase Auth (email always; PIN only if provided)
   const authUpdates: { email: string; password?: string } = { email }
-  if (newPassword) authUpdates.password = newPassword
+  if (newPin) authUpdates.password = newPin
 
   const { error: authError } = await admin.auth.admin.updateUserById(
     counsellor.auth_id,

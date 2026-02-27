@@ -107,7 +107,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const [sortBy, setSortBy] = useState<SortKey>('enrolled')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', pin: '' })
 
   // Add Leads modal state
   const [addLeadsTarget, setAddLeadsTarget] = useState<Counsellor | null>(null)
@@ -161,14 +161,14 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       const res = await fetch('/api/admin/counsellors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, password: form.password }),
+        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, pin: form.pin }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
 
       setCounsellors((prev) => [{ ...json.user, assigned_leads: [] } as Counsellor, ...prev])
       setShowAddDialog(false)
-      setForm({ name: '', email: '', phone: '', password: '' })
+      setForm({ name: '', email: '', phone: '', pin: '' })
       toast({ title: 'Counsellor added', description: `${form.name} has been added successfully.`, variant: 'success' })
     } catch (err: unknown) {
       const error = err as Error
@@ -751,8 +751,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
               <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="9876543210" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Initial Password</Label>
-              <Input id="password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 8 characters" required minLength={8} />
+              <Label htmlFor="pin">5-Digit PIN</Label>
+              <Input id="pin" type="text" inputMode="numeric" value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 5) })} placeholder="e.g. 12345" required minLength={5} maxLength={5} pattern="[0-9]{5}" />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>

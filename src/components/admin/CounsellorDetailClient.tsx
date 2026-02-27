@@ -80,7 +80,7 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
   // Edit counsellor profile
   const [counsellorInfo, setCounsellorInfo] = useState(counsellor)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [editForm, setEditForm] = useState({ name: counsellor.name, email: counsellor.email, phone: counsellor.phone || '', newPassword: '' })
+  const [editForm, setEditForm] = useState({ name: counsellor.name, email: counsellor.email, phone: counsellor.phone || '', newPin: '' })
   const [editSaving, setEditSaving] = useState(false)
 
   const handleEditSave = async (e: React.FormEvent) => {
@@ -95,13 +95,13 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
           name: editForm.name,
           email: editForm.email,
           phone: editForm.phone || null,
-          newPassword: editForm.newPassword || undefined,
+          newPin: editForm.newPin || undefined,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Something went wrong.')
       setCounsellorInfo((prev) => ({ ...prev, name: editForm.name, email: editForm.email, phone: editForm.phone || null }))
-      setEditForm((f) => ({ ...f, newPassword: '' }))
+      setEditForm((f) => ({ ...f, newPin: '' }))
       setShowEditDialog(false)
       toast({ title: 'Profile updated', description: `${editForm.name}'s details have been saved.`, variant: 'success' })
     } catch (err: unknown) {
@@ -152,7 +152,7 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
             </div>
           </div>
           <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => {
-            setEditForm({ name: counsellorInfo.name, email: counsellorInfo.email, phone: counsellorInfo.phone || '', newPassword: '' })
+            setEditForm({ name: counsellorInfo.name, email: counsellorInfo.email, phone: counsellorInfo.phone || '', newPin: '' })
             setShowEditDialog(true)
           }}>
             <Settings className="h-3.5 w-3.5" />
@@ -391,15 +391,17 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ec-pw">New Password <span className="text-gray-400 font-normal text-xs">(leave blank to keep current)</span></Label>
+              <Label htmlFor="ec-pin">New PIN <span className="text-gray-400 font-normal text-xs">(5 digits — leave blank to keep current)</span></Label>
               <Input
-                id="ec-pw"
-                type="password"
-                value={editForm.newPassword}
-                onChange={(e) => setEditForm({ ...editForm, newPassword: e.target.value })}
-                placeholder="Min. 8 characters"
-                minLength={editForm.newPassword ? 8 : undefined}
-                autoComplete="new-password"
+                id="ec-pin"
+                type="text"
+                inputMode="numeric"
+                value={editForm.newPin}
+                onChange={(e) => setEditForm({ ...editForm, newPin: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+                placeholder="e.g. 12345"
+                maxLength={5}
+                minLength={editForm.newPin ? 5 : undefined}
+                pattern={editForm.newPin ? '[0-9]{5}' : undefined}
               />
             </div>
             <DialogFooter>
