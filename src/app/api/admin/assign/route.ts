@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
   if (!leadIds?.length || !counsellorId) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
+  if (!Array.isArray(leadIds) || leadIds.length > 5000) {
+    return NextResponse.json({ error: 'leadIds must be an array of at most 5000 items' }, { status: 400 })
+  }
 
   const admin = createAdminClient()
 
@@ -129,6 +132,12 @@ export async function PATCH(request: NextRequest) {
   const { leadIds, counsellors } = await request.json()
   if (!leadIds?.length || !counsellors?.length) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+  if (!Array.isArray(leadIds) || leadIds.length > 5000) {
+    return NextResponse.json({ error: 'leadIds must be an array of at most 5000 items' }, { status: 400 })
+  }
+  if (!Array.isArray(counsellors) || counsellors.length > 100) {
+    return NextResponse.json({ error: 'counsellors must be an array of at most 100 items' }, { status: 400 })
   }
 
   const admin = createAdminClient()

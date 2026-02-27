@@ -24,8 +24,17 @@ export async function POST(request: NextRequest) {
   if (!name || !email || !pin) {
     return NextResponse.json({ error: 'name, email and pin are required' }, { status: 400 })
   }
+  // Validate email format
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
+  }
   if (!/^\d{6}$/.test(pin)) {
     return NextResponse.json({ error: 'PIN must be exactly 6 digits' }, { status: 400 })
+  }
+  // Reject trivially weak PINs (all same digit or sequential)
+  const WEAK_PINS = new Set(['000000','111111','222222','333333','444444','555555','666666','777777','888888','999999','123456','654321'])
+  if (WEAK_PINS.has(pin)) {
+    return NextResponse.json({ error: 'PIN is too weak. Choose a less predictable 6-digit PIN.' }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -94,8 +103,17 @@ export async function PATCH(request: NextRequest) {
   if (!name || !email) {
     return NextResponse.json({ error: 'name and email are required' }, { status: 400 })
   }
-  if (newPin !== undefined && newPin !== '' && !/^\d{6}$/.test(newPin)) {
-    return NextResponse.json({ error: 'New PIN must be exactly 6 digits' }, { status: 400 })
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
+  }
+  if (newPin !== undefined && newPin !== '') {
+    if (!/^\d{6}$/.test(newPin)) {
+      return NextResponse.json({ error: 'New PIN must be exactly 6 digits' }, { status: 400 })
+    }
+    const WEAK_PINS = new Set(['000000','111111','222222','333333','444444','555555','666666','777777','888888','999999','123456','654321'])
+    if (WEAK_PINS.has(newPin)) {
+      return NextResponse.json({ error: 'New PIN is too weak. Choose a less predictable 6-digit PIN.' }, { status: 400 })
+    }
   }
 
   // Fetch auth_id — must belong to this college and be a counsellor

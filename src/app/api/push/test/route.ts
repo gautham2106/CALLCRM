@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import { sendPush } from '@/lib/webpush'
 import webpush from 'web-push'
 
@@ -10,7 +11,22 @@ const admin = createClient(
 
 // GET /api/push/test?user_id=<uuid>
 // Sends a test push to all subscriptions of a user (or all users if no user_id)
+// Requires admin authentication
 export async function GET(req: Request) {
+  // Require admin authentication
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('role, college_id')
+    .eq('auth_id', user.id)
+    .single()
+  if (!profile || profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const { searchParams } = new URL(req.url)
   const userId = searchParams.get('user_id')
 

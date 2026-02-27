@@ -6,8 +6,13 @@ import { sendPush } from '@/lib/webpush'
 // Called by Vercel Cron 4 times a day.
 // Finds counsellors who have follow-ups or visits due today and sends a push summary.
 export async function GET(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) {
+    console.error('[cron/reminders] CRON_SECRET environment variable is not set')
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
   const secret = request.headers.get('authorization')
-  if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (secret !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

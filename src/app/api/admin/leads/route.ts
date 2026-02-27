@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
+// Maximum rows returned in a single export to prevent data exfiltration at scale
+const EXPORT_ROW_LIMIT = 10_000
+
 // GET /api/admin/leads — paginated, server-side filtered lead list
 // Query params:
 //   page        number  (default 0)
@@ -12,7 +15,7 @@ import { createClient } from '@/lib/supabase/server'
 //   source      string  source_name exact match, or '__none__'
 //   course      string  course_id UUID, or '__none__'
 //   tab         string  'unassigned' filters to is_active leads with no counsellor
-//   export      'true'  skips pagination limit — returns all matching rows for CSV
+//   export      'true'  skips pagination limit — returns all matching rows for CSV (capped at 10 000)
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -30,7 +33,9 @@ export async function GET(request: NextRequest) {
   const isExport   = sp.get('export') === 'true'
   const page       = Math.max(0, parseInt(sp.get('page')  || '0'))
   const limit      = Math.min(200, Math.max(1, parseInt(sp.get('limit') || '50')))
-  const search     = (sp.get('search')     || '').trim()
+  // Sanitize search: strip PostgREST filter operators and limit length
+  const rawSearch  = (sp.get('search') || '').trim().slice(0, 200)
+  const search     = rawSearch.replace(/[()[\]{}<>|&!]/g, '')
   const stage      = sp.get('stage')      || ''
   const counsellor = sp.get('counsellor') || ''
   const source     = sp.get('source')     || ''   // source_name value or '__none__'
@@ -52,7 +57,12 @@ export async function GET(request: NextRequest) {
   const isIdsOnly = sp.get('ids_only') === 'true'
 
   // Apply server-side pagination (skipped for export and ids_only)
-  if (!isExport && !isIdsOnly) query = query.range(page * limit, page * limit + limit - 1)
+  // Exports are capped at EXPORT_ROW_LIMIT to prevent data exfiltration at scale
+  if (isExport) {
+    query = query.limit(EXPORT_ROW_LIMIT)
+  } else if (!isIdsOnly) {
+    query = query.range(page * limit, page * limit + limit - 1)
+  }
 
   // Filters
   if (tab === 'unassigned' || counsellor === 'unassigned') {
@@ -74,7 +84,7 @@ export async function GET(request: NextRequest) {
   // ids_only=true — return just IDs for "Select All Matching" across all pages
   if (isIdsOnly) {
     const { data: idRows } = await query.select('id')
-    return NextResponse.json({ ids: (idRows || []).map((r: any) => r.id) })
+    return NextResponse.json({ ids: (idRows || []).map((r: { id: string }) => r.id) })
   }
 
   // Unassigned count for tab badge (separate fast COUNT query)
@@ -94,7 +104,7 @@ export async function GET(request: NextRequest) {
 
   // When exporting, also fetch custom field definitions and values for all leads
   if (isExport && data && data.length > 0) {
-    const leadIds = (data as any[]).map((l) => l.id)
+    const leadIds = (data as { id: string }[]).map((l) => l.id)
     const [{ data: fieldDefs }, { data: fieldValues }] = await Promise.all([
       admin
         .from('custom_field_definitions')
@@ -148,6 +158,32 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient()
+
+  // Validate course_id belongs to this college (if provided)
+  if (course_id) {
+    const { data: courseRow } = await admin
+      .from('courses')
+      .select('id')
+      .eq('id', course_id)
+      .eq('college_id', profile.college_id)
+      .single()
+    if (!courseRow) {
+      return NextResponse.json({ error: 'Invalid course_id' }, { status: 400 })
+    }
+  }
+
+  // Validate source_id belongs to this college (if provided)
+  if (source_id) {
+    const { data: sourceRow } = await admin
+      .from('sources')
+      .select('id')
+      .eq('id', source_id)
+      .eq('college_id', profile.college_id)
+      .single()
+    if (!sourceRow) {
+      return NextResponse.json({ error: 'Invalid source_id' }, { status: 400 })
+    }
+  }
 
   // Prevent duplicate phone numbers within the same college.
   // Use .limit(1) before .maybeSingle() so PostgREST never sees multiple rows
@@ -222,6 +258,11 @@ export async function DELETE(request: NextRequest) {
   const { ids } = await request.json()
   if (!Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json({ error: 'ids array is required' }, { status: 400 })
+  }
+
+  // Limit bulk delete size to prevent accidental mass deletions
+  if (ids.length > 1000) {
+    return NextResponse.json({ error: 'Cannot delete more than 1000 leads at once' }, { status: 400 })
   }
 
   const admin = createAdminClient()

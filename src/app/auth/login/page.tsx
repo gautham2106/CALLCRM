@@ -29,13 +29,24 @@ export default function LoginPage() {
       if (data.user) {
         const { data: profile } = await supabase
           .from('users')
-          .select('role')
+          .select('role, is_active')
           .eq('auth_id', data.user.id)
           .single()
-        const p = profile as { role: string } | null
-        if (p?.role === 'admin') router.push('/admin')
-        else if (p?.role === 'counsellor') router.push('/counsellor')
-        else toast({ title: 'Access denied', description: 'Account not set up. Contact your administrator.', variant: 'destructive' })
+        if (!profile) {
+          // Auth user exists but has no profile row — sign out to prevent session abuse
+          await supabase.auth.signOut()
+          toast({ title: 'Access denied', description: 'Account not set up. Contact your administrator.', variant: 'destructive' })
+        } else if (profile.is_active === false) {
+          await supabase.auth.signOut()
+          toast({ title: 'Account disabled', description: 'Your account has been deactivated. Contact your administrator.', variant: 'destructive' })
+        } else if (profile.role === 'admin') {
+          router.push('/admin')
+        } else if (profile.role === 'counsellor') {
+          router.push('/counsellor')
+        } else {
+          await supabase.auth.signOut()
+          toast({ title: 'Access denied', description: 'Unrecognized role. Contact your administrator.', variant: 'destructive' })
+        }
       }
     } finally {
       setLoading(false)

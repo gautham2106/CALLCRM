@@ -14,6 +14,11 @@ export async function getUser(): Promise<UserProfile | null> {
     .eq('auth_id', user.id)
     .single()
 
+  if (!profile) return null
+
+  // Deny access for disabled accounts
+  if (profile.is_active === false) return null
+
   return profile as UserProfile | null
 }
 
