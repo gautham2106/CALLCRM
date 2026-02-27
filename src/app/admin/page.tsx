@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 import { AdminAnalyticsClient } from '@/components/admin/AdminAnalyticsClient'
+import { todayIST } from '@/lib/utils'
 
 // ----------------------------------------------------------------
 // getDashboardData — replaced 3 full-table JS-aggregation queries
@@ -12,13 +13,13 @@ import { AdminAnalyticsClient } from '@/components/admin/AdminAnalyticsClient'
 // ----------------------------------------------------------------
 async function getDashboardData(collegeId: string) {
   const supabase = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]       // 'YYYY-MM-DD'
+  const today = todayIST()                                   // 'YYYY-MM-DD' in IST
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
 
-  const thisMonthStr = new Date().toISOString().substring(0, 7)            // 'YYYY-MM'
+  const thisMonthStr = todayIST().substring(0, 7)            // 'YYYY-MM' in IST
   const lastMonthDate = new Date()
   lastMonthDate.setMonth(lastMonthDate.getMonth() - 1)
-  const lastMonthStr = lastMonthDate.toISOString().substring(0, 7)
+  const lastMonthStr = lastMonthDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }).substring(0, 7)
 
   // ---- Run all queries in parallel ----
   const [
@@ -200,7 +201,7 @@ export default async function AdminDashboard() {
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Analytics Overview</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}
             </p>
           </div>
           <div className="text-right">

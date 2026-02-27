@@ -9,6 +9,7 @@ import {
   LEAD_STAGE_COLORS,
   LEAD_STAGES,
   formatDate,
+  todayIST,
 } from '@/lib/utils'
 import {
   Search, Phone, MessageCircle, Users, Clock, PhoneOff, Building2, Pencil,
@@ -77,7 +78,7 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
 
   const resetPage = () => { setPage(0); setShowAll(false) }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
 
   const filtered = useMemo(() => {
     let result = leads

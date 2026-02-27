@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/components/ui/use-toast'
-import { formatDate } from '@/lib/utils'
+import { formatDate, todayIST } from '@/lib/utils'
 import { LeadSlidePanel } from '@/components/shared/LeadSlidePanel'
 import {
   Plus, Tags, Eye, EyeOff, Trash2, Loader2, Phone, MessageCircle,
@@ -76,7 +76,7 @@ const CALL_PILL: Record<string, string> = {
   'Switched Off': 'text-gray-400',
 }
 
-const today = new Date().toISOString().split('T')[0]
+const today = todayIST()
 
 export function LeadSourcesClient({ initialSources, collegeId, adminId, initialSourceStats, unknownStat }: Props) {
   const supabase = createClient()

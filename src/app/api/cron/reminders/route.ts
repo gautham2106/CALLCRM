@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/webpush'
+import { todayIST } from '@/lib/utils'
 
 // GET /api/cron/reminders
 // Called by Vercel Cron 4 times a day.
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient()
 
   // Today's date in YYYY-MM-DD (UTC). Vercel cron runs in UTC.
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayIST()
 
   // Fetch all active leads due today (follow-up or visit), with assigned counsellor
   const { data: leads, error } = await admin

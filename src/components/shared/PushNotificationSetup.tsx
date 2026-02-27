@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { todayIST } from '@/lib/utils'
 import { Bell, BellOff, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -124,7 +125,7 @@ function fireDailyReminder(followUps: number, visits: number) {
   if (followUps === 0 && visits === 0) return
 
   // Only fire once per day per device
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
   const lastFired = localStorage.getItem(REMINDER_KEY)
   if (lastFired === today) return
 

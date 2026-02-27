@@ -12,6 +12,7 @@ export function formatDate(dateStr: string | null | undefined): string {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone: 'Asia/Kolkata',
   })
 }
 
@@ -24,7 +25,13 @@ export function formatDateTime(dateStr: string | null | undefined): string {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Kolkata',
   })
+}
+
+// Returns today's date as YYYY-MM-DD in IST (works on both server and browser).
+export function todayIST(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 }
 
 export function getWhatsAppLink(phone: string, message?: string): string {

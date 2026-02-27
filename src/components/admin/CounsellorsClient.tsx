@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
+import { todayIST } from '@/lib/utils'
 import {
   UserPlus, Mail, Phone, Eye, Loader2, Users, Upload, Plus,
   Building2, AlertCircle, CheckCircle, ArrowRight, X, FileText, AlertTriangle,
@@ -95,7 +96,7 @@ function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): num
 
 export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sources, courses, customFields, unassignedCount }: Props) {
   const supabase = createClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
 
   // All mappable fields: static + custom (computed once per render, stable reference via memo not needed at module level)
   const allCsvFields = [

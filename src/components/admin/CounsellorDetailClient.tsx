@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { LeadSlidePanel } from '@/components/shared/LeadSlidePanel'
 import { toast } from '@/components/ui/use-toast'
-import { formatDate } from '@/lib/utils'
+import { formatDate, todayIST } from '@/lib/utils'
 import {
   ArrowLeft, Mail, Phone, Users, GraduationCap, TrendingUp, MessageCircle, Pencil,
   ChevronLeft, ChevronRight, Loader2, Settings,
@@ -69,7 +69,7 @@ const CALL_PILL: Record<string, string> = {
   'Switched Off': 'text-gray-400',
 }
 
-const today = new Date().toISOString().split('T')[0]
+const today = todayIST()
 
 export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, adminId }: Props) {
   const [leads, setLeads] = useState<CounsellorLead[]>(initialLeads)

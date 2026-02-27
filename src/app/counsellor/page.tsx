@@ -4,14 +4,14 @@ import {
   PhoneCall, Users, TrendingUp, GraduationCap, Clock, AlertTriangle, ArrowUpRight, Building2,
 } from 'lucide-react'
 import Link from 'next/link'
-import { LEAD_STAGE_COLORS } from '@/lib/utils'
+import { LEAD_STAGE_COLORS, todayIST } from '@/lib/utils'
 import { PushNotificationSetup } from '@/components/shared/PushNotificationSetup'
 
 export default async function CounsellorDashboard() {
   const user = await requireCounsellor()
   const supabase = await createClient()
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
 
   const [
     { data: leads },
@@ -47,7 +47,7 @@ export default async function CounsellorDashboard() {
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">My Dashboard</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' })}
             </p>
           </div>
           <div className="text-right">

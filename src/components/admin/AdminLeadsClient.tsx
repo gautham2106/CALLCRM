@@ -14,6 +14,7 @@ import {
   CALL_STAGE_COLORS,
   LEAD_STAGES,
   formatDate,
+  todayIST,
 } from '@/lib/utils'
 import {
   Search,
@@ -124,7 +125,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false)
   const [bulkProcessing, setBulkProcessing] = useState(false)
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayIST()
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   // ---- Debounce search ----

@@ -352,7 +352,7 @@ function SourceLeadPanel({ source: s }: { source: SourceStat }) {
 
   function fmt(iso: string) {
     if (!iso) return '—'
-    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'Asia/Kolkata' })
   }
 
   return (

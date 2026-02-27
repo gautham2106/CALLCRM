@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth'
 import { LeadSourcesClient } from '@/components/admin/LeadSourcesClient'
+import { todayIST } from '@/lib/utils'
 
 export default async function SourcesPage() {
   const user = await requireAdmin()
@@ -24,10 +25,10 @@ export default async function SourcesPage() {
       .eq('role', 'counsellor'),
   ])
 
-  const thisMonthStr = new Date().toISOString().substring(0, 7)
+  const thisMonthStr = todayIST().substring(0, 7)
   const lastMonthDate = new Date()
   lastMonthDate.setMonth(lastMonthDate.getMonth() - 1)
-  const lastMonthStr = lastMonthDate.toISOString().substring(0, 7)
+  const lastMonthStr = lastMonthDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }).substring(0, 7)
 
   // Build source stats keyed by source_id; bucket null source_id as '__unknown__'
   const statsMap: Record<string, { total: number; enrolled: number; thisMonth: number; lastMonth: number; stages: Record<string, number> }> = {}
