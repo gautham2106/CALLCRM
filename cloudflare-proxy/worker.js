@@ -1,46 +1,57 @@
 /**
  * Cloudflare Worker — Supabase ISP-block proxy
  *
- * Forwards all requests to your Supabase project so that ISPs (e.g. Jio India)
- * that block Supabase's IPs cannot reach the backend directly from user browsers.
- *
  * Deploy steps:
- *   1. Go to https://workers.cloudflare.com and create a new Worker
- *   2. Paste this file's contents into the editor
- *   3. Add an Environment Variable in the Worker settings:
+ *   1. workers.cloudflare.com → Create Worker → paste this file
+ *   2. Worker Settings → Variables → add:
  *        SUPABASE_URL = https://your-project-ref.supabase.co
- *   4. Deploy — note the Worker URL (e.g. supabase-proxy.yourname.workers.dev)
- *   5. On Vercel, set NEXT_PUBLIC_SUPABASE_URL = https://supabase-proxy.yourname.workers.dev
- *   6. Redeploy your Vercel app
+ *   3. Deploy — copy the worker URL
+ *   4. Vercel → NEXT_PUBLIC_SUPABASE_URL = <worker URL>
+ *   5. Redeploy Vercel
  */
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers':
+    'apikey, Authorization, Content-Type, Prefer, X-Client-Info, X-Supabase-Api-Version, Accept-Profile, Content-Profile, Range',
+  'Access-Control-Expose-Headers': 'Content-Range, X-Total-Count',
+  'Access-Control-Max-Age': '86400',
+}
 
 export default {
   async fetch(request, env) {
-    const supabaseOrigin = new URL(env.SUPABASE_URL).origin
+    // Respond to CORS preflight immediately — don't forward to Supabase
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: CORS_HEADERS })
+    }
 
-    // Rewrite the incoming URL to point at Supabase, keeping path + query intact
+    const supabaseOrigin = new URL(env.SUPABASE_URL).origin
     const url = new URL(request.url)
     const targetUrl = supabaseOrigin + url.pathname + url.search
 
-    // Forward the request with all original headers (apikey, Authorization, etc.)
-    const proxied = new Request(targetUrl, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body,
-      redirect: 'follow',
-    })
+    // Strip Cloudflare-injected and hop-by-hop headers before forwarding
+    const headers = new Headers(request.headers)
+    headers.delete('host')
+    headers.delete('content-length')   // let fetch recalculate
+    headers.delete('cf-connecting-ip')
+    headers.delete('cf-ipcountry')
+    headers.delete('cf-ray')
+    headers.delete('cf-visitor')
 
-    const response = await fetch(proxied)
+    const response = await fetch(
+      new Request(targetUrl, {
+        method: request.method,
+        headers,
+        body: request.body,
+        redirect: 'follow',
+      })
+    )
 
-    // Pass the response back with CORS headers so browsers accept it
+    // Attach CORS headers to every response so the browser accepts it
     const newHeaders = new Headers(response.headers)
-    newHeaders.set('Access-Control-Allow-Origin', '*')
-    newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-    newHeaders.set('Access-Control-Allow-Headers', '*')
-
-    // Handle CORS preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: newHeaders })
+    for (const [k, v] of Object.entries(CORS_HEADERS)) {
+      newHeaders.set(k, v)
     }
 
     return new Response(response.body, {
