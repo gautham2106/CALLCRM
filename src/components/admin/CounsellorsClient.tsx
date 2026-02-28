@@ -1013,13 +1013,14 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
               {/* Step indicator */}
               <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1">
                 {(columnMap['school_name']
-                  ? (['upload', 'map', 'school-assign', 'preview', 'done'] as const)
-                  : (['upload', 'map', 'preview', 'done'] as const)
+                  ? ['upload', 'map', 'school-assign', 'preview', 'done']
+                  : ['upload', 'map', 'preview', 'done']
+                  as Array<'upload' | 'map' | 'school-assign' | 'preview' | 'done'>
                 ).map((s, idx, arr) => (
                   <div key={s} className="flex items-center gap-1.5 shrink-0">
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       csvStep === s ? 'bg-blue-600 text-white' :
-                      arr.indexOf(s) < arr.indexOf(csvStep as typeof s)
+                      arr.indexOf(s) < arr.indexOf(csvStep)
                         ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
                     }`}>{idx + 1}</div>
                     <span className={csvStep === s ? 'text-blue-600 font-medium' : 'text-gray-400 capitalize'}>
