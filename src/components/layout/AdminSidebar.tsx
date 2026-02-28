@@ -14,27 +14,31 @@ import {
   ChevronRight,
   BookOpen,
   Shuffle,
+  Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/admin/leads', label: 'Leads', icon: Users },
-  { href: '/admin/assignment', label: 'Auto-Distribute', icon: Shuffle },
-  { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck },
-  { href: '/admin/super-fields', label: 'Super Fields', icon: Sliders },
-  { href: '/admin/sources', label: 'Lead Sources', icon: Tags },
-  { href: '/admin/courses', label: 'Courses', icon: BookOpen },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
+const ALL_NAV_ITEMS = [
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true, roles: ['admin', 'team_leader'] },
+  { href: '/admin/leads', label: 'Leads', icon: Users, roles: ['admin', 'team_leader'] },
+  { href: '/admin/assignment', label: 'Auto-Distribute', icon: Shuffle, roles: ['admin'] },
+  { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck, roles: ['admin', 'team_leader'] },
+  { href: '/admin/team-leaders', label: 'Team Leaders', icon: Shield, roles: ['admin'] },
+  { href: '/admin/super-fields', label: 'Super Fields', icon: Sliders, roles: ['admin'] },
+  { href: '/admin/sources', label: 'Lead Sources', icon: Tags, roles: ['admin'] },
+  { href: '/admin/courses', label: 'Courses', icon: BookOpen, roles: ['admin'] },
+  { href: '/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ]
 
 interface Props {
   onClose?: () => void
+  userRole?: string
 }
 
-export function AdminSidebar({ onClose }: Props) {
+export function AdminSidebar({ onClose, userRole = 'admin' }: Props) {
+  const navItems = ALL_NAV_ITEMS.filter((item) => item.roles.includes(userRole))
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
