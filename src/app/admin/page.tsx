@@ -43,6 +43,8 @@ async function getDashboardData(collegeId: string) {
     // Interest analytics
     { data: schoolInterestRaw },
     { data: counsellorInterestRaw },
+    // Team performance funnel
+    { data: teamPerformanceRaw },
   ] = await Promise.all([
     supabase.from('leads').select('*', { count: 'exact', head: true })
       .eq('college_id', collegeId).eq('is_active', true),
@@ -88,6 +90,8 @@ async function getDashboardData(collegeId: string) {
     // Interest analytics — school-wise and counsellor-wise
     supabase.rpc('get_school_interest_stats', { p_college_id: collegeId }),
     supabase.rpc('get_counsellor_interest_stats', { p_college_id: collegeId }),
+    // Team performance funnel
+    supabase.rpc('get_team_performance', { p_college_id: collegeId, p_today: today }),
   ])
 
   // ---- Build stageCount map ----
@@ -177,6 +181,22 @@ async function getDashboardData(collegeId: string) {
     not_interested: Number(r.not_interested),
   }))
 
+  const teamPerformance = (teamPerformanceRaw || []).map((r: any) => ({
+    team_leader_id:    r.team_leader_id   as string,
+    team_leader_name:  r.team_leader_name as string,
+    total_counsellors: Number(r.total_counsellors),
+    total_leads:       Number(r.total_leads),
+    called:            Number(r.called),
+    not_called:        Number(r.not_called),
+    interested:        Number(r.interested),
+    not_interested:    Number(r.not_interested),
+    visit_done:        Number(r.visit_done),
+    enrolled:          Number(r.enrolled),
+    cold_wrong:        Number(r.cold_wrong),
+    stale:             Number(r.stale),
+    followups_today:   Number(r.followups_today),
+  }))
+
   return {
     totalLeads:    totalLeads    || 0,
     enrolled:      enrolled      || 0,
@@ -188,6 +208,7 @@ async function getDashboardData(collegeId: string) {
     sourceStats,
     schoolInterest,
     counsellorInterest,
+    teamPerformance,
     todayFollowUps: todayFollowUps || 0,
     staleLeads:     staleLeads     || 0,
     callsToday:     callsToday     || 0,
@@ -254,6 +275,7 @@ export default async function AdminDashboard() {
         sourceData={sourceArray}
         schoolInterest={data.schoolInterest}
         counsellorInterest={data.counsellorInterest}
+        teamPerformance={data.teamPerformance}
       />
     </div>
   )

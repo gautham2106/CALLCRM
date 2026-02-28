@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
   Users, GraduationCap, PhoneCall, AlertCircle, Clock, Building2,
-  TrendingUp, Activity, UserX, Target, ArrowUp, ArrowDown, Minus,
+  TrendingUp, Activity, UserX, Target, ArrowUp, ArrowDown, Minus, Shield,
 } from 'lucide-react'
 
 // ---- Types ----
@@ -67,12 +67,29 @@ interface CounsellorInterest {
   not_interested: number
 }
 
+interface TeamPerformance {
+  team_leader_id: string
+  team_leader_name: string
+  total_counsellors: number
+  total_leads: number
+  called: number
+  not_called: number
+  interested: number
+  not_interested: number
+  visit_done: number
+  enrolled: number
+  cold_wrong: number
+  stale: number
+  followups_today: number
+}
+
 interface Props {
   overview: Overview
   funnelData: FunnelEntry[]
   sourceData: SourceStat[]
   schoolInterest?: SchoolInterest[]
   counsellorInterest?: CounsellorInterest[]
+  teamPerformance?: TeamPerformance[]
 }
 
 // ---- Colors ----
@@ -98,18 +115,19 @@ const STAGE_PILL: Record<string, string> = {
   'Wrong Lead': 'bg-red-100 text-red-500',
 }
 
-type TabId = 'overview' | 'pipeline' | 'interest'
+type TabId = 'overview' | 'pipeline' | 'interest' | 'teams'
 
 // ============================================================
 // Root Component
 // ============================================================
-export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolInterest = [], counsellorInterest = [] }: Props) {
+export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolInterest = [], counsellorInterest = [], teamPerformance = [] }: Props) {
   const [tab, setTab] = useState<TabId>('overview')
 
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Team Overview', icon: TrendingUp },
     { id: 'pipeline', label: 'Pipeline & Sources', icon: Activity },
     { id: 'interest', label: 'Interest Analytics', icon: Target },
+    { id: 'teams', label: 'Team Performance', icon: Shield },
   ]
 
   return (
@@ -141,6 +159,7 @@ export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolI
         {tab === 'overview' && <OverviewTab overview={overview} funnelData={funnelData} />}
         {tab === 'pipeline' && <PipelineTab funnelData={funnelData} sourceData={sourceData} overview={overview} />}
         {tab === 'interest' && <InterestTab schoolInterest={schoolInterest} counsellorInterest={counsellorInterest} />}
+        {tab === 'teams' && <TeamsTab teams={teamPerformance} />}
       </div>
     </div>
   )
@@ -591,6 +610,155 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// Tab 4 — Team Performance
+// ============================================================
+function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
+  if (teams.length === 0) {
+    return (
+      <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
+        <Shield className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-500 font-medium">No teams configured yet</p>
+        <p className="text-sm text-gray-400 mt-1">Add team leaders and assign counsellors to see team performance.</p>
+      </div>
+    )
+  }
+
+  const pct = (num: number, den: number) => den > 0 ? Math.round((num / den) * 100) : 0
+
+  // Color bands: for non-inverted metrics, >= hi = green, >= lo = amber, else red.
+  // For inverted (lower is better): <= lo = green, <= hi = amber, else red.
+  const band = (value: number, lo: number, hi: number, invert = false) => {
+    if (invert) {
+      if (value <= lo) return { bar: '#22c55e', text: 'text-green-600' }
+      if (value <= hi) return { bar: '#f59e0b', text: 'text-amber-600' }
+      return { bar: '#ef4444', text: 'text-red-600' }
+    }
+    if (value >= hi) return { bar: '#22c55e', text: 'text-green-600' }
+    if (value >= lo) return { bar: '#f59e0b', text: 'text-amber-600' }
+    return { bar: '#ef4444', text: 'text-red-600' }
+  }
+
+  const totalLeads    = teams.reduce((s, t) => s + t.total_leads, 0)
+  const totalEnrolled = teams.reduce((s, t) => s + t.enrolled, 0)
+  const overallRate   = pct(totalEnrolled, totalLeads)
+
+  const RANK_BADGES = ['🥇', '🥈', '🥉']
+
+  return (
+    <div className="space-y-5">
+      {/* Summary strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <PulseCard label="Teams"         value={teams.length}   icon={<Shield        className="h-4 w-4 text-purple-500" />} bg="bg-purple-50" />
+        <PulseCard label="Total Leads"   value={totalLeads}     icon={<Users         className="h-4 w-4 text-blue-500"   />} bg="bg-blue-50" />
+        <PulseCard label="Total Enrolled" value={totalEnrolled} icon={<GraduationCap className="h-4 w-4 text-green-500"  />} bg="bg-green-50" />
+        <PulseCard label="Overall Rate"  value={overallRate}    icon={<Target        className="h-4 w-4 text-orange-500" />} bg="bg-orange-50" suffix="%" />
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+        <span className="font-semibold text-gray-600 uppercase tracking-wider">Colour bands:</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />Good</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" />Average</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500  inline-block" />Needs attention</span>
+        <span className="ml-auto text-gray-400">↓ lower is better (marked with ↓)</span>
+      </div>
+
+      {/* Team cards ranked by enrollment */}
+      {teams.map((team, idx) => {
+        const coverage    = pct(team.called,         team.total_leads)
+        const interestRate= pct(team.interested,     team.called)
+        const niRate      = pct(team.not_interested, team.called)
+        const visitRate   = pct(team.visit_done,     team.interested)
+        const closingRate = pct(team.enrolled,       team.visit_done)
+        const enrollRate  = pct(team.enrolled,       team.total_leads)
+        const staleRate   = pct(team.stale,          team.total_leads)
+        const deadRate    = pct(team.cold_wrong,     team.total_leads)
+
+        const enrollColors = band(enrollRate, 8, 15)
+
+        const metrics: {
+          label: string; pct: number; num: number; sub: string
+          lo: number; hi: number; invert?: boolean; note?: string
+        }[] = [
+          { label: 'Call Coverage',    pct: coverage,     num: team.called,         sub: 'called',        lo: 60, hi: 80 },
+          { label: 'Interest Rate',    pct: interestRate, num: team.interested,     sub: 'interested',    lo: 25, hi: 45 },
+          { label: 'Not Interested ↓', pct: niRate,       num: team.not_interested, sub: 'not interested',lo: 30, hi: 50, invert: true },
+          { label: 'Visit Conversion', pct: visitRate,    num: team.visit_done,     sub: 'visits',        lo: 30, hi: 55 },
+          { label: 'Closing Rate',     pct: closingRate,  num: team.enrolled,       sub: 'enrolled',      lo: 40, hi: 65 },
+        ]
+
+        return (
+          <div key={team.team_leader_id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            {/* Header: rank + name + headline enrollment rate */}
+            <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-2xl shrink-0 select-none">{RANK_BADGES[idx] ?? `#${idx + 1}`}</span>
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-900 text-base leading-snug">{team.team_leader_name}</p>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {team.total_counsellors} counsellor{team.total_counsellors !== 1 ? 's' : ''}
+                    &nbsp;·&nbsp;
+                    {team.total_leads.toLocaleString()} leads
+                  </p>
+                </div>
+              </div>
+              {/* Enrollment rate — primary % + secondary number */}
+              <div className="text-right shrink-0">
+                <p className={`text-3xl font-bold tabular-nums leading-none ${enrollColors.text}`}>{enrollRate}%</p>
+                <p className="text-[11px] text-gray-400 mt-1">Enrollment Rate</p>
+                <p className={`text-xs font-semibold mt-0.5 ${enrollColors.text}`}>{team.enrolled} enrolled</p>
+              </div>
+            </div>
+
+            {/* Funnel metric bars */}
+            <div className="px-5 py-4 space-y-2.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Performance Funnel</p>
+              {metrics.map((m) => {
+                const colors  = band(m.pct, m.lo, m.hi, m.invert)
+                const barW    = Math.max(m.pct, m.num > 0 ? 2 : 0)
+                return (
+                  <div key={m.label} className="flex items-center gap-2 sm:gap-3">
+                    <span className="text-xs text-gray-500 w-32 shrink-0 text-right leading-tight">{m.label}</span>
+                    <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden">
+                      <div
+                        className="h-full rounded-md transition-all duration-500"
+                        style={{ width: `${barW}%`, backgroundColor: colors.bar }}
+                      />
+                    </div>
+                    {/* % primary */}
+                    <span className={`text-sm font-bold w-10 shrink-0 tabular-nums text-right ${colors.text}`}>{m.pct}%</span>
+                    {/* number secondary */}
+                    <span className="text-xs text-gray-400 w-24 shrink-0 tabular-nums hidden sm:inline">
+                      {m.num.toLocaleString()} {m.sub}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Footer: stale / dead / follow-ups — secondary health indicators */}
+            <div className="px-5 pb-4 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-gray-50 pt-3">
+              <span className={`text-xs font-medium ${staleRate > 20 ? 'text-red-500' : staleRate > 10 ? 'text-amber-500' : 'text-gray-400'}`}>
+                Stale: <strong>{staleRate}%</strong> <span className="font-normal">({team.stale} leads)</span>
+              </span>
+              <span className={`text-xs font-medium ${deadRate > 30 ? 'text-red-500' : deadRate > 15 ? 'text-amber-500' : 'text-gray-400'}`}>
+                Dead: <strong>{deadRate}%</strong> <span className="font-normal">({team.cold_wrong} leads)</span>
+              </span>
+              <span className={`text-xs font-medium ${team.followups_today > 0 ? 'text-blue-500' : 'text-gray-400'}`}>
+                Follow-ups today: <strong>{team.followups_today}</strong>
+              </span>
+              <span className="text-xs text-gray-400 ml-auto">
+                {team.not_called.toLocaleString()} uncalled
+              </span>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
