@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminOrTeamLeader } from '@/lib/auth'
 import { AdminAnalyticsClient } from '@/components/admin/AdminAnalyticsClient'
+import { TeamLeaderDashboardClient } from '@/components/admin/TeamLeaderDashboardClient'
 import { todayIST } from '@/lib/utils'
 
 // ----------------------------------------------------------------
@@ -216,8 +217,60 @@ async function getDashboardData(collegeId: string) {
   }
 }
 
+async function getTeamLeaderData(userId: string, collegeId: string) {
+  const supabase = createAdminClient()
+  const today = todayIST()
+
+  const [{ data: counsellors }, { data: statsRaw }] = await Promise.all([
+    supabase
+      .from('users')
+      .select('id, name')
+      .eq('college_id', collegeId)
+      .eq('role', 'counsellor')
+      .eq('team_leader_id', userId)
+      .eq('is_active', true),
+    supabase.rpc('get_counsellor_stats', { p_college_id: collegeId, p_today: today }),
+  ])
+
+  const myIds = new Set((counsellors || []).map((c: any) => c.id))
+  const statsMap: Record<string, any> = {}
+  ;(statsRaw || []).forEach((r: any) => { statsMap[r.assigned_to] = r })
+
+  const counsellorStats = (counsellors || []).map((c: any) => {
+    const s = statsMap[c.id] || {}
+    const assigned  = Number(s.assigned  || 0)
+    const called    = Number(s.called    || 0)
+    const enrolled  = Number(s.enrolled  || 0)
+    return {
+      id:             c.id,
+      name:           c.name,
+      assigned,
+      called,
+      notCalled:      assigned - called,
+      interested:     Number(s.interested      || 0),
+      enrolled,
+      conversion:     assigned > 0 ? Math.round((enrolled / assigned) * 100) : 0,
+      followUpsToday: Number(s.followups_today || 0),
+    }
+  })
+
+  return { counsellorStats, today }
+}
+
 export default async function AdminDashboard() {
-  const user = await requireAdmin()
+  const user = await requireAdminOrTeamLeader()
+
+  if (user.role === 'team_leader') {
+    const { counsellorStats, today } = await getTeamLeaderData(user.id, user.college_id!)
+    return (
+      <TeamLeaderDashboardClient
+        teamLeaderName={user.name}
+        counsellorStats={counsellorStats}
+        todayDate={today}
+      />
+    )
+  }
+
   const data = await getDashboardData(user.college_id!)
 
   const stageOrder = ['New Enquiry', 'Contacted', 'Visit Scheduled', 'Visit Done', 'Application Started', 'Enrolled', 'Cold Lead', 'Wrong Lead']
@@ -253,7 +306,7 @@ export default async function AdminDashboard() {
           </div>
           <div className="text-right">
             <p className="text-sm font-medium text-gray-900">{user.name}</p>
-            <p className="text-xs text-gray-500">Admin</p>
+            <p className="text-xs text-gray-500 capitalize">{user.role.replace('_', ' ')}</p>
           </div>
         </div>
       </div>

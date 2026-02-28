@@ -1,13 +1,14 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminOrTeamLeader } from '@/lib/auth'
 import { AdminLeadsClient } from '@/components/admin/AdminLeadsClient'
 
 // Leads are no longer fetched server-side — the client fetches paginated
 // pages via GET /api/admin/leads so the browser never loads 1L+ rows.
 // Only small reference lists (counsellors, sources, courses) are fetched here.
 export default async function AdminLeadsPage() {
-  const user = await requireAdmin()
+  const user = await requireAdminOrTeamLeader()
   const supabase = createAdminClient()
+  const isTeamLeader = user.role === 'team_leader'
 
   const [
     { data: counsellors },
@@ -16,12 +17,16 @@ export default async function AdminLeadsPage() {
     { data: customFields },
     { data: schoolRows },
   ] = await Promise.all([
-    supabase
-      .from('users')
-      .select('id, name, email')
-      .eq('college_id', user.college_id!)
-      .eq('role', 'counsellor')
-      .eq('is_active', true),
+    (() => {
+      let q = supabase
+        .from('users')
+        .select('id, name, email')
+        .eq('college_id', user.college_id!)
+        .eq('role', 'counsellor')
+        .eq('is_active', true)
+      if (isTeamLeader) q = q.eq('team_leader_id', user.id)
+      return q
+    })(),
     supabase
       .from('lead_sources')
       .select('id, source_name')

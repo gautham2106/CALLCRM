@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('users').select('id, role, college_id').eq('auth_id', user.id).single()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'team_leader')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -39,6 +39,19 @@ export async function GET(request: NextRequest) {
   const course     = sp.get('course')     || ''   // course_id or '__none__'
   const tab        = sp.get('tab')        || ''   // 'unassigned'
 
+  // For team leaders, resolve their counsellors first so we can scope leads
+  let teamCounsellorIds: string[] | null = null
+  if (profile.role === 'team_leader') {
+    const { data: myCounsellors } = await admin
+      .from('users')
+      .select('id')
+      .eq('college_id', profile.college_id)
+      .eq('role', 'counsellor')
+      .eq('team_leader_id', profile.id)
+      .eq('is_active', true)
+    teamCounsellorIds = (myCounsellors || []).map((c: { id: string }) => c.id)
+  }
+
   let query = admin
     .from('leads')
     .select(`
@@ -51,6 +64,15 @@ export async function GET(request: NextRequest) {
     .or('is_active.is.null,is_active.eq.true')
     .order('created_at', { ascending: false })
 
+  // Team leaders can only see leads belonging to their counsellors
+  if (teamCounsellorIds !== null) {
+    if (teamCounsellorIds.length === 0) {
+      // No counsellors → return empty
+      return NextResponse.json({ leads: [], total: 0, unassigned_total: 0 })
+    }
+    query = query.in('assigned_to', teamCounsellorIds)
+  }
+
   const isIdsOnly = sp.get('ids_only') === 'true'
   const school    = sp.get('school')   || ''   // school_name value
 
@@ -61,6 +83,10 @@ export async function GET(request: NextRequest) {
   if (tab === 'unassigned' || counsellor === 'unassigned') {
     query = query.is('assigned_to', null)
   } else if (counsellor) {
+    // Validate the counsellor belongs to this team leader's team
+    if (teamCounsellorIds !== null && !teamCounsellorIds.includes(counsellor)) {
+      return NextResponse.json({ leads: [], total: 0, unassigned_total: 0 })
+    }
     query = query.eq('assigned_to', counsellor)
   }
   if (stage)              query = query.eq('current_lead_stage', stage)

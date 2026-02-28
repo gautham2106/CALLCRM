@@ -21,7 +21,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 const ALL_NAV_ITEMS = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true, roles: ['admin', 'team_leader'] },
+  { href: '/admin', label: 'Dashboard', teamLeaderLabel: 'My Team', icon: LayoutDashboard, exact: true, roles: ['admin', 'team_leader'] },
   { href: '/admin/leads', label: 'Leads', icon: Users, roles: ['admin', 'team_leader'] },
   { href: '/admin/assignment', label: 'Auto-Distribute', icon: Shuffle, roles: ['admin'] },
   { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck, roles: ['admin', 'team_leader'] },
@@ -83,7 +83,9 @@ export function AdminSidebar({ onClose, userRole = 'admin' }: Props) {
               )}
             >
               <item.icon className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-white' : 'text-gray-500')} />
-              <span className="flex-1">{item.label}</span>
+              <span className="flex-1">
+                {userRole === 'team_leader' && item.teamLeaderLabel ? item.teamLeaderLabel : item.label}
+              </span>
               {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
             </Link>
           )
