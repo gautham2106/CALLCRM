@@ -20,12 +20,13 @@ import {
 
 // Static lead fields that are always mappable (source + course are batch-level dropdowns)
 const STATIC_FIELDS = [
-  { key: 'name',       label: 'Name',                    required: true  },
-  { key: 'phone',      label: 'Phone',                   required: true  },
-  { key: 'email',      label: 'Email',                   required: false },
-  { key: 'city',       label: 'City',                    required: false },
-  { key: 'visit_date', label: 'Visit Date (YYYY-MM-DD)', required: false },
-  { key: 'notes',      label: 'Notes',                   required: false },
+  { key: 'name',        label: 'Name',                    required: true  },
+  { key: 'phone',       label: 'Phone',                   required: true  },
+  { key: 'email',       label: 'Email',                   required: false },
+  { key: 'city',        label: 'City',                    required: false },
+  { key: 'school_name', label: 'School Name',             required: false },
+  { key: 'visit_date',  label: 'Visit Date (YYYY-MM-DD)', required: false },
+  { key: 'notes',       label: 'Notes',                   required: false },
 ]
 
 interface CustomFieldDef {
@@ -206,8 +207,9 @@ export function LeadImportClient({ collegeId, adminId, sources, courses, counsel
       name: row[nameCol] || 'Unknown',
       phone: row[phoneCol],
       email:      columnMap['email']      ? row[columnMap['email']]      || null : null,
-      city:       columnMap['city']       ? row[columnMap['city']]       || null : null,
-      visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
+      city:        columnMap['city']        ? row[columnMap['city']]        || null : null,
+      school_name: columnMap['school_name'] ? row[columnMap['school_name']] || null : null,
+      visit_date:  columnMap['visit_date']  ? row[columnMap['visit_date']]  || null : null,
       notes:      columnMap['notes']      ? row[columnMap['notes']]      || null : null,
       source_id:      sourceEntry?.id          ?? null,
       source_name:    sourceEntry?.source_name ?? null,

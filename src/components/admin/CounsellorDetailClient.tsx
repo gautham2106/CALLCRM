@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -41,11 +42,21 @@ interface CounsellorLead {
   created_at: string
 }
 
+interface SourceStat {
+  source_name: string
+  total: number
+  called: number
+  interested: number
+  not_interested: number
+  enrolled: number
+}
+
 interface Props {
   counsellor: CounsellorInfo
   initialLeads: CounsellorLead[]
   collegeId: string
   adminId: string
+  sourceStats?: SourceStat[]
 }
 
 const STAGE_PILL: Record<string, string> = {
@@ -71,8 +82,31 @@ const CALL_PILL: Record<string, string> = {
 
 const today = todayIST()
 
-export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, adminId }: Props) {
+const FILTER_TABS = [
+  { key: 'all', label: 'All Leads' },
+  { key: 'not-called', label: 'Not Called' },
+  { key: 'interested', label: 'Interested' },
+  { key: 'not-interested', label: 'Not Interested' },
+  { key: 'enrolled', label: 'Enrolled' },
+] as const
+
+function applyLeadFilter(leads: CounsellorLead[], filter: string): CounsellorLead[] {
+  switch (filter) {
+    case 'not-called': return leads.filter((l) => l.current_call_stage === null)
+    case 'interested': return leads.filter((l) => l.current_call_stage === 'Interested')
+    case 'not-interested': return leads.filter((l) => l.current_call_stage === 'Not Interested')
+    case 'enrolled': return leads.filter((l) => l.current_lead_stage === 'Enrolled')
+    default: return leads
+  }
+}
+
+export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, adminId, sourceStats = [] }: Props) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const initialFilter = searchParams.get('filter') || 'all'
+
   const [leads, setLeads] = useState<CounsellorLead[]>(initialLeads)
+  const [activeFilter, setActiveFilter] = useState(initialFilter)
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
@@ -112,8 +146,9 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
     }
   }
 
-  const totalPages = Math.ceil(leads.length / PAGE_SIZE)
-  const pageLeads = showAll ? leads : leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const filteredLeads = applyLeadFilter(leads, activeFilter)
+  const totalPages = Math.ceil(filteredLeads.length / PAGE_SIZE)
+  const pageLeads = showAll ? filteredLeads : filteredLeads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const handleLeadUpdated = (id: string, updated: Partial<CounsellorLead>) => {
     setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...updated } : l))
@@ -178,21 +213,88 @@ export function CounsellorDetailClient({ counsellor, initialLeads, collegeId, ad
         ))}
       </div>
 
+      {/* Source Performance */}
+      {sourceStats.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-900">Source Performance</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Source</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Called</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Interested</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Not Int.</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Enrolled</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Conv%</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sourceStats
+                  .slice()
+                  .sort((a, b) => b.total - a.total)
+                  .map((s) => {
+                    const conv = s.total > 0 ? Math.round((s.enrolled / s.total) * 100) : 0
+                    const bestConv = Math.max(...sourceStats.filter((x) => x.total >= 5).map((x) => x.total > 0 ? (x.enrolled / x.total) * 100 : 0), 0)
+                    const isBest = s.total >= 5 && conv > 0 && conv >= bestConv
+                    return (
+                      <tr key={s.source_name} className={`hover:bg-blue-50/30 transition-colors ${isBest ? 'bg-green-50/40' : ''}`}>
+                        <td className="px-4 py-2.5 font-medium text-gray-900">{s.source_name}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-700 tabular-nums">{s.total}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-700 tabular-nums">{s.called}</td>
+                        <td className="px-4 py-2.5 text-right text-green-600 font-medium tabular-nums">{s.interested}</td>
+                        <td className="px-4 py-2.5 text-right text-red-500 font-medium tabular-nums">{s.not_interested}</td>
+                        <td className="px-4 py-2.5 text-right text-blue-600 font-medium tabular-nums">{s.enrolled}</td>
+                        <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${isBest ? 'text-green-700' : 'text-gray-700'}`}>{conv}%</td>
+                      </tr>
+                    )
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {FILTER_TABS.map((tab) => {
+          const count = applyLeadFilter(leads, tab.key).length
+          return (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveFilter(tab.key); setPage(0); setShowAll(false) }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                activeFilter === tab.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {tab.label} ({count})
+            </button>
+          )
+        })}
+      </div>
+
       {/* Leads Section */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Assigned Leads ({leads.length})</h2>
-          {leads.length > PAGE_SIZE && (
+          <h2 className="font-semibold text-gray-900">
+            {activeFilter === 'all' ? 'Assigned Leads' : FILTER_TABS.find((t) => t.key === activeFilter)?.label || 'Leads'} ({filteredLeads.length})
+          </h2>
+          {filteredLeads.length > PAGE_SIZE && (
             <button
               onClick={() => { setShowAll((v) => !v); setPage(0) }}
               className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
             >
-              {showAll ? 'Paginate' : `Show all ${leads.length}`}
+              {showAll ? 'Paginate' : `Show all ${filteredLeads.length}`}
             </button>
           )}
         </div>
 
-        {leads.length === 0 ? (
+        {filteredLeads.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-400">No leads assigned yet.</div>
         ) : (
           <>

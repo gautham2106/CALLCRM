@@ -63,14 +63,15 @@ const STATIC_CSV_FIELDS = [
   { key: 'name',       label: 'Name',                    required: true  },
   { key: 'phone',      label: 'Phone',                   required: true  },
   { key: 'email',      label: 'Email',                   required: false },
-  { key: 'city',       label: 'City',                    required: false },
+  { key: 'city',        label: 'City',                    required: false },
+  { key: 'school_name', label: 'School Name',             required: false },
   { key: 'visit_date', label: 'Visit Date (YYYY-MM-DD)', required: false },
   { key: 'notes',      label: 'Notes',                   required: false },
 ]
 
 const EMPTY_SINGLE = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
-type SortKey = 'enrolled' | 'conversion' | 'assigned' | 'notCalled' | 'interested'
+type SortKey = 'enrolled' | 'conversion' | 'assigned' | 'notCalled' | 'interested' | 'notInterested'
 
 const SORT_OPTIONS: { key: SortKey; label: string; desc: string }[] = [
   { key: 'enrolled', label: 'Enrolled', desc: 'Results' },
@@ -78,6 +79,7 @@ const SORT_OPTIONS: { key: SortKey; label: string; desc: string }[] = [
   { key: 'assigned', label: 'Assigned', desc: 'Workload' },
   { key: 'notCalled', label: 'Not Called', desc: 'At Risk' },
   { key: 'interested', label: 'Interested', desc: 'Warm Pipeline' },
+  { key: 'notInterested', label: 'Not Interested', desc: 'Review Needed' },
 ]
 
 function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): number {
@@ -90,6 +92,7 @@ function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): num
     case 'assigned': return leads.length
     case 'notCalled': return leads.filter((l) => l.current_call_stage === null).length
     case 'interested': return leads.filter((l) => l.current_call_stage === 'Interested').length
+    case 'notInterested': return leads.filter((l) => l.current_call_stage === 'Not Interested').length
     default: return 0
   }
 }
@@ -120,7 +123,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const [singlePhoneWarning, setSinglePhoneWarning] = useState<string | null>(null)
 
   // CSV import state
-  const [csvStep, setCsvStep] = useState<'upload' | 'map' | 'preview' | 'done'>('upload')
+  const [csvStep, setCsvStep] = useState<'upload' | 'map' | 'school-assign' | 'preview' | 'done'>('upload')
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([])
   const [columnMap, setColumnMap] = useState<Record<string, string>>({})
@@ -131,6 +134,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const [csvPreview, setCsvPreview] = useState<Record<string, string>[]>([])
   const [csvSelectedSourceId, setCsvSelectedSourceId] = useState<string>('__none__')
   const [csvSelectedCourseId, setCsvSelectedCourseId] = useState<string>('__none__')
+  const [schoolCounsellorMap, setSchoolCounsellorMap] = useState<Record<string, string>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const resetAddLeads = () => {
@@ -147,6 +151,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     setCsvPreview([])
     setCsvSelectedSourceId('__none__')
     setCsvSelectedCourseId('__none__')
+    setSchoolCounsellorMap({})
   }
 
   const openAddLeads = (c: Counsellor) => {
@@ -326,6 +331,30 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     }
   }
 
+  const proceedFromMap = () => {
+    const nameCol = columnMap['name']
+    const phoneCol = columnMap['phone']
+    if (!nameCol || !phoneCol) {
+      toast({ title: 'Required fields missing', description: 'Map Name and Phone columns.', variant: 'destructive' })
+      return
+    }
+    const schoolCol = columnMap['school_name']
+    if (schoolCol) {
+      // Extract unique schools and show school-assign step
+      const schools = new Map<string, number>()
+      csvRows.forEach((row) => {
+        const school = (row[schoolCol] || '').trim()
+        if (school) schools.set(school, (schools.get(school) || 0) + 1)
+      })
+      const initialMap: Record<string, string> = {}
+      schools.forEach((_, school) => { initialMap[school] = addLeadsTarget?.id || '__none__' })
+      setSchoolCounsellorMap(initialMap)
+      setCsvStep('school-assign')
+    } else {
+      generateCsvPreview()
+    }
+  }
+
   const generateCsvPreview = async () => {
     const nameCol = columnMap['name']
     const phoneCol = columnMap['phone']
@@ -378,22 +407,31 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       seenPhones.add(phone)
       return true
     })
-    const leadsToInsert = toImport.map((row) => ({
-      college_id: collegeId,
-      name: row[columnMap['name']] || 'Unknown',
-      phone: row[columnMap['phone']],
-      email:      columnMap['email']      ? row[columnMap['email']]      || null : null,
-      city:       columnMap['city']       ? row[columnMap['city']]       || null : null,
-      visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
-      notes:      columnMap['notes']      ? row[columnMap['notes']]      || null : null,
-      source_id:   sourceEntry?.id          ?? null,
-      course_id:       courseEntry?.id          ?? null,
-      course_interest: courseEntry?.course_name ?? null,
-      source_name: sourceEntry?.source_name ?? null,
-      assigned_to: addLeadsTarget.id,
-      created_by: adminId,
-      current_lead_stage: 'New Enquiry',
-    }))
+    const schoolCol = columnMap['school_name']
+    const hasSchoolMapping = schoolCol && Object.keys(schoolCounsellorMap).length > 0
+    const leadsToInsert = toImport.map((row) => {
+      const schoolName = schoolCol ? (row[schoolCol] || '').trim() || null : null
+      const assignedTo = hasSchoolMapping && schoolName
+        ? (schoolCounsellorMap[schoolName] === '__none__' ? null : schoolCounsellorMap[schoolName] || null)
+        : addLeadsTarget.id
+      return {
+        college_id: collegeId,
+        name: row[columnMap['name']] || 'Unknown',
+        phone: row[columnMap['phone']],
+        email:      columnMap['email']      ? row[columnMap['email']]      || null : null,
+        city:       columnMap['city']       ? row[columnMap['city']]       || null : null,
+        school_name: schoolName,
+        visit_date: columnMap['visit_date'] ? row[columnMap['visit_date']] || null : null,
+        notes:      columnMap['notes']      ? row[columnMap['notes']]      || null : null,
+        source_id:   sourceEntry?.id          ?? null,
+        course_id:       courseEntry?.id          ?? null,
+        course_interest: courseEntry?.course_name ?? null,
+        source_name: sourceEntry?.source_name ?? null,
+        assigned_to: assignedTo,
+        created_by: adminId,
+        current_lead_stage: 'New Enquiry',
+      }
+    })
 
     try {
       const batchSize = 100
@@ -434,36 +472,50 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
         }
       }
 
-      // Update counsellor's lead count
-      const newLeads = Array.from({ length: imported }, () => ({
-        id: crypto.randomUUID(),
-        is_active: true as const,
-        current_lead_stage: 'New Enquiry',
-        current_call_stage: null,
-        visit_date: null,
-        follow_up_date: null,
+      // Count leads per counsellor for state update + notifications
+      const counsellorLeadCounts = new Map<string, number>()
+      leadsToInsert.forEach((l) => {
+        if (l.assigned_to) counsellorLeadCounts.set(l.assigned_to, (counsellorLeadCounts.get(l.assigned_to) || 0) + 1)
+      })
+
+      setCounsellors((prev) => prev.map((c) => {
+        const count = counsellorLeadCounts.get(c.id) || 0
+        if (count === 0) return c
+        const newLeads = Array.from({ length: count }, () => ({
+          id: crypto.randomUUID(),
+          is_active: true as const,
+          current_lead_stage: 'New Enquiry',
+          current_call_stage: null,
+          visit_date: null,
+          follow_up_date: null,
+        }))
+        return { ...c, assigned_leads: [...c.assigned_leads, ...newLeads] }
       }))
-      setCounsellors((prev) => prev.map((c) =>
-        c.id === addLeadsTarget.id
-          ? { ...c, assigned_leads: [...c.assigned_leads, ...newLeads] }
-          : c
-      ))
 
       setCsvResult({ imported, skipped: csvRows.length - imported })
       setCsvStep('done')
       if (failed > 0) {
         toast({ title: 'Partial import', description: `${imported} leads imported, ${failed} could not be saved.`, variant: 'destructive' })
       } else {
-        toast({ title: 'Import complete', description: `${imported} leads assigned to ${addLeadsTarget.name}.`, variant: 'success' })
+        const assignedCount = counsellorLeadCounts.size
+        toast({
+          title: 'Import complete',
+          description: assignedCount > 1
+            ? `${imported} leads distributed across ${assignedCount} counsellors.`
+            : `${imported} leads assigned to ${addLeadsTarget.name}.`,
+          variant: 'success',
+        })
       }
 
-      // Notify the counsellor about the new leads
+      // Notify each counsellor about their new leads
       if (imported > 0) {
-        fetch('/api/admin/import-notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ counsellorId: addLeadsTarget.id, count: imported }),
-        }).catch(() => {/* notification failure should not block the UI */})
+        counsellorLeadCounts.forEach((count, counsellorId) => {
+          fetch('/api/admin/import-notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ counsellorId, count }),
+          }).catch(() => {/* notification failure should not block the UI */})
+        })
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong during import.'
@@ -506,7 +558,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                 onClick={() => setSortBy(opt.key)}
                 className={`flex flex-col items-start px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
                   sortBy === opt.key
-                    ? opt.key === 'notCalled'
+                    ? opt.key === 'notCalled' || opt.key === 'notInterested'
                       ? 'bg-red-600 border-red-600 text-white'
                       : 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
@@ -540,6 +592,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                 const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
                 const notCalled = leads.filter((l) => l.current_call_stage === null).length
                 const interested = leads.filter((l) => l.current_call_stage === 'Interested').length
+                const notInterested = leads.filter((l) => l.current_call_stage === 'Not Interested').length
                 const conversion = total > 0 ? Math.round((enrolled / total) * 100) : 0
                 const overdueCount = leads.filter((l) => l.follow_up_date && l.follow_up_date < today).length
 
@@ -571,19 +624,29 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                     </div>
 
                     {/* Stats row */}
-                    <div className="grid grid-cols-4 gap-2 mb-3">
-                      <div className="text-center bg-gray-50 rounded-lg py-2">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
+                      <Link href={`/admin/counsellors/${c.id}`} className="text-center bg-gray-50 rounded-lg py-2">
                         <p className="text-xs text-gray-400 font-medium">Total</p>
                         <p className="font-bold text-gray-900">{total}</p>
-                      </div>
-                      <div className="text-center bg-red-50 rounded-lg py-2">
+                      </Link>
+                      <Link href={`/admin/counsellors/${c.id}?filter=not-called`} className="text-center bg-red-50 rounded-lg py-2">
                         <p className="text-xs text-gray-400 font-medium">Uncalled</p>
                         <p className={`font-bold ${notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{notCalled}</p>
-                      </div>
-                      <div className="text-center bg-green-50 rounded-lg py-2">
+                      </Link>
+                      <Link href={`/admin/counsellors/${c.id}?filter=interested`} className="text-center bg-indigo-50 rounded-lg py-2">
+                        <p className="text-xs text-gray-400 font-medium">Interested</p>
+                        <p className={`font-bold ${interested > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>{interested}</p>
+                      </Link>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <Link href={`/admin/counsellors/${c.id}?filter=not-interested`} className="text-center bg-orange-50 rounded-lg py-2">
+                        <p className="text-xs text-gray-400 font-medium">Not Int.</p>
+                        <p className={`font-bold ${notInterested > 0 ? 'text-orange-500' : 'text-gray-300'}`}>{notInterested}</p>
+                      </Link>
+                      <Link href={`/admin/counsellors/${c.id}?filter=enrolled`} className="text-center bg-green-50 rounded-lg py-2">
                         <p className="text-xs text-gray-400 font-medium">Enrolled</p>
                         <p className="font-bold text-green-600">{enrolled}</p>
-                      </div>
+                      </Link>
                       <div className="text-center bg-blue-50 rounded-lg py-2">
                         <p className="text-xs text-gray-400 font-medium">Conv%</p>
                         <p className="font-bold text-blue-600">{conversion}%</p>
@@ -634,6 +697,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Not Called</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Interested</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Not Int.</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Enrolled</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Conv%</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
@@ -648,6 +712,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                       const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
                       const notCalled = leads.filter((l) => l.current_call_stage === null).length
                       const interested = leads.filter((l) => l.current_call_stage === 'Interested').length
+                      const notInterested = leads.filter((l) => l.current_call_stage === 'Not Interested').length
                       const conversion = total > 0 ? Math.round((enrolled / total) * 100) : 0
                       const overdueCount = leads.filter((l) => l.follow_up_date && l.follow_up_date < today).length
 
@@ -680,16 +745,29 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                             </div>
                           </td>
                           <td className="px-4 py-3.5 text-center">
-                            <span className="font-bold text-gray-900 text-base">{total}</span>
+                            <Link href={`/admin/counsellors/${c.id}`} className="hover:underline">
+                              <span className="font-bold text-gray-900 text-base">{total}</span>
+                            </Link>
                           </td>
                           <td className="px-4 py-3.5 text-center">
-                            <span className={`font-bold text-base ${notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{notCalled}</span>
+                            <Link href={`/admin/counsellors/${c.id}?filter=not-called`} className="hover:underline">
+                              <span className={`font-bold text-base ${notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{notCalled}</span>
+                            </Link>
                           </td>
                           <td className="px-4 py-3.5 text-center">
-                            <span className={`font-bold text-base ${interested > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>{interested}</span>
+                            <Link href={`/admin/counsellors/${c.id}?filter=interested`} className="hover:underline">
+                              <span className={`font-bold text-base ${interested > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>{interested}</span>
+                            </Link>
                           </td>
                           <td className="px-4 py-3.5 text-center">
-                            <span className="font-bold text-base text-green-600">{enrolled}</span>
+                            <Link href={`/admin/counsellors/${c.id}?filter=not-interested`} className="hover:underline">
+                              <span className={`font-bold text-base ${notInterested > 0 ? 'text-orange-500' : 'text-gray-300'}`}>{notInterested}</span>
+                            </Link>
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <Link href={`/admin/counsellors/${c.id}?filter=enrolled`} className="hover:underline">
+                              <span className="font-bold text-base text-green-600">{enrolled}</span>
+                            </Link>
                           </td>
                           <td className="px-4 py-3.5 text-center">
                             <span className="font-bold text-base text-blue-600">{conversion}%</span>
@@ -934,17 +1012,20 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             <TabsContent value="csv" className="mt-4 space-y-4 overflow-y-auto flex-1">
               {/* Step indicator */}
               <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1">
-                {(['upload', 'map', 'preview', 'done'] as const).map((s, idx) => (
+                {(columnMap['school_name']
+                  ? (['upload', 'map', 'school-assign', 'preview', 'done'] as const)
+                  : (['upload', 'map', 'preview', 'done'] as const)
+                ).map((s, idx, arr) => (
                   <div key={s} className="flex items-center gap-1.5 shrink-0">
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       csvStep === s ? 'bg-blue-600 text-white' :
-                      ['upload','map','preview','done'].indexOf(s) < ['upload','map','preview','done'].indexOf(csvStep)
+                      arr.indexOf(s) < arr.indexOf(csvStep as typeof s)
                         ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
                     }`}>{idx + 1}</div>
                     <span className={csvStep === s ? 'text-blue-600 font-medium' : 'text-gray-400 capitalize'}>
-                      {s === 'done' ? 'Done' : s.charAt(0).toUpperCase() + s.slice(1)}
+                      {s === 'done' ? 'Done' : s === 'school-assign' ? 'Schools' : s.charAt(0).toUpperCase() + s.slice(1)}
                     </span>
-                    {idx < 3 && <ArrowRight className="h-3 w-3 text-gray-300" />}
+                    {idx < arr.length - 1 && <ArrowRight className="h-3 w-3 text-gray-300" />}
                   </div>
                 ))}
               </div>
@@ -972,7 +1053,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => e.target.files?.[0] && handleCsvFile(e.target.files[0])} />
                   <div className="mt-3 p-3 bg-green-50 rounded-lg text-xs text-green-700 flex items-center gap-2">
                     <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                    All imported leads will be assigned to {addLeadsTarget?.name}
+                    Map a &quot;School Name&quot; column to distribute across counsellors, or all leads go to {addLeadsTarget?.name}
                   </div>
                 </div>
               )}
@@ -1030,7 +1111,57 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   </div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" size="sm" onClick={() => setCsvStep('upload')}>Back</Button>
-                    <Button size="sm" onClick={generateCsvPreview}>Preview <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>
+                    <Button size="sm" onClick={proceedFromMap}>
+                      {columnMap['school_name'] ? 'Assign Schools' : 'Preview'} <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step: School Assignment */}
+              {csvStep === 'school-assign' && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{Object.keys(schoolCounsellorMap).length} schools found</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Assign each school&apos;s leads to a counsellor. Unassigned schools will create leads without a counsellor.</p>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                    {Object.entries(schoolCounsellorMap)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([school, counsellorId]) => {
+                        const schoolCol = columnMap['school_name']
+                        const schoolLeadCount = csvRows.filter(
+                          (r) => (r[schoolCol] || '').trim() === school
+                        ).length
+                        return (
+                          <div key={school} className="flex items-center gap-3 bg-gray-50 rounded-lg p-2.5">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{school}</p>
+                              <p className="text-xs text-gray-400">{schoolLeadCount} leads</p>
+                            </div>
+                            <Select
+                              value={counsellorId}
+                              onValueChange={(v) => setSchoolCounsellorMap((prev) => ({ ...prev, [school]: v }))}
+                            >
+                              <SelectTrigger className="h-8 text-xs w-48">
+                                <SelectValue placeholder="Unassigned" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">— Unassigned —</SelectItem>
+                                {counsellors.filter((c) => c.is_active).map((c) => (
+                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )
+                      })}
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setCsvStep('map')}>Back</Button>
+                    <Button size="sm" onClick={generateCsvPreview}>
+                      Preview <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1099,7 +1230,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   </div>
 
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setCsvStep('map')}>Back</Button>
+                    <Button variant="outline" size="sm" onClick={() => setCsvStep(columnMap['school_name'] ? 'school-assign' : 'map')}>Back</Button>
                     <Button size="sm" onClick={handleCsvImport} disabled={csvImporting}>
                       {csvImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
                       Import {csvImportableCount} Leads
@@ -1115,7 +1246,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   <div>
                     <p className="text-lg font-bold text-gray-900">Import Complete!</p>
                     <p className="text-sm text-gray-500 mt-1">
-                      <span className="text-green-600 font-semibold">{csvResult.imported} leads</span> assigned to {addLeadsTarget?.name}
+                      <span className="text-green-600 font-semibold">{csvResult.imported} leads</span> imported successfully
                       {csvResult.skipped > 0 && <> · <span className="text-orange-500">{csvResult.skipped} duplicates skipped</span></>}
                     </p>
                   </div>

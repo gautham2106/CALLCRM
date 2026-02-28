@@ -34,6 +34,7 @@ interface SlideLeadData {
   phone: string
   email: string | null
   city: string | null
+  school_name: string | null
   course_interest: string | null
   course_id: string | null
   source_id: string | null
@@ -93,7 +94,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
     const [{ data: leadData }, { data: diaryData }, { data: sourcesData }, { data: coursesData }, { data: cfDefs }, { data: cfVals }] = await Promise.all([
       supabase
         .from('leads')
-        .select('id, name, phone, email, city, course_interest, course_id, source_id, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
+        .select('id, name, phone, email, city, school_name, course_interest, course_id, source_id, source_name, current_lead_stage, current_call_stage, visit_date, follow_up_date, notes')
         .eq('id', id)
         .single(),
       supabase
@@ -178,6 +179,7 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
         phone: lead.phone,
         email: lead.email,
         city: lead.city,
+        school_name: lead.school_name,
         course_interest: lead.course_interest,
         course_id: lead.course_id || null,
         source_id: lead.source_id,
@@ -376,6 +378,10 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">City</Label>
                       <Input value={lead.city || ''} onChange={(e) => setLead({ ...lead, city: e.target.value })} placeholder="Mumbai" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">School</Label>
+                      <Input value={lead.school_name || ''} onChange={(e) => setLead({ ...lead, school_name: e.target.value })} placeholder="School name" />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Course Interest</Label>

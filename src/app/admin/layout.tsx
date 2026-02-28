@@ -1,15 +1,15 @@
 import { AdminShell } from '@/components/layout/AdminShell'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminOrTeamLeader } from '@/lib/auth'
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  await requireAdmin()
+  const user = await requireAdminOrTeamLeader()
 
   return (
-    <AdminShell>
+    <AdminShell userRole={user.role}>
       {children}
     </AdminShell>
   )

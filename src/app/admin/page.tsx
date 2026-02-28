@@ -40,6 +40,9 @@ async function getDashboardData(collegeId: string) {
     { data: sourceStatsRaw },
     { data: sourceStageRaw },
     { data: sourceLeadsRaw },
+    // Interest analytics
+    { data: schoolInterestRaw },
+    { data: counsellorInterestRaw },
   ] = await Promise.all([
     supabase.from('leads').select('*', { count: 'exact', head: true })
       .eq('college_id', collegeId).eq('is_active', true),
@@ -81,6 +84,10 @@ async function getDashboardData(collegeId: string) {
 
     // Window-function limited to 20 most recent leads per source
     supabase.rpc('get_source_recent_leads', { p_college_id: collegeId, p_per_source: 20 }),
+
+    // Interest analytics — school-wise and counsellor-wise
+    supabase.rpc('get_school_interest_stats', { p_college_id: collegeId }),
+    supabase.rpc('get_counsellor_interest_stats', { p_college_id: collegeId }),
   ])
 
   // ---- Build stageCount map ----
@@ -153,6 +160,23 @@ async function getDashboardData(collegeId: string) {
     }
   })
 
+  // ---- Build interest analytics data ----
+  const schoolInterest = (schoolInterestRaw || []).map((r: any) => ({
+    school_name:    r.school_name as string,
+    total:          Number(r.total),
+    interested:     Number(r.interested),
+    not_interested: Number(r.not_interested),
+    enrolled:       Number(r.enrolled),
+  }))
+
+  const counsellorInterest = (counsellorInterestRaw || []).map((r: any) => ({
+    counsellor_id:  r.counsellor_id as string,
+    name:           counsellorMap[r.counsellor_id] || 'Unknown',
+    total_called:   Number(r.total_called),
+    interested:     Number(r.interested),
+    not_interested: Number(r.not_interested),
+  }))
+
   return {
     totalLeads:    totalLeads    || 0,
     enrolled:      enrolled      || 0,
@@ -162,6 +186,8 @@ async function getDashboardData(collegeId: string) {
     stageCounts:   stageCountMap,
     counsellorStats,
     sourceStats,
+    schoolInterest,
+    counsellorInterest,
     todayFollowUps: todayFollowUps || 0,
     staleLeads:     staleLeads     || 0,
     callsToday:     callsToday     || 0,
@@ -226,6 +252,8 @@ export default async function AdminDashboard() {
         }}
         funnelData={funnelData}
         sourceData={sourceArray}
+        schoolInterest={data.schoolInterest}
+        counsellorInterest={data.counsellorInterest}
       />
     </div>
   )

@@ -51,10 +51,28 @@ interface SourceStat {
   leads: SourceLead[]
 }
 
+interface SchoolInterest {
+  school_name: string
+  total: number
+  interested: number
+  not_interested: number
+  enrolled: number
+}
+
+interface CounsellorInterest {
+  counsellor_id: string
+  name: string
+  total_called: number
+  interested: number
+  not_interested: number
+}
+
 interface Props {
   overview: Overview
   funnelData: FunnelEntry[]
   sourceData: SourceStat[]
+  schoolInterest?: SchoolInterest[]
+  counsellorInterest?: CounsellorInterest[]
 }
 
 // ---- Colors ----
@@ -80,17 +98,18 @@ const STAGE_PILL: Record<string, string> = {
   'Wrong Lead': 'bg-red-100 text-red-500',
 }
 
-type TabId = 'overview' | 'pipeline'
+type TabId = 'overview' | 'pipeline' | 'interest'
 
 // ============================================================
 // Root Component
 // ============================================================
-export function AdminAnalyticsClient({ overview, funnelData, sourceData }: Props) {
+export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolInterest = [], counsellorInterest = [] }: Props) {
   const [tab, setTab] = useState<TabId>('overview')
 
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Team Overview', icon: TrendingUp },
     { id: 'pipeline', label: 'Pipeline & Sources', icon: Activity },
+    { id: 'interest', label: 'Interest Analytics', icon: Target },
   ]
 
   return (
@@ -121,6 +140,7 @@ export function AdminAnalyticsClient({ overview, funnelData, sourceData }: Props
       <div className="p-4 sm:p-6 space-y-6">
         {tab === 'overview' && <OverviewTab overview={overview} funnelData={funnelData} />}
         {tab === 'pipeline' && <PipelineTab funnelData={funnelData} sourceData={sourceData} overview={overview} />}
+        {tab === 'interest' && <InterestTab schoolInterest={schoolInterest} counsellorInterest={counsellorInterest} />}
       </div>
     </div>
   )
@@ -402,6 +422,172 @@ function SourceLeadPanel({ source: s }: { source: SourceStat }) {
             <button onClick={() => setShowAll(true)} className="text-xs text-blue-600 font-medium hover:underline">
               Show all {s.leads.length} leads
             </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// Tab 3 — Interest Analytics
+// ============================================================
+function InterestTab({ schoolInterest, counsellorInterest }: {
+  schoolInterest: SchoolInterest[]; counsellorInterest: CounsellorInterest[]
+}) {
+  const [schoolSort, setSchoolSort] = useState<'total' | 'interested' | 'not_interested' | 'rate'>('total')
+  const [counsellorSort, setCounsellorSort] = useState<'ni_ratio' | 'total_called' | 'interested' | 'not_interested'>('ni_ratio')
+
+  const sortedSchools = [...schoolInterest].sort((a, b) => {
+    if (schoolSort === 'rate') {
+      const rateA = a.total > 0 ? a.interested / a.total : 0
+      const rateB = b.total > 0 ? b.interested / b.total : 0
+      return rateB - rateA
+    }
+    return (b[schoolSort] as number) - (a[schoolSort] as number)
+  })
+
+  // Average NI ratio across counsellors with min 10 called
+  const qualifiedCounsellors = counsellorInterest.filter((c) => c.total_called >= 10)
+  const avgNIRatio = qualifiedCounsellors.length > 0
+    ? qualifiedCounsellors.reduce((sum, c) => sum + (c.total_called > 0 ? c.not_interested / c.total_called : 0), 0) / qualifiedCounsellors.length
+    : 0
+
+  const sortedCounsellors = [...counsellorInterest].sort((a, b) => {
+    if (counsellorSort === 'ni_ratio') {
+      const ratioA = a.total_called > 0 ? a.not_interested / a.total_called : 0
+      const ratioB = b.total_called > 0 ? b.not_interested / b.total_called : 0
+      return ratioB - ratioA
+    }
+    return (b[counsellorSort] as number) - (a[counsellorSort] as number)
+  })
+
+  return (
+    <div className="space-y-6">
+      {/* School Interest Table */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-900">School-wise Interest</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Interest rates across schools — identify which schools respond best</p>
+        </div>
+        {schoolInterest.length === 0 ? (
+          <div className="py-12 text-center text-gray-400 text-sm">No school data yet. Import leads with school names to see analytics.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">School</th>
+                  {[
+                    { key: 'total', label: 'Total' },
+                    { key: 'interested', label: 'Interested' },
+                    { key: 'not_interested', label: 'Not Int.' },
+                    { key: 'rate', label: 'Interest Rate' },
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      onClick={() => setSchoolSort(col.key as typeof schoolSort)}
+                      className={`px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider cursor-pointer hover:text-gray-800 ${
+                        schoolSort === col.key ? 'text-blue-600' : 'text-gray-500'
+                      }`}
+                    >
+                      {col.label} {schoolSort === col.key && '▾'}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sortedSchools.map((s) => {
+                  const rate = s.total > 0 ? Math.round((s.interested / s.total) * 100) : 0
+                  const bestRate = Math.max(...schoolInterest.filter((x) => x.total >= 5).map((x) => x.total > 0 ? Math.round((x.interested / x.total) * 100) : 0), 0)
+                  const worstRate = Math.min(...schoolInterest.filter((x) => x.total >= 5).map((x) => x.total > 0 ? Math.round((x.interested / x.total) * 100) : 100), 100)
+                  const isBest = s.total >= 5 && rate === bestRate && rate > 0
+                  const isWorst = s.total >= 5 && rate === worstRate && schoolInterest.filter((x) => x.total >= 5).length > 1
+                  return (
+                    <tr key={s.school_name} className={`hover:bg-blue-50/30 transition-colors ${isBest ? 'bg-green-50/40' : isWorst ? 'bg-red-50/30' : ''}`}>
+                      <td className="px-4 py-2.5 font-medium text-gray-900">{s.school_name}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-700 tabular-nums">{s.total}</td>
+                      <td className="px-4 py-2.5 text-right text-green-600 font-medium tabular-nums">{s.interested}</td>
+                      <td className="px-4 py-2.5 text-right text-red-500 font-medium tabular-nums">{s.not_interested}</td>
+                      <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${isBest ? 'text-green-700' : isWorst ? 'text-red-600' : 'text-gray-700'}`}>
+                        {rate}%
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Counsellor Interest Table */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-900">Counsellor-wise Interest Analysis</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Detect abnormal &quot;Not Interested&quot; ratios — counsellors flagged if NI ratio is 1.5x above average (min 10 calls)
+          </p>
+        </div>
+        {counsellorInterest.length === 0 ? (
+          <div className="py-12 text-center text-gray-400 text-sm">No call data yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Counsellor</th>
+                  {[
+                    { key: 'total_called', label: 'Called' },
+                    { key: 'interested', label: 'Interested' },
+                    { key: 'not_interested', label: 'Not Int.' },
+                    { key: 'ni_ratio', label: 'NI Ratio' },
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      onClick={() => setCounsellorSort(col.key as typeof counsellorSort)}
+                      className={`px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider cursor-pointer hover:text-gray-800 ${
+                        counsellorSort === col.key ? 'text-blue-600' : 'text-gray-500'
+                      }`}
+                    >
+                      {col.label} {counsellorSort === col.key && '▾'}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sortedCounsellors.map((c) => {
+                  const niRatio = c.total_called > 0 ? Math.round((c.not_interested / c.total_called) * 100) : 0
+                  const isFlagged = c.total_called >= 10 && avgNIRatio > 0 && (c.not_interested / c.total_called) > avgNIRatio * 1.5
+                  return (
+                    <tr key={c.counsellor_id} className={`hover:bg-blue-50/30 transition-colors ${isFlagged ? 'bg-red-50/30' : ''}`}>
+                      <td className="px-4 py-2.5 font-medium text-gray-900">
+                        <span className="flex items-center gap-2">
+                          {c.name}
+                          {isFlagged && (
+                            <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold" title="NI ratio significantly above average">
+                              Review
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-gray-700 tabular-nums">{c.total_called}</td>
+                      <td className="px-4 py-2.5 text-right text-green-600 font-medium tabular-nums">{c.interested}</td>
+                      <td className="px-4 py-2.5 text-right text-red-500 font-medium tabular-nums">{c.not_interested}</td>
+                      <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${isFlagged ? 'text-red-600' : 'text-gray-700'}`}>
+                        {niRatio}%
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {avgNIRatio > 0 && (
+              <div className="px-5 py-3 border-t border-gray-100 text-[11px] text-gray-400">
+                Average NI ratio (min 10 calls): <span className="font-medium text-gray-600">{Math.round(avgNIRatio * 100)}%</span>
+                {' '}— Flagged threshold: <span className="font-medium text-red-500">{Math.round(avgNIRatio * 150)}%</span>
+              </div>
+            )}
           </div>
         )}
       </div>

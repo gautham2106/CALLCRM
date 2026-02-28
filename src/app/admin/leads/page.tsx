@@ -14,6 +14,7 @@ export default async function AdminLeadsPage() {
     { data: sources },
     { data: courses },
     { data: customFields },
+    { data: schoolRows },
   ] = await Promise.all([
     supabase
       .from('users')
@@ -37,7 +38,16 @@ export default async function AdminLeadsPage() {
       .eq('college_id', user.college_id!)
       .eq('is_active', true)
       .order('display_order'),
+    supabase
+      .from('leads')
+      .select('school_name')
+      .eq('college_id', user.college_id!)
+      .not('school_name', 'is', null)
+      .order('school_name'),
   ])
+
+  // Deduplicate school names
+  const schools = [...new Set((schoolRows || []).map((r: any) => r.school_name as string).filter(Boolean))].sort()
 
   return (
     <AdminLeadsClient
@@ -45,6 +55,7 @@ export default async function AdminLeadsPage() {
       sources={(sources || []) as any}
       courses={(courses || []) as any}
       customFields={(customFields || []) as any}
+      schools={schools}
       collegeId={user.college_id!}
       adminId={user.id}
     />

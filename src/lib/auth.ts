@@ -30,7 +30,11 @@ export async function requireAuth(role?: 'admin' | 'counsellor'): Promise<UserPr
   }
 
   if (role && user.role !== role) {
-    if (user.role === 'admin') {
+    // team_leader uses the admin UI
+    if (role === 'admin' && user.role === 'team_leader') {
+      return user
+    }
+    if (user.role === 'admin' || user.role === 'team_leader') {
       redirect('/admin')
     } else {
       redirect('/counsellor')
@@ -42,6 +46,15 @@ export async function requireAuth(role?: 'admin' | 'counsellor'): Promise<UserPr
 
 export async function requireAdmin(): Promise<UserProfile> {
   return requireAuth('admin')
+}
+
+export async function requireAdminOrTeamLeader(): Promise<UserProfile> {
+  const user = await getUser()
+  if (!user) redirect('/auth/login')
+  if (user.role !== 'admin' && user.role !== 'team_leader') {
+    redirect('/counsellor')
+  }
+  return user
 }
 
 export async function requireCounsellor(): Promise<UserProfile> {

@@ -23,7 +23,7 @@ export type CallStage =
   | 'Call Not Picked'
   | 'Call Later'
 
-export type UserRole = 'admin' | 'counsellor'
+export type UserRole = 'admin' | 'team_leader' | 'counsellor'
 export type FieldType = 'text' | 'number' | 'phone' | 'dropdown' | 'date' | 'checkbox' | 'textarea'
 export type NotificationType = 'new_lead' | 'bulk_leads' | 'reassigned'
 
@@ -39,6 +39,7 @@ export interface Database {
           phone: string | null
           role: UserRole
           college_id: string | null
+          team_leader_id: string | null
           is_active: boolean
           created_at: string
           updated_at: string
@@ -51,6 +52,7 @@ export interface Database {
           phone?: string | null
           role: UserRole
           college_id?: string | null
+          team_leader_id?: string | null
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -89,6 +91,7 @@ export interface Database {
           phone: string
           email: string | null
           city: string | null
+          school_name: string | null
           course_interest: string | null
           source_id: string | null
           source_name: string | null
@@ -110,6 +113,7 @@ export interface Database {
           phone: string
           email?: string | null
           city?: string | null
+          school_name?: string | null
           course_interest?: string | null
           source_id?: string | null
           source_name?: string | null
@@ -273,6 +277,7 @@ export interface LeadWithDetails {
   phone: string
   email: string | null
   city: string | null
+  school_name: string | null
   course_interest: string | null
   source_name: string | null
   current_lead_stage: LeadStage
@@ -300,5 +305,6 @@ export interface UserProfile {
   phone: string | null
   role: UserRole
   college_id: string | null
+  team_leader_id: string | null
   is_active: boolean
 }

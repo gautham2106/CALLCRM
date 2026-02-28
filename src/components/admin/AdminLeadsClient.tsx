@@ -49,6 +49,7 @@ interface Lead {
   phone: string
   email: string | null
   city: string | null
+  school_name: string | null
   course_interest: string | null
   course_id: string | null
   source_name: string | null
@@ -75,6 +76,7 @@ interface Props {
   sources: { id: string; source_name: string }[]
   courses: { id: string; course_name: string }[]
   customFields: CustomFieldDef[]
+  schools: string[]
   collegeId: string
   adminId: string
 }
@@ -82,7 +84,7 @@ interface Props {
 const PAGE_SIZE = 50
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
-export function AdminLeadsClient({ counsellors, sources, courses, customFields, collegeId, adminId }: Props) {
+export function AdminLeadsClient({ counsellors, sources, courses, customFields, schools, collegeId, adminId }: Props) {
   const supabase = createClient()
 
   // ---- Server-side paginated lead state ----
@@ -98,6 +100,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
   const [counsellorFilter, setCounsellorFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [courseFilter, setCourseFilter] = useState('all')
+  const [schoolFilter, setSchoolFilter] = useState('all')
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
   const [page, setPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
@@ -158,8 +161,11 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
     if (courseFilter !== 'all') {
       p.set('course', courseFilter === '__none__' ? '__none__' : courseFilter)
     }
+    if (schoolFilter !== 'all') {
+      p.set('school', schoolFilter)
+    }
     return p
-  }, [page, showAll, debouncedSearch, stageFilter, counsellorFilter, sourceFilter, courseFilter, activeTab, sources])
+  }, [page, showAll, debouncedSearch, stageFilter, counsellorFilter, sourceFilter, courseFilter, schoolFilter, activeTab, sources])
 
   // ---- Core fetch function ----
   const fetchLeads = useCallback(async (overridePage?: number) => {
@@ -263,7 +269,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
         }
         return {
           Name: l.name, Phone: l.phone, Email: l.email || '', City: l.city || '',
-          Course: l.course_interest || '', Source: l.source_name || '',
+          School: l.school_name || '', Course: l.course_interest || '', Source: l.source_name || '',
           'Lead Stage': l.current_lead_stage, 'Call Stage': l.current_call_stage || '',
           'Visit Date': l.visit_date || '', 'Follow-up Date': l.follow_up_date || '',
           'Assigned To': l.assigned_user?.name || 'Unassigned',
@@ -613,9 +619,20 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
                 </SelectContent>
               </Select>
             )}
-            {(search || stageFilter !== 'all' || counsellorFilter !== 'all' || sourceFilter !== 'all' || courseFilter !== 'all') && (
+            {schools.length > 0 && (
+              <Select value={schoolFilter} onValueChange={(v) => { setSchoolFilter(v); resetPage() }}>
+                <SelectTrigger className="w-full sm:w-40 h-9">
+                  <SelectValue placeholder="School" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Schools</SelectItem>
+                  {schools.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            {(search || stageFilter !== 'all' || counsellorFilter !== 'all' || sourceFilter !== 'all' || courseFilter !== 'all' || schoolFilter !== 'all') && (
               <button
-                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all'); setCourseFilter('all'); resetPage() }}
+                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all'); setCourseFilter('all'); setSchoolFilter('all'); resetPage() }}
                 className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 Clear
@@ -730,6 +747,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
                         </div>
                         <p className="text-sm font-mono text-gray-500 mt-0.5">{lead.phone}</p>
                         {lead.city && <p className="text-xs text-gray-400">{lead.city}</p>}
+                        {lead.school_name && <p className="text-xs text-gray-400">{lead.school_name}</p>}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -883,6 +901,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
                           <div>
                             <p className="font-semibold text-gray-900 leading-snug">{lead.name}</p>
                             {lead.city && <p className="text-xs text-gray-400 mt-0.5">{lead.city}</p>}
+                            {lead.school_name && <p className="text-xs text-gray-400 mt-0.5">{lead.school_name}</p>}
                           </div>
                         </td>
                         <td className="px-4 py-3.5">
