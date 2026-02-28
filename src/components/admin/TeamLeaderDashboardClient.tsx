@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { Users, Phone, UserCheck, TrendingUp, Calendar, AlertCircle } from 'lucide-react'
+import { Users, Phone, UserCheck, Calendar, AlertCircle, ArrowUpDown } from 'lucide-react'
 
 interface CounsellorStat {
   id: string
@@ -22,12 +23,50 @@ interface Props {
   todayDate: string
 }
 
+type SortKey = 'name' | 'assigned' | 'called' | 'notCalled' | 'interested' | 'notInterested' | 'enrolled' | 'conversion' | 'followUpsToday'
+
 export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, todayDate }: Props) {
-  const totalAssigned    = counsellorStats.reduce((s, c) => s + c.assigned,    0)
-  const totalCalled      = counsellorStats.reduce((s, c) => s + c.called,      0)
-  const totalEnrolled    = counsellorStats.reduce((s, c) => s + c.enrolled,    0)
-  const totalFollowUps   = counsellorStats.reduce((s, c) => s + c.followUpsToday, 0)
-  const teamConversion   = totalAssigned > 0 ? Math.round((totalEnrolled / totalAssigned) * 100) : 0
+  const [sortKey, setSortKey] = useState<SortKey>('notCalled')
+  const [sortAsc, setSortAsc] = useState(false)
+
+  const totalAssigned  = counsellorStats.reduce((s, c) => s + c.assigned,      0)
+  const totalEnrolled  = counsellorStats.reduce((s, c) => s + c.enrolled,      0)
+  const totalFollowUps = counsellorStats.reduce((s, c) => s + c.followUpsToday, 0)
+  const teamConversion = totalAssigned > 0 ? Math.round((totalEnrolled / totalAssigned) * 100) : 0
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortAsc((a) => !a)
+    } else {
+      setSortKey(key)
+      setSortAsc(key === 'name')
+    }
+  }
+
+  const sorted = [...counsellorStats].sort((a, b) => {
+    const av = a[sortKey as keyof CounsellorStat]
+    const bv = b[sortKey as keyof CounsellorStat]
+    const cmp = typeof av === 'string' ? (av as string).localeCompare(bv as string) : (av as number) - (bv as number)
+    return sortAsc ? cmp : -cmp
+  })
+
+  // Attention Needed: counsellors with high not-called counts or pending follow-ups
+  const needsAttention = counsellorStats
+    .filter((c) => c.notCalled > 5 || c.followUpsToday > 0)
+    .sort((a, b) => (b.notCalled + b.followUpsToday * 2) - (a.notCalled + a.followUpsToday * 2))
+    .slice(0, 4)
+
+  const SortTh = ({ label, col, right = true }: { label: string; col: SortKey; right?: boolean }) => (
+    <th
+      onClick={() => handleSort(col)}
+      className={`px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-800 select-none ${right ? 'text-right' : 'text-left'}`}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <ArrowUpDown className={`h-3 w-3 shrink-0 ${sortKey === col ? 'text-blue-500' : 'opacity-30'}`} />
+      </span>
+    </th>
+  )
 
   return (
     <div className="min-h-full bg-gray-50">
@@ -84,6 +123,33 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, tod
           </div>
         </div>
 
+        {/* Attention Needed */}
+        {needsAttention.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+              <p className="text-sm font-semibold text-amber-800">Attention Needed</p>
+            </div>
+            <div className="space-y-1.5">
+              {needsAttention.map((c) => (
+                <div key={c.id} className="flex items-center justify-between gap-4">
+                  <Link href={`/admin/counsellors/${c.id}`} className="text-sm font-medium text-amber-900 hover:underline truncate">
+                    {c.name}
+                  </Link>
+                  <div className="flex items-center gap-3 text-xs shrink-0">
+                    {c.notCalled > 5 && (
+                      <span className="text-red-600 font-medium">{c.notCalled} not called</span>
+                    )}
+                    {c.followUpsToday > 0 && (
+                      <span className="text-orange-600 font-medium">{c.followUpsToday} follow-up{c.followUpsToday > 1 ? 's' : ''} due</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Counsellor table */}
         {counsellorStats.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
@@ -108,20 +174,20 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, tod
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Counsellor</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assigned</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Called</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Not Called</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Interested</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Not Interested</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Enrolled</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Conv %</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Follow-ups</th>
-                    <th className="px-4 py-3"></th>
+                    <SortTh label="Counsellor"    col="name"          right={false} />
+                    <SortTh label="Assigned"       col="assigned" />
+                    <SortTh label="Called"         col="called" />
+                    <SortTh label="Not Called"     col="notCalled" />
+                    <SortTh label="Interested"     col="interested" />
+                    <SortTh label="Not Interested" col="notInterested" />
+                    <SortTh label="Enrolled"       col="enrolled" />
+                    <SortTh label="Conv %"         col="conversion" />
+                    <SortTh label="Follow-ups"     col="followUpsToday" />
+                    <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {counsellorStats.map((c) => (
+                  {sorted.map((c) => (
                     <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-3.5">
                         <div className="flex items-center gap-2.5">
@@ -173,7 +239,7 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, tod
 
             {/* Mobile cards */}
             <div className="sm:hidden divide-y divide-gray-100">
-              {counsellorStats.map((c) => (
+              {sorted.map((c) => (
                 <div key={c.id} className="px-4 py-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">

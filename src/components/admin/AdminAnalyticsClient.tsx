@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
   Users, GraduationCap, PhoneCall, AlertCircle, Clock, Building2,
   TrendingUp, Activity, UserX, Target, ArrowUp, ArrowDown, Minus, Shield,
+  ChevronDown, ChevronRight, ExternalLink,
 } from 'lucide-react'
 
 // ---- Types ----
@@ -83,6 +85,19 @@ interface TeamPerformance {
   followups_today: number
 }
 
+interface CounsellorStat {
+  id: string
+  name: string
+  teamLeaderId: string | null
+  assigned: number
+  called: number
+  notCalled: number
+  interested: number
+  enrolled: number
+  conversion: number
+  followUpsToday: number
+}
+
 interface Props {
   overview: Overview
   funnelData: FunnelEntry[]
@@ -90,6 +105,7 @@ interface Props {
   schoolInterest?: SchoolInterest[]
   counsellorInterest?: CounsellorInterest[]
   teamPerformance?: TeamPerformance[]
+  counsellorStats?: CounsellorStat[]
 }
 
 // ---- Colors ----
@@ -115,19 +131,19 @@ const STAGE_PILL: Record<string, string> = {
   'Wrong Lead': 'bg-red-100 text-red-500',
 }
 
-type TabId = 'overview' | 'pipeline' | 'interest' | 'teams'
+type TabId = 'teams' | 'overview' | 'pipeline' | 'interest'
 
 // ============================================================
 // Root Component
 // ============================================================
-export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolInterest = [], counsellorInterest = [], teamPerformance = [] }: Props) {
-  const [tab, setTab] = useState<TabId>('overview')
+export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolInterest = [], counsellorInterest = [], teamPerformance = [], counsellorStats = [] }: Props) {
+  const [tab, setTab] = useState<TabId>('teams')
 
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
-    { id: 'overview', label: 'Team Overview', icon: TrendingUp },
+    { id: 'teams',    label: 'Team Performance', icon: Shield },
+    { id: 'overview', label: 'Overview',          icon: TrendingUp },
     { id: 'pipeline', label: 'Pipeline & Sources', icon: Activity },
     { id: 'interest', label: 'Interest Analytics', icon: Target },
-    { id: 'teams', label: 'Team Performance', icon: Shield },
   ]
 
   return (
@@ -156,10 +172,10 @@ export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolI
       </div>
 
       <div className="p-4 sm:p-6 space-y-6">
+        {tab === 'teams'    && <TeamsTab teams={teamPerformance} counsellorStats={counsellorStats} />}
         {tab === 'overview' && <OverviewTab overview={overview} funnelData={funnelData} />}
         {tab === 'pipeline' && <PipelineTab funnelData={funnelData} sourceData={sourceData} overview={overview} />}
         {tab === 'interest' && <InterestTab schoolInterest={schoolInterest} counsellorInterest={counsellorInterest} />}
-        {tab === 'teams' && <TeamsTab teams={teamPerformance} />}
       </div>
     </div>
   )
@@ -615,9 +631,14 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
 }
 
 // ============================================================
-// Tab 4 — Team Performance
+// Tab 1 — Team Performance (now the default tab)
 // ============================================================
-function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
+type TeamSortKey = 'enrollRate' | 'callCoverage' | 'staleRate' | 'totalLeads'
+
+function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counsellorStats: CounsellorStat[] }) {
+  const [sortKey, setSortKey] = useState<TeamSortKey>('enrollRate')
+  const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
+
   if (teams.length === 0) {
     return (
       <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
@@ -630,8 +651,6 @@ function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
 
   const pct = (num: number, den: number) => den > 0 ? Math.round((num / den) * 100) : 0
 
-  // Color bands: for non-inverted metrics, >= hi = green, >= lo = amber, else red.
-  // For inverted (lower is better): <= lo = green, <= hi = amber, else red.
   const band = (value: number, lo: number, hi: number, invert = false) => {
     if (invert) {
       if (value <= lo) return { bar: '#22c55e', text: 'text-green-600' }
@@ -647,29 +666,60 @@ function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
   const totalEnrolled = teams.reduce((s, t) => s + t.enrolled, 0)
   const overallRate   = pct(totalEnrolled, totalLeads)
 
+  const sortedTeams = [...teams].sort((a, b) => {
+    if (sortKey === 'enrollRate')    return pct(b.enrolled, b.total_leads) - pct(a.enrolled, a.total_leads)
+    if (sortKey === 'callCoverage') return pct(b.called, b.total_leads)   - pct(a.called, a.total_leads)
+    if (sortKey === 'staleRate')    return pct(a.stale, a.total_leads)    - pct(b.stale, b.total_leads) // asc — lower stale is better
+    if (sortKey === 'totalLeads')   return b.total_leads - a.total_leads
+    return 0
+  })
+
   const RANK_BADGES = ['🥇', '🥈', '🥉']
+
+  const sortOptions: { key: TeamSortKey; label: string }[] = [
+    { key: 'enrollRate',    label: 'Enrollment Rate' },
+    { key: 'callCoverage',  label: 'Call Coverage' },
+    { key: 'staleRate',     label: 'Least Stale' },
+    { key: 'totalLeads',    label: 'Total Leads' },
+  ]
 
   return (
     <div className="space-y-5">
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <PulseCard label="Teams"         value={teams.length}   icon={<Shield        className="h-4 w-4 text-purple-500" />} bg="bg-purple-50" />
-        <PulseCard label="Total Leads"   value={totalLeads}     icon={<Users         className="h-4 w-4 text-blue-500"   />} bg="bg-blue-50" />
-        <PulseCard label="Total Enrolled" value={totalEnrolled} icon={<GraduationCap className="h-4 w-4 text-green-500"  />} bg="bg-green-50" />
-        <PulseCard label="Overall Rate"  value={overallRate}    icon={<Target        className="h-4 w-4 text-orange-500" />} bg="bg-orange-50" suffix="%" />
+        <PulseCard label="Teams"          value={teams.length}   icon={<Shield        className="h-4 w-4 text-purple-500" />} bg="bg-purple-50" />
+        <PulseCard label="Total Leads"    value={totalLeads}     icon={<Users         className="h-4 w-4 text-blue-500"   />} bg="bg-blue-50" />
+        <PulseCard label="Total Enrolled" value={totalEnrolled}  icon={<GraduationCap className="h-4 w-4 text-green-500"  />} bg="bg-green-50" />
+        <PulseCard label="Overall Rate"   value={overallRate}    icon={<Target        className="h-4 w-4 text-orange-500" />} bg="bg-orange-50" suffix="%" />
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-        <span className="font-semibold text-gray-600 uppercase tracking-wider">Colour bands:</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />Good</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" />Average</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500  inline-block" />Needs attention</span>
-        <span className="ml-auto text-gray-400">↓ lower is better (marked with ↓)</span>
+      {/* Sort controls + legend */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sort by:</span>
+        {sortOptions.map((o) => (
+          <button
+            key={o.key}
+            onClick={() => setSortKey(o.key)}
+            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+              sortKey === o.key
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+        <span className="ml-auto text-[11px] text-gray-400 hidden sm:inline">
+          <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" /> Good</span>
+          {' · '}
+          <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" /> Average</span>
+          {' · '}
+          <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block" /> Needs attention</span>
+        </span>
       </div>
 
-      {/* Team cards ranked by enrollment */}
-      {teams.map((team, idx) => {
+      {/* Team cards */}
+      {sortedTeams.map((team, idx) => {
         const coverage    = pct(team.called,         team.total_leads)
         const interestRate= pct(team.interested,     team.called)
         const niRate      = pct(team.not_interested, team.called)
@@ -678,12 +728,13 @@ function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
         const enrollRate  = pct(team.enrolled,       team.total_leads)
         const staleRate   = pct(team.stale,          team.total_leads)
         const deadRate    = pct(team.cold_wrong,     team.total_leads)
+        const isExpanded  = expandedTeam === team.team_leader_id
 
         const enrollColors = band(enrollRate, 8, 15)
 
         const metrics: {
           label: string; pct: number; num: number; sub: string
-          lo: number; hi: number; invert?: boolean; note?: string
+          lo: number; hi: number; invert?: boolean
         }[] = [
           { label: 'Call Coverage',    pct: coverage,     num: team.called,         sub: 'called',        lo: 60, hi: 80 },
           { label: 'Interest Rate',    pct: interestRate, num: team.interested,     sub: 'interested',    lo: 25, hi: 45 },
@@ -692,9 +743,11 @@ function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
           { label: 'Closing Rate',     pct: closingRate,  num: team.enrolled,       sub: 'enrolled',      lo: 40, hi: 65 },
         ]
 
+        const teamCounsellors = counsellorStats.filter((c) => c.teamLeaderId === team.team_leader_id)
+
         return (
           <div key={team.team_leader_id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            {/* Header: rank + name + headline enrollment rate */}
+            {/* Header */}
             <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-2xl shrink-0 select-none">{RANK_BADGES[idx] ?? `#${idx + 1}`}</span>
@@ -707,7 +760,6 @@ function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
                   </p>
                 </div>
               </div>
-              {/* Enrollment rate — primary % + secondary number */}
               <div className="text-right shrink-0">
                 <p className={`text-3xl font-bold tabular-nums leading-none ${enrollColors.text}`}>{enrollRate}%</p>
                 <p className="text-[11px] text-gray-400 mt-1">Enrollment Rate</p>
@@ -719,20 +771,15 @@ function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
             <div className="px-5 py-4 space-y-2.5">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Performance Funnel</p>
               {metrics.map((m) => {
-                const colors  = band(m.pct, m.lo, m.hi, m.invert)
-                const barW    = Math.max(m.pct, m.num > 0 ? 2 : 0)
+                const colors = band(m.pct, m.lo, m.hi, m.invert)
+                const barW   = Math.max(m.pct, m.num > 0 ? 2 : 0)
                 return (
                   <div key={m.label} className="flex items-center gap-2 sm:gap-3">
                     <span className="text-xs text-gray-500 w-32 shrink-0 text-right leading-tight">{m.label}</span>
                     <div className="flex-1 h-6 bg-gray-100 rounded-md overflow-hidden">
-                      <div
-                        className="h-full rounded-md transition-all duration-500"
-                        style={{ width: `${barW}%`, backgroundColor: colors.bar }}
-                      />
+                      <div className="h-full rounded-md transition-all duration-500" style={{ width: `${barW}%`, backgroundColor: colors.bar }} />
                     </div>
-                    {/* % primary */}
                     <span className={`text-sm font-bold w-10 shrink-0 tabular-nums text-right ${colors.text}`}>{m.pct}%</span>
-                    {/* number secondary */}
                     <span className="text-xs text-gray-400 w-24 shrink-0 tabular-nums hidden sm:inline">
                       {m.num.toLocaleString()} {m.sub}
                     </span>
@@ -741,24 +788,99 @@ function TeamsTab({ teams }: { teams: TeamPerformance[] }) {
               })}
             </div>
 
-            {/* Footer: stale / dead / follow-ups — secondary health indicators */}
+            {/* Footer: health indicators + expand toggle */}
             <div className="px-5 pb-4 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-gray-50 pt-3">
               <span className={`text-xs font-medium ${staleRate > 20 ? 'text-red-500' : staleRate > 10 ? 'text-amber-500' : 'text-gray-400'}`}>
-                Stale: <strong>{staleRate}%</strong> <span className="font-normal">({team.stale} leads)</span>
+                Stale: <strong>{staleRate}%</strong> <span className="font-normal">({team.stale})</span>
               </span>
               <span className={`text-xs font-medium ${deadRate > 30 ? 'text-red-500' : deadRate > 15 ? 'text-amber-500' : 'text-gray-400'}`}>
-                Dead: <strong>{deadRate}%</strong> <span className="font-normal">({team.cold_wrong} leads)</span>
+                Dead: <strong>{deadRate}%</strong> <span className="font-normal">({team.cold_wrong})</span>
               </span>
               <span className={`text-xs font-medium ${team.followups_today > 0 ? 'text-blue-500' : 'text-gray-400'}`}>
                 Follow-ups today: <strong>{team.followups_today}</strong>
               </span>
-              <span className="text-xs text-gray-400 ml-auto">
-                {team.not_called.toLocaleString()} uncalled
-              </span>
+              <span className="text-xs text-gray-400">{team.not_called.toLocaleString()} uncalled</span>
+              <button
+                onClick={() => setExpandedTeam(isExpanded ? null : team.team_leader_id)}
+                className="ml-auto flex items-center gap-1.5 text-xs text-blue-600 font-medium hover:text-blue-700 transition-colors"
+              >
+                {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                {isExpanded ? 'Hide counsellors' : 'View counsellors'}
+              </button>
             </div>
+
+            {/* Expanded counsellor breakdown */}
+            {isExpanded && (
+              <TeamCounsellorPanel counsellors={teamCounsellors} />
+            )}
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ============================================================
+// Expanded counsellor panel within a team card
+// ============================================================
+function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] }) {
+  if (counsellors.length === 0) {
+    return (
+      <div className="border-t border-gray-100 bg-gray-50 px-5 py-6 text-center text-sm text-gray-400">
+        No counsellor data linked to this team yet.
+      </div>
+    )
+  }
+
+  return (
+    <div className="border-t border-gray-200 bg-gray-50">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-gray-100 border-b border-gray-200">
+            <tr>
+              <th className="text-left px-5 py-2.5 font-semibold text-gray-500">Counsellor</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Assigned</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Called</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Not Called</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Interested</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Enrolled</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Conv%</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Follow-ups</th>
+              <th className="px-4 py-2.5" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {counsellors.map((c) => (
+              <tr key={c.id} className="hover:bg-white transition-colors">
+                <td className="px-5 py-2.5 font-medium text-gray-900">{c.name}</td>
+                <td className="px-4 py-2.5 text-right text-gray-600 tabular-nums">{c.assigned}</td>
+                <td className="px-4 py-2.5 text-right text-gray-600 tabular-nums">{c.called}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">
+                  <span className={c.notCalled > 5 ? 'text-red-600 font-semibold' : 'text-gray-400'}>{c.notCalled}</span>
+                </td>
+                <td className="px-4 py-2.5 text-right text-blue-600 font-medium tabular-nums">{c.interested}</td>
+                <td className="px-4 py-2.5 text-right text-green-600 font-bold tabular-nums">{c.enrolled}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">
+                  <span className={`font-semibold ${c.conversion >= 10 ? 'text-green-600' : c.conversion >= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
+                    {c.conversion}%
+                  </span>
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums">
+                  <span className={c.followUpsToday > 0 ? 'text-orange-500 font-medium' : 'text-gray-400'}>{c.followUpsToday}</span>
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <Link
+                    href={`/admin/counsellors/${c.id}`}
+                    className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
+                  >
+                    View <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

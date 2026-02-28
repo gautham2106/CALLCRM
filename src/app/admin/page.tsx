@@ -66,7 +66,7 @@ async function getDashboardData(collegeId: string) {
     supabase.from('leads').select('*', { count: 'exact', head: true })
       .eq('college_id', collegeId).eq('visit_date', today).eq('is_active', true),
 
-    supabase.from('users').select('id, name')
+    supabase.from('users').select('id, name, team_leader_id')
       .eq('college_id', collegeId).eq('role', 'counsellor').eq('is_active', true),
 
     // SQL GROUP BY → stage counts (replaces: fetch all leads → JS count per stage)
@@ -115,6 +115,7 @@ async function getDashboardData(collegeId: string) {
     return {
       id:             c.id,
       name:           c.name,
+      teamLeaderId:   c.team_leader_id as string | null,
       assigned:       assignedN,
       called:         calledN,
       notCalled:      assignedN - calledN,
@@ -330,6 +331,7 @@ export default async function AdminDashboard() {
         schoolInterest={data.schoolInterest}
         counsellorInterest={data.counsellorInterest}
         teamPerformance={data.teamPerformance}
+        counsellorStats={data.counsellorStats}
       />
     </div>
   )
