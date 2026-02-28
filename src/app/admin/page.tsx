@@ -46,6 +46,8 @@ async function getDashboardData(collegeId: string) {
     { data: counsellorInterestRaw },
     // Team performance funnel
     { data: teamPerformanceRaw },
+    // Source id lookup
+    { data: sourcesRaw },
   ] = await Promise.all([
     supabase.from('leads').select('*', { count: 'exact', head: true })
       .eq('college_id', collegeId).eq('is_active', true),
@@ -93,6 +95,8 @@ async function getDashboardData(collegeId: string) {
     supabase.rpc('get_counsellor_interest_stats', { p_college_id: collegeId }),
     // Team performance funnel
     supabase.rpc('get_team_performance', { p_college_id: collegeId, p_today: today }),
+    // Source id lookup — needed so analytics can link to filtered leads page
+    supabase.from('lead_sources').select('id, source_name').eq('college_id', collegeId).eq('is_active', true),
   ])
 
   // ---- Build stageCount map ----
@@ -126,6 +130,10 @@ async function getDashboardData(collegeId: string) {
       visitsToday:    Number(s.visits_today    || 0),
     }
   })
+
+  // ---- Source name → ID lookup map ----
+  const sourceIdMap: Record<string, string> = {}
+  ;(sourcesRaw || []).forEach((s: any) => { sourceIdMap[s.source_name] = s.id })
 
   // ---- Build sourceStats (merge the 3 source RPC results) ----
   const sourceStats: Record<string, {
@@ -208,6 +216,7 @@ async function getDashboardData(collegeId: string) {
     stageCounts:   stageCountMap,
     counsellorStats,
     sourceStats,
+    sourceIdMap,
     schoolInterest,
     counsellorInterest,
     teamPerformance,
@@ -281,6 +290,7 @@ export default async function AdminDashboard() {
   const sourceArray = Object.entries(data.sourceStats)
     .map(([source, s]) => ({
       source,
+      sourceId:  data.sourceIdMap[source] || null,
       total:     s.total,
       enrolled:  s.enrolled,
       rate:      s.total > 0 ? Math.round((s.enrolled / s.total) * 100) : 0,

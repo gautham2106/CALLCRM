@@ -5,7 +5,12 @@ import { AdminLeadsClient } from '@/components/admin/AdminLeadsClient'
 // Leads are no longer fetched server-side — the client fetches paginated
 // pages via GET /api/admin/leads so the browser never loads 1L+ rows.
 // Only small reference lists (counsellors, sources, courses) are fetched here.
-export default async function AdminLeadsPage() {
+export default async function AdminLeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ source?: string }>
+}) {
+  const { source: initialSource } = await searchParams
   const user = await requireAdminOrTeamLeader()
   const supabase = createAdminClient()
   const isTeamLeader = user.role === 'team_leader'
@@ -64,6 +69,7 @@ export default async function AdminLeadsPage() {
       collegeId={user.college_id!}
       adminId={user.id}
       userRole={user.role}
+      initialSourceFilter={initialSource || 'all'}
     />
   )
 }

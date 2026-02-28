@@ -80,12 +80,13 @@ interface Props {
   collegeId: string
   adminId: string
   userRole?: string
+  initialSourceFilter?: string
 }
 
 const PAGE_SIZE = 50
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
-export function AdminLeadsClient({ counsellors, sources, courses, customFields, schools, collegeId, adminId, userRole }: Props) {
+export function AdminLeadsClient({ counsellors, sources, courses, customFields, schools, collegeId, adminId, userRole, initialSourceFilter }: Props) {
   const supabase = createClient()
 
   // ---- Server-side paginated lead state ----
@@ -99,7 +100,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('all')
   const [counsellorFilter, setCounsellorFilter] = useState('all')
-  const [sourceFilter, setSourceFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState(initialSourceFilter || 'all')
   const [courseFilter, setCourseFilter] = useState('all')
   const [schoolFilter, setSchoolFilter] = useState('all')
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')

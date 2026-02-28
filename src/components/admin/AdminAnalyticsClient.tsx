@@ -44,6 +44,7 @@ interface SourceLead {
 
 interface SourceStat {
   source: string
+  sourceId: string | null
   total: number
   enrolled: number
   rate: number
@@ -402,9 +403,6 @@ function PipelineTab({ funnelData, sourceData, overview }: {
 // Source Lead Panel (expanded view)
 // ============================================================
 function SourceLeadPanel({ source: s }: { source: SourceStat }) {
-  const [showAll, setShowAll] = useState(false)
-  const displayed = showAll ? s.leads : s.leads.slice(0, 30)
-
   function fmt(iso: string) {
     if (!iso) return '—'
     return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'Asia/Kolkata' })
@@ -432,7 +430,7 @@ function SourceLeadPanel({ source: s }: { source: SourceStat }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {displayed.map((lead) => (
+              {s.leads.map((lead) => (
                 <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{lead.name}</td>
                   <td className="px-4 py-2.5 text-gray-500 tabular-nums">{lead.phone || '—'}</td>
@@ -452,11 +450,14 @@ function SourceLeadPanel({ source: s }: { source: SourceStat }) {
             </tbody>
           </table>
         </div>
-        {!showAll && s.leads.length > 30 && (
+        {s.sourceId && s.total > s.leads.length && (
           <div className="border-t border-gray-100 px-4 py-3 text-center">
-            <button onClick={() => setShowAll(true)} className="text-xs text-blue-600 font-medium hover:underline">
-              Show all {s.leads.length} leads
-            </button>
+            <Link
+              href={`/admin/leads?source=${s.sourceId}`}
+              className="text-xs text-blue-600 font-medium hover:underline inline-flex items-center gap-1"
+            >
+              View all {s.total} leads from {s.source} →
+            </Link>
           </div>
         )}
       </div>
