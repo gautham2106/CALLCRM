@@ -44,6 +44,7 @@ interface Lead {
   phone: string
   email: string | null
   city: string | null
+  school_name: string | null
   course_interest: string | null
   course_id: string | null
   source_id: string | null
@@ -157,6 +158,7 @@ export function LeadDetailClient({
       notes: lead.notes,
       email: lead.email,
       city: lead.city,
+      school_name: lead.school_name,
       course_interest: lead.course_interest,
       course_id: lead.course_id || null,
     }
@@ -302,6 +304,12 @@ export function LeadDetailClient({
                   {lead.city}
                 </span>
               )}
+              {lead.school_name && (
+                <span className="flex items-center gap-1">
+                  <BookOpen className="h-3 w-3" />
+                  {lead.school_name}
+                </span>
+              )}
               {lead.course_interest && (
                 <span className="flex items-center gap-1">
                   <BookOpen className="h-3 w-3" />
@@ -397,6 +405,14 @@ export function LeadDetailClient({
                       value={lead.city || ''}
                       onChange={(e) => setLead({ ...lead, city: e.target.value })}
                       placeholder="Mumbai"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">School</Label>
+                    <Input
+                      value={lead.school_name || ''}
+                      onChange={(e) => setLead({ ...lead, school_name: e.target.value })}
+                      placeholder="School name"
                     />
                   </div>
                   <div className="space-y-1.5">

@@ -25,7 +25,7 @@ export default async function AdminLeadDetailPage({
     supabase
       .from('leads')
       .select(`
-        id, name, phone, email, city, course_interest, course_id, source_id, source_name,
+        id, name, phone, email, city, school_name, course_interest, course_id, source_id, source_name,
         current_lead_stage, current_call_stage, visit_date, follow_up_date,
         notes, is_active, created_at, updated_at, assigned_to,
         assigned_user:users!leads_assigned_to_fkey(id, name, email)

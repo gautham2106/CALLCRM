@@ -633,7 +633,7 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
 // ============================================================
 // Tab 1 — Team Performance (now the default tab)
 // ============================================================
-type TeamSortKey = 'enrollRate' | 'callCoverage' | 'staleRate' | 'totalLeads'
+type TeamSortKey = 'enrollRate' | 'callCoverage' | 'staleRate' | 'totalLeads' | 'interestedRate' | 'niRate'
 
 function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counsellorStats: CounsellorStat[] }) {
   const [sortKey, setSortKey] = useState<TeamSortKey>('enrollRate')
@@ -667,20 +667,24 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
   const overallRate   = pct(totalEnrolled, totalLeads)
 
   const sortedTeams = [...teams].sort((a, b) => {
-    if (sortKey === 'enrollRate')    return pct(b.enrolled, b.total_leads) - pct(a.enrolled, a.total_leads)
-    if (sortKey === 'callCoverage') return pct(b.called, b.total_leads)   - pct(a.called, a.total_leads)
-    if (sortKey === 'staleRate')    return pct(a.stale, a.total_leads)    - pct(b.stale, b.total_leads) // asc — lower stale is better
-    if (sortKey === 'totalLeads')   return b.total_leads - a.total_leads
+    if (sortKey === 'enrollRate')     return pct(b.enrolled,       b.total_leads) - pct(a.enrolled,       a.total_leads)
+    if (sortKey === 'callCoverage')  return pct(b.called,         b.total_leads) - pct(a.called,         a.total_leads)
+    if (sortKey === 'staleRate')     return pct(a.stale,          a.total_leads) - pct(b.stale,          b.total_leads) // asc — lower is better
+    if (sortKey === 'totalLeads')    return b.total_leads - a.total_leads
+    if (sortKey === 'interestedRate') return pct(b.interested,    b.called)      - pct(a.interested,    a.called)
+    if (sortKey === 'niRate')        return pct(a.not_interested, a.called)      - pct(b.not_interested, b.called) // asc — lower NI is better
     return 0
   })
 
   const RANK_BADGES = ['🥇', '🥈', '🥉']
 
   const sortOptions: { key: TeamSortKey; label: string }[] = [
-    { key: 'enrollRate',    label: 'Enrollment Rate' },
-    { key: 'callCoverage',  label: 'Call Coverage' },
-    { key: 'staleRate',     label: 'Least Stale' },
-    { key: 'totalLeads',    label: 'Total Leads' },
+    { key: 'enrollRate',     label: 'Enrollment Rate' },
+    { key: 'callCoverage',   label: 'Call Coverage' },
+    { key: 'interestedRate', label: 'Interest Rate' },
+    { key: 'niRate',         label: 'Least NI' },
+    { key: 'staleRate',      label: 'Least Stale' },
+    { key: 'totalLeads',     label: 'Total Leads' },
   ]
 
   return (
