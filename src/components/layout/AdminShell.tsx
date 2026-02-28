@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { AdminSidebar } from './AdminSidebar'
 import { Menu, GraduationCap } from 'lucide-react'
 
-export function AdminShell({ children, userRole = 'admin' }: { children: React.ReactNode; userRole?: string }) {
+export function AdminShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
 
@@ -29,7 +29,7 @@ export function AdminShell({ children, userRole = 'admin' }: { children: React.R
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <AdminSidebar onClose={() => setSidebarOpen(false)} userRole={userRole} />
+        <AdminSidebar onClose={() => setSidebarOpen(false)} />
       </div>
 
       {/* Main content */}

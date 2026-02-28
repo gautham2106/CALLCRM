@@ -9,7 +9,7 @@ export default async function AdminLayout({
   const user = await requireAdminOrTeamLeader()
 
   return (
-    <AdminShell userRole={user.role}>
+    <AdminShell>
       {children}
     </AdminShell>
   )
