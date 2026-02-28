@@ -137,6 +137,11 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const [schoolCounsellorMap, setSchoolCounsellorMap] = useState<Record<string, string>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  type CsvStepValue = 'upload' | 'map' | 'school-assign' | 'preview' | 'done'
+  const csvSteps: CsvStepValue[] = columnMap['school_name']
+    ? ['upload', 'map', 'school-assign', 'preview', 'done']
+    : ['upload', 'map', 'preview', 'done']
+
   const resetAddLeads = () => {
     setSingleForm(EMPTY_SINGLE)
     setSingleCustomValues({})
@@ -1012,11 +1017,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             <TabsContent value="csv" className="mt-4 space-y-4 overflow-y-auto flex-1">
               {/* Step indicator */}
               <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1">
-                {(columnMap['school_name']
-                  ? ['upload', 'map', 'school-assign', 'preview', 'done']
-                  : ['upload', 'map', 'preview', 'done']
-                  as Array<'upload' | 'map' | 'school-assign' | 'preview' | 'done'>
-                ).map((s, idx, arr) => (
+                {csvSteps.map((s, idx, arr) => (
                   <div key={s} className="flex items-center gap-1.5 shrink-0">
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       csvStep === s ? 'bg-blue-600 text-white' :
