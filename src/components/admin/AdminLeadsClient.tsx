@@ -79,12 +79,13 @@ interface Props {
   schools: string[]
   collegeId: string
   adminId: string
+  userRole?: string
 }
 
 const PAGE_SIZE = 50
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
-export function AdminLeadsClient({ counsellors, sources, courses, customFields, schools, collegeId, adminId }: Props) {
+export function AdminLeadsClient({ counsellors, sources, courses, customFields, schools, collegeId, adminId, userRole }: Props) {
   const supabase = createClient()
 
   // ---- Server-side paginated lead state ----
@@ -518,10 +519,12 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
                 </Button>
               </>
             )}
-            <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export</span>
-            </Button>
+            {userRole === 'admin' && (
+              <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => setShowAddDialog(true)} className="gap-1.5">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Add Lead</span>

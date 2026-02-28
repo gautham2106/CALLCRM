@@ -63,6 +63,7 @@ export default async function AdminLeadsPage() {
       schools={schools}
       collegeId={user.college_id!}
       adminId={user.id}
+      userRole={user.role}
     />
   )
 }
