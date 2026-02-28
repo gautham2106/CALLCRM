@@ -248,6 +248,7 @@ async function getTeamLeaderData(userId: string, collegeId: string) {
       called,
       notCalled:      assigned - called,
       interested:     Number(s.interested      || 0),
+      notInterested:  Number(s.not_interested  || 0),
       enrolled,
       conversion:     assigned > 0 ? Math.round((enrolled / assigned) * 100) : 0,
       followUpsToday: Number(s.followups_today || 0),

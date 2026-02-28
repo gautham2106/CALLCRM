@@ -10,6 +10,7 @@ interface CounsellorStat {
   called: number
   notCalled: number
   interested: number
+  notInterested: number
   enrolled: number
   conversion: number
   followUpsToday: number
@@ -112,6 +113,7 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, tod
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Called</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Not Called</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Interested</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Not Interested</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Enrolled</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Conv %</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Follow-ups</th>
@@ -139,6 +141,11 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, tod
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-right text-blue-600 font-medium">{c.interested}</td>
+                      <td className="px-4 py-3.5 text-right">
+                        <span className={c.notInterested > 0 ? 'text-orange-500 font-medium' : 'text-gray-400'}>
+                          {c.notInterested}
+                        </span>
+                      </td>
                       <td className="px-4 py-3.5 text-right text-green-600 font-bold">{c.enrolled}</td>
                       <td className="px-4 py-3.5 text-right">
                         <span className={`font-medium ${c.conversion >= 10 ? 'text-green-600' : c.conversion >= 5 ? 'text-amber-600' : 'text-gray-500'}`}>
@@ -177,14 +184,15 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, tod
                     </div>
                     <Link href={`/admin/counsellors/${c.id}`} className="text-xs text-blue-600 font-medium">View →</Link>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-4 gap-2 text-center">
                     {[
-                      { label: 'Assigned', value: c.assigned, color: 'text-gray-700' },
-                      { label: 'Called',   value: c.called,   color: 'text-gray-700' },
-                      { label: 'Not Called', value: c.notCalled, color: c.notCalled > 0 ? 'text-red-600' : 'text-gray-400' },
-                      { label: 'Interested', value: c.interested, color: 'text-blue-600' },
-                      { label: 'Enrolled',   value: c.enrolled,   color: 'text-green-600' },
-                      { label: 'Conv %',     value: `${c.conversion}%`, color: c.conversion >= 10 ? 'text-green-600' : 'text-gray-500' },
+                      { label: 'Assigned',      value: c.assigned,      color: 'text-gray-700' },
+                      { label: 'Called',        value: c.called,        color: 'text-gray-700' },
+                      { label: 'Not Called',    value: c.notCalled,     color: c.notCalled > 0 ? 'text-red-600' : 'text-gray-400' },
+                      { label: 'Interested',    value: c.interested,    color: 'text-blue-600' },
+                      { label: 'Not Interested',value: c.notInterested, color: c.notInterested > 0 ? 'text-orange-500' : 'text-gray-400' },
+                      { label: 'Enrolled',      value: c.enrolled,      color: 'text-green-600' },
+                      { label: 'Conv %',        value: `${c.conversion}%`, color: c.conversion >= 10 ? 'text-green-600' : 'text-gray-500' },
                     ].map((m) => (
                       <div key={m.label} className="bg-gray-50 rounded-lg p-2">
                         <p className={`text-base font-bold ${m.color}`}>{m.value}</p>
