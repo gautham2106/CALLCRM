@@ -49,7 +49,7 @@ export default function LoginPage() {
       // Use a full-page navigation so the browser sends fresh session cookies
       // to the server. Next.js's client-side router.push uses an RSC fetch that
       // can race with cookie writes; window.location guarantees cookies are present.
-      if (profile.role === 'admin') {
+      if (profile.role === 'admin' || profile.role === 'team_leader') {
         window.location.href = '/admin'
       } else if (profile.role === 'counsellor') {
         window.location.href = '/counsellor'
