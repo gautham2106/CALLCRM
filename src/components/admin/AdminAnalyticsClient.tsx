@@ -450,16 +450,14 @@ function SourceLeadPanel({ source: s }: { source: SourceStat }) {
             </tbody>
           </table>
         </div>
-        {s.sourceId && (
-          <div className="border-t border-gray-100 px-4 py-3 text-center">
-            <Link
-              href={`/admin/leads?source=${s.sourceId}`}
-              className="text-xs text-blue-600 font-medium hover:underline inline-flex items-center gap-1"
-            >
-              View all {s.total} leads from {s.source} →
-            </Link>
-          </div>
-        )}
+        <div className="border-t border-gray-100 px-4 py-3 text-center">
+          <Link
+            href={s.sourceId ? `/admin/leads?source=${s.sourceId}` : `/admin/leads?source=__none__`}
+            className="text-xs text-blue-600 font-medium hover:underline inline-flex items-center gap-1"
+          >
+            View all {s.total} leads →
+          </Link>
+        </div>
       </div>
     </div>
   )
