@@ -46,8 +46,6 @@ async function getDashboardData(collegeId: string) {
     { data: counsellorInterestRaw },
     // Team performance funnel
     { data: teamPerformanceRaw },
-    // Source id lookup
-    { data: sourcesRaw },
   ] = await Promise.all([
     supabase.from('leads').select('*', { count: 'exact', head: true })
       .eq('college_id', collegeId).eq('is_active', true),
@@ -95,8 +93,6 @@ async function getDashboardData(collegeId: string) {
     supabase.rpc('get_counsellor_interest_stats', { p_college_id: collegeId }),
     // Team performance funnel
     supabase.rpc('get_team_performance', { p_college_id: collegeId, p_today: today }),
-    // Source id lookup — needed so analytics can link to filtered leads page
-    supabase.from('lead_sources').select('id, source_name').eq('college_id', collegeId).eq('is_active', true),
   ])
 
   // ---- Build stageCount map ----
@@ -131,21 +127,19 @@ async function getDashboardData(collegeId: string) {
     }
   })
 
-  // ---- Source name → ID lookup map ----
-  const sourceIdMap: Record<string, string> = {}
-  ;(sourcesRaw || []).forEach((s: any) => { sourceIdMap[s.source_name] = s.id })
-
   // ---- Build sourceStats (merge the 3 source RPC results) ----
   const sourceStats: Record<string, {
+    sourceId: string | null
     total: number; enrolled: number
     stages: Record<string, number>
     thisMonth: number; lastMonth: number
     leads: Array<{ id: string; name: string; phone: string; stage: string; counsellor: string; createdAt: string }>
   }> = {}
 
-  // totals + monthly
+  // totals + monthly (get_source_stats now returns source_id directly)
   ;(sourceStatsRaw || []).forEach((r: any) => {
     sourceStats[r.source] = {
+      sourceId:  r.source_id || null,
       total:     Number(r.total),
       enrolled:  Number(r.enrolled),
       thisMonth: Number(r.this_month),
@@ -216,7 +210,6 @@ async function getDashboardData(collegeId: string) {
     stageCounts:   stageCountMap,
     counsellorStats,
     sourceStats,
-    sourceIdMap,
     schoolInterest,
     counsellorInterest,
     teamPerformance,
@@ -290,7 +283,7 @@ export default async function AdminDashboard() {
   const sourceArray = Object.entries(data.sourceStats)
     .map(([source, s]) => ({
       source,
-      sourceId:  data.sourceIdMap[source] || null,
+      sourceId:  s.sourceId,
       total:     s.total,
       enrolled:  s.enrolled,
       rate:      s.total > 0 ? Math.round((s.enrolled / s.total) * 100) : 0,
