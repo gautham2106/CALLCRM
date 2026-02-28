@@ -450,7 +450,7 @@ function SourceLeadPanel({ source: s }: { source: SourceStat }) {
             </tbody>
           </table>
         </div>
-        {s.sourceId && s.total > s.leads.length && (
+        {s.sourceId && (
           <div className="border-t border-gray-100 px-4 py-3 text-center">
             <Link
               href={`/admin/leads?source=${s.sourceId}`}
