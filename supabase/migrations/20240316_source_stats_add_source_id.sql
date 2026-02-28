@@ -8,6 +8,8 @@
 -- directly — no fragile name-to-id lookup needed.
 -- ============================================================
 
+DROP FUNCTION IF EXISTS get_source_stats(UUID, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION get_source_stats(
   p_college_id UUID,
   p_this_month TEXT,
