@@ -1,5 +1,8 @@
 -- Add not_interested to get_counsellor_stats
-CREATE OR REPLACE FUNCTION get_counsellor_stats(p_college_id UUID, p_today DATE)
+-- Must DROP first because return type changes (adding not_interested column)
+DROP FUNCTION IF EXISTS get_counsellor_stats(uuid, date);
+
+CREATE FUNCTION get_counsellor_stats(p_college_id UUID, p_today DATE)
 RETURNS TABLE(
   assigned_to     UUID,
   assigned        BIGINT,
