@@ -591,11 +591,8 @@ export function LeadImportClient({ collegeId, adminId, sources, courses, counsel
               )}
             </div>
             <div className="flex justify-center gap-3">
-              <Button variant="outline" onClick={() => router.push('/admin/leads')}>
+              <Button onClick={() => router.push('/admin/leads')}>
                 View All Leads
-              </Button>
-              <Button onClick={() => router.push('/admin/assignment')}>
-                Assign Leads
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>

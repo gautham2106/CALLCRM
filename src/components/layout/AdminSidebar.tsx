@@ -13,7 +13,6 @@ import {
   GraduationCap,
   ChevronRight,
   BookOpen,
-  Shuffle,
   Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,7 +22,6 @@ import { useRouter } from 'next/navigation'
 const ALL_NAV_ITEMS = [
   { href: '/admin', label: 'Dashboard', teamLeaderLabel: 'My Team', icon: LayoutDashboard, exact: true, roles: ['admin', 'team_leader'] },
   { href: '/admin/leads', label: 'Leads', icon: Users, roles: ['admin', 'team_leader'] },
-  { href: '/admin/assignment', label: 'Auto-Distribute', icon: Shuffle, roles: ['admin'] },
   { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck, roles: ['admin', 'team_leader'] },
   { href: '/admin/team-leaders', label: 'Team Leaders', icon: Shield, roles: ['admin'] },
   { href: '/admin/super-fields', label: 'Super Fields', icon: Sliders, roles: ['admin'] },
