@@ -34,11 +34,11 @@ Built with **Next.js 16**, **Supabase**, and **Tailwind CSS**.
 #### Analytics Dashboard (`/admin`)
 - **KPI Cards** — Total leads, enrolled count, in-progress, cold/wrong leads, unassigned count, today's follow-ups, stale leads, today's visits, calls made today
 - **Funnel Chart** — Stage-by-stage lead count across the full admission pipeline
-- **Counsellor Performance Table** — Per-counsellor breakdown: assigned leads, calls made, interested, enrolled, conversion %, follow-ups today, visits today; sortable by any column
+- **Counsellor Performance Table** — Per-counsellor breakdown: assigned, called, not called, interested, **not interested**, enrolled, conversion %, follow-ups today, missed follow-ups, visits overdue, no-show; sortable by any column; all numbers link to filtered leads
 - **Source Intelligence** — Lead source table showing total, enrolled, conversion rate, month-over-month trend; tap any row to expand a 20-lead preview panel with a "View all N leads →" deep-link to the filtered leads page
 - **School Interest Analytics** — Which schools generate the most leads and interest
 - **Counsellor Interest Stats** — Interested vs not-interested rate per counsellor
-- **Team Performance Funnel** — Per team-leader: counsellors, total leads, called, not-called, interested, enrolled, stale, today's follow-ups
+- **Team Performance Funnel** — Per team-leader: counsellors, total leads, called, not-called, interested, **not interested**, enrolled, stale, today's follow-ups
 - **Stale Lead Alerts** — Leads untouched for 3+ days flagged on the dashboard
 - All analytics computed via SQL aggregate RPCs — no full-table JS scans
 
@@ -66,10 +66,28 @@ Built with **Next.js 16**, **Supabase**, and **Tailwind CSS**.
 - Real-time push notification sent to counsellor on new assignment
 
 #### Counsellor Management (`/admin/counsellors`)
-- List all counsellors with performance summary
+- List all counsellors with full performance data
 - Add new counsellor (creates Supabase Auth user + profile row in one step)
 - Activate / deactivate counsellors
 - Per-counsellor detail page (`/admin/counsellors/[id]`) with their full lead list and stats
+
+**Desktop table — two focused tab views (neither tab is ever too wide to fit the screen):**
+
+| Tab | Columns |
+|---|---|
+| **Performance** (default) | Counsellor · Status · Assigned · Called · Not Called · Interested · Not Interested · Enrolled · Conv% |
+| **Action Items** | Counsellor · Status · F/U Today · Missed F/U · Visit O/D · No Show |
+
+- **Action Items** tab shows a red badge with the total urgent count across all counsellors
+- Every column header is **clickable to sort** (click again to reverse direction)
+- Every number is a **clickable link** to the filtered leads page for that counsellor + metric
+- Counsellor avatar turns red when they have outstanding action items
+- Sort pills above the table also drive column sort on both mobile and desktop
+
+**Mobile card view:**
+- Each counsellor shows as a card with the same Performance stats in a 2-row grid
+- A **"Needs attention" red strip** appears at the bottom of a card only when any urgent count (F/U Today, Missed F/U, Visit Overdue, No Show) is greater than zero
+- Card border turns red when the counsellor has action items outstanding
 
 #### Team Leader Management (`/admin/team-leaders`)
 - Create team leader accounts
@@ -102,10 +120,26 @@ Built with **Next.js 16**, **Supabase**, and **Tailwind CSS**.
 
 Team leaders share the admin layout but are scoped to their own team:
 
-- **Dashboard** — Same KPI and analytics cards filtered to their counsellors only
+- **Dashboard** — Dedicated team leader view with a full counsellor performance table showing: Assigned, Called, Not Called, Interested, **Not Interested**, Enrolled, Conv%, Follow-ups Today, Missed F/U, Visit Overdue, No Show — all sortable, all numbers link to filtered leads
 - **Leads** — See all leads assigned to their counsellors; can search, filter, export
 - **Assignment** — Assign/reassign leads within their team
-- **Counsellors** — View their counsellors' performance; cannot create new users
+- **Counsellors** — View their counsellors' performance with the same two-tab table (Performance / Action Items) as the admin view; cannot create new users
+
+**Team Leader counsellor stats include:**
+
+| Metric | Source |
+|---|---|
+| Assigned | Total active leads assigned to the counsellor |
+| Called | Leads where a call stage has been logged |
+| Not Called | Assigned − Called |
+| Interested | Leads where current call stage = `Interested` |
+| Not Interested | Leads where current call stage = `Not Interested` |
+| Enrolled | Leads where current lead stage = `Enrolled` |
+| Conv% | Enrolled ÷ Assigned × 100 |
+| Follow-ups Today | Active leads with `follow_up_date = today` |
+| Missed F/U | Active leads with `follow_up_date < today` |
+| Visit Overdue | Leads in `Visit Scheduled` stage with `visit_date < today` |
+| No Show | Leads in `No Show` stage |
 
 ---
 
@@ -584,16 +618,16 @@ src/
 │       └── supabase/[...path]/route.ts
 ├── components/
 │   ├── admin/
-│   │   ├── AdminAnalyticsClient.tsx  # Dashboard tabs + charts
+│   │   ├── AdminAnalyticsClient.tsx  # Dashboard tabs, charts, TeamCounsellorPanel
 │   │   ├── AdminLeadsClient.tsx      # Lead table + filters
 │   │   ├── AdminAssignmentClient.tsx # Assignment UI
-│   │   ├── AdminCounsellorClient.tsx # Counsellor management
+│   │   ├── CounsellorsClient.tsx     # Counsellor management + two-tab perf table
 │   │   ├── AdminImportClient.tsx     # CSV import wizard
 │   │   ├── AdminCoursesClient.tsx    # Course management
 │   │   ├── AdminSourcesClient.tsx    # Source management
 │   │   ├── AdminSuperFieldsClient.tsx# Custom field builder
 │   │   ├── AdminSettingsClient.tsx   # College settings
-│   │   └── TeamLeaderDashboardClient.tsx
+│   │   └── TeamLeaderDashboardClient.tsx # TL dashboard with counsellor stats
 │   ├── counsellor/
 │   │   ├── CounsellorDashboardClient.tsx
 │   │   ├── CounsellorLeadsClient.tsx
