@@ -53,13 +53,11 @@ const STAGE_PILL: Record<string, string> = {
 }
 
 const CALL_PILL: Record<string, string> = {
-  'Interested': 'text-green-600',
-  'Not Interested': 'text-red-500',
-  'Call Back': 'text-orange-500',
-  'No Answer': 'text-gray-400',
-  'Busy': 'text-yellow-600',
-  'Wrong Number': 'text-red-400',
-  'Switched Off': 'text-gray-400',
+  'Call Picked':     'text-green-600',
+  'Interested':      'text-blue-600',
+  'Not Interested':  'text-red-500',
+  'Call Not Picked': 'text-gray-400',
+  'Call Later':      'text-orange-500',
 }
 
 export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }: Props) {
