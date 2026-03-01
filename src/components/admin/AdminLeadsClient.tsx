@@ -608,7 +608,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            <Clock className="h-3.5 w-3.5" /> Follow-up Overdue
+            <Clock className="h-3.5 w-3.5" /> Follow-up Missed
             <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
               activeTab === 'followups'
                 ? 'bg-rose-100 text-rose-700'
@@ -715,8 +715,8 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
           <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 flex items-start gap-2 text-sm text-rose-800">
             <Clock className="h-4 w-4 mt-0.5 shrink-0" />
             <span>
-              <strong>Follow-up overdue:</strong> These leads had a follow-up date set in the past but have not been contacted yet.
-              The counsellor needs to call them and log the update or reschedule the follow-up.
+              <strong>Follow-up missed:</strong> These leads had a follow-up date in the past and <strong>no call was logged</strong> on or after that date.
+              The counsellor needs to call them and log the call, or reschedule the follow-up.
             </span>
           </div>
         )}

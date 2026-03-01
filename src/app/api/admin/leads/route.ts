@@ -76,6 +76,25 @@ export async function GET(request: NextRequest) {
   const isIdsOnly = sp.get('ids_only') === 'true'
   const school    = sp.get('school')   || ''   // school_name value
 
+  const EMPTY_SCOPE = ['00000000-0000-0000-0000-000000000000']
+  const scopeIds = teamCounsellorIds !== null
+    ? (teamCounsellorIds.length === 0 ? EMPTY_SCOPE : teamCounsellorIds)
+    : null
+
+  // For tab=followups we need the missed-followup IDs before building the range
+  // (a call must have been logged on/after follow_up_date for it to count as done)
+  let missedFollowupIds: string[] | null = null
+  if (tab === 'followups') {
+    const { data: rows } = await admin.rpc('get_missed_followup_ids', {
+      p_college_id: profile.college_id,
+      p_counsellor_ids: scopeIds ?? null,
+    })
+    missedFollowupIds = (rows || []).map((r: { id: string }) => r.id)
+    if (missedFollowupIds.length === 0) {
+      return NextResponse.json({ leads: [], total: 0, unassigned_total: 0, visits_overdue_total: 0, followups_overdue_total: 0 })
+    }
+  }
+
   // Apply server-side pagination (skipped for export and ids_only)
   if (!isExport && !isIdsOnly) query = query.range(page * limit, page * limit + limit - 1)
 
@@ -89,12 +108,8 @@ export async function GET(request: NextRequest) {
       .not('visit_date', 'is', null)
       .lt('visit_date', todayStr)
   } else if (tab === 'followups') {
-    // Overdue follow-ups: follow_up_date is in the past and lead is still active
-    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-    query = query
-      .not('follow_up_date', 'is', null)
-      .lt('follow_up_date', todayStr)
-      .not('current_lead_stage', 'in', '("Enrolled","Cold Lead","Wrong Lead","No Show")')
+    // Missed follow-ups: follow_up_date passed AND no call logged since then
+    query = query.in('id', missedFollowupIds!)
   } else if (tab === 'unassigned' || counsellor === 'unassigned') {
     query = query.is('assigned_to', null)
   } else if (counsellor) {
@@ -132,10 +147,6 @@ export async function GET(request: NextRequest) {
 
   // Visits overdue count: visit_date passed but still "Visit Scheduled"
   const todayForCount = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-  const EMPTY_SCOPE = ['00000000-0000-0000-0000-000000000000']
-  const scopeIds = teamCounsellorIds !== null
-    ? (teamCounsellorIds.length === 0 ? EMPTY_SCOPE : teamCounsellorIds)
-    : null
 
   let visitsOverdueQuery = admin
     .from('leads')
@@ -147,27 +158,25 @@ export async function GET(request: NextRequest) {
     .or('is_active.is.null,is_active.eq.true')
   if (scopeIds) visitsOverdueQuery = visitsOverdueQuery.in('assigned_to', scopeIds)
 
-  // Follow-ups overdue count: follow_up_date passed and lead is still active
-  let followupsOverdueQuery = admin
-    .from('leads')
-    .select('*', { count: 'exact', head: true })
-    .eq('college_id', profile.college_id)
-    .not('follow_up_date', 'is', null)
-    .lt('follow_up_date', todayForCount)
-    .not('current_lead_stage', 'in', '("Enrolled","Cold Lead","Wrong Lead","No Show")')
-    .or('is_active.is.null,is_active.eq.true')
-  if (scopeIds) followupsOverdueQuery = followupsOverdueQuery.in('assigned_to', scopeIds)
+  // Missed follow-ups count: follow_up_date passed AND no call logged since then
+  // If we already fetched the IDs above (tab=followups), reuse the count
+  const followupsOverduePromise: Promise<number> = missedFollowupIds !== null
+    ? Promise.resolve(missedFollowupIds.length)
+    : admin.rpc('get_missed_followup_ids', {
+        p_college_id: profile.college_id,
+        p_counsellor_ids: scopeIds ?? null,
+      }).then(({ data: rows }) => (rows || []).length)
 
   const [
     { data, count, error },
     { count: unassignedTotal },
     { count: visitsOverdueTotal },
-    { count: followupsOverdueTotal },
+    followupsOverdueTotal,
   ] = await Promise.all([
     query,
     unassignedCountPromise,
     visitsOverdueQuery,
-    followupsOverdueQuery,
+    followupsOverduePromise,
   ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
