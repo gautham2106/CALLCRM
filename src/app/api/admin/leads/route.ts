@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
   // For tab=followups we need the missed-followup IDs before building the range
   // (a call must have been logged on/after follow_up_date for it to count as done)
-  let missedFollowupIds: string[] | null = null
+  let missedFollowupIds: string[] = []
   if (tab === 'followups') {
     const { data: rows } = await admin.rpc('get_missed_followup_ids', {
       p_college_id: profile.college_id,
@@ -160,12 +160,14 @@ export async function GET(request: NextRequest) {
 
   // Missed follow-ups count: follow_up_date passed AND no call logged since then
   // If we already fetched the IDs above (tab=followups), reuse the count
-  const followupsOverduePromise: Promise<number> = missedFollowupIds !== null
+  const followupsOverduePromise: Promise<number> = tab === 'followups'
     ? Promise.resolve(missedFollowupIds.length)
-    : admin.rpc('get_missed_followup_ids', {
-        p_college_id: profile.college_id,
-        p_counsellor_ids: scopeIds ?? null,
-      }).then(({ data: rows }) => (rows || []).length)
+    : Promise.resolve(
+        admin.rpc('get_missed_followup_ids', {
+          p_college_id: profile.college_id,
+          p_counsellor_ids: scopeIds ?? null,
+        }).then(({ data: rows }) => (rows || []).length)
+      ).then((p) => p)
 
   const [
     { data, count, error },
