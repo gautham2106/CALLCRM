@@ -20,14 +20,16 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 const ALL_NAV_ITEMS = [
-  { href: '/admin', label: 'Dashboard', teamLeaderLabel: 'My Team', icon: LayoutDashboard, exact: true, roles: ['admin', 'team_leader'] },
-  { href: '/admin/leads', label: 'Leads', icon: Users, roles: ['admin', 'team_leader'] },
-  { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck, roles: ['admin', 'team_leader'] },
-  { href: '/admin/team-leaders', label: 'Team Leaders', icon: Shield, roles: ['admin'] },
-  { href: '/admin/super-fields', label: 'Super Fields', icon: Sliders, roles: ['admin'] },
-  { href: '/admin/sources', label: 'Lead Sources', icon: Tags, roles: ['admin'] },
-  { href: '/admin/courses', label: 'Courses', icon: BookOpen, roles: ['admin'] },
-  { href: '/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
+  // Daily use
+  { href: '/admin', label: 'Dashboard', teamLeaderLabel: 'My Team', icon: LayoutDashboard, exact: true, roles: ['admin', 'team_leader'], group: 'daily' },
+  { href: '/admin/leads', label: 'Leads', icon: Users, roles: ['admin', 'team_leader'], group: 'daily' },
+  { href: '/admin/counsellors', label: 'Counsellors', icon: UserCheck, roles: ['admin', 'team_leader'], group: 'daily' },
+  { href: '/admin/team-leaders', label: 'Team Leaders', icon: Shield, roles: ['admin'], group: 'daily' },
+  // Configuration (less frequent)
+  { href: '/admin/super-fields', label: 'Custom Fields', icon: Sliders, roles: ['admin'], group: 'config' },
+  { href: '/admin/sources', label: 'Lead Sources', icon: Tags, roles: ['admin'], group: 'config' },
+  { href: '/admin/courses', label: 'Courses', icon: BookOpen, roles: ['admin'], group: 'config' },
+  { href: '/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'], group: 'config' },
 ]
 
 interface Props {
@@ -46,6 +48,33 @@ export function AdminSidebar({ onClose, userRole = 'admin' }: Props) {
     router.push('/auth/login')
   }
 
+  const dailyItems = navItems.filter((item) => item.group === 'daily')
+  const configItems = navItems.filter((item) => item.group === 'config')
+
+  const NavLink = ({ item }: { item: typeof navItems[0] }) => {
+    const isActive = item.exact
+      ? pathname === item.href
+      : pathname.startsWith(item.href)
+    return (
+      <Link
+        href={item.href}
+        onClick={onClose}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+          isActive
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30'
+            : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+        )}
+      >
+        <item.icon className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-white' : 'text-gray-500')} />
+        <span className="flex-1">
+          {userRole === 'team_leader' && item.teamLeaderLabel ? item.teamLeaderLabel : item.label}
+        </span>
+        {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
+      </Link>
+    )
+  }
+
   return (
     <aside className="w-64 min-h-screen bg-gray-950 text-white flex flex-col shrink-0">
       {/* Logo */}
@@ -62,32 +91,20 @@ export function AdminSidebar({ onClose, userRole = 'admin' }: Props) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-widest px-3 pb-2">Navigation</p>
-        {navItems.map((item) => {
-          const isActive = item.exact
-            ? pathname === item.href
-            : pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-                isActive
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-              )}
-            >
-              <item.icon className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-white' : 'text-gray-500')} />
-              <span className="flex-1">
-                {userRole === 'team_leader' && item.teamLeaderLabel ? item.teamLeaderLabel : item.label}
-              </span>
-              {isActive && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
-            </Link>
-          )
-        })}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {/* Daily Use Section */}
+        <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-widest px-3 pb-1.5">Daily Use</p>
+        {dailyItems.map((item) => <NavLink key={item.href} item={item} />)}
+
+        {/* Configuration Section — only visible to admin */}
+        {configItems.length > 0 && (
+          <>
+            <div className="pt-4 pb-1.5">
+              <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-widest px-3">Configuration</p>
+            </div>
+            {configItems.map((item) => <NavLink key={item.href} item={item} />)}
+          </>
+        )}
       </nav>
 
       {/* Sign Out */}

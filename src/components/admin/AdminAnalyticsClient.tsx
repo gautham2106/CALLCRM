@@ -138,23 +138,31 @@ const STAGE_PILL: Record<string, string> = {
   'Wrong Lead': 'bg-red-100 text-red-500',
 }
 
-type TabId = 'teams' | 'overview' | 'pipeline' | 'interest'
+type TabId = 'overview' | 'teams' | 'pipeline' | 'interest'
 
 // ============================================================
 // Root Component
 // ============================================================
 export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolInterest = [], counsellorInterest = [], teamPerformance = [], counsellorStats = [] }: Props) {
-  const [tab, setTab] = useState<TabId>('teams')
+  const [tab, setTab] = useState<TabId>('overview')
 
-  const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
-    { id: 'teams',    label: 'Team Performance', icon: Shield },
-    { id: 'overview', label: 'Overview',          icon: TrendingUp },
-    { id: 'pipeline', label: 'Pipeline & Sources', icon: Activity },
-    { id: 'interest', label: 'Interest Analytics', icon: Target },
+  const tabs: { id: TabId; label: string; sub: string; icon: React.ElementType }[] = [
+    { id: 'overview', label: 'Daily Snapshot',   sub: 'Check every morning',      icon: TrendingUp },
+    { id: 'teams',    label: 'Team Performance', sub: 'Track each team\'s results', icon: Shield },
+    { id: 'pipeline', label: 'Lead Pipeline',    sub: 'Where leads come from & go', icon: Activity },
+    { id: 'interest', label: 'School Interests', sub: 'What students want',         icon: Target },
   ]
+
+  const TAB_GUIDE: Record<TabId, string> = {
+    overview: 'Use this every morning. Check stale leads, unassigned leads, and follow-ups that need attention today.',
+    teams:    'Use this to see how each team and counsellor is performing. Click any number to drill into those leads.',
+    pipeline: 'Use this to see which lead sources bring the most enrollments and where leads get stuck.',
+    interest: 'Use this to see which schools and courses students are most interested in.',
+  }
 
   return (
     <div>
+      {/* Tab Bar */}
       <div className="bg-white border-b border-gray-200 px-2 sm:px-6 overflow-x-auto">
         <div className="flex">
           {tabs.map((t) => {
@@ -164,23 +172,35 @@ export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolI
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`flex items-center gap-2 px-3 sm:px-5 py-4 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                className={`flex flex-col items-start px-3 sm:px-5 py-3 border-b-2 whitespace-nowrap transition-colors text-left ${
                   active
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                {t.label}
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {t.label}
+                </span>
+                <span className={`text-[11px] mt-0.5 ${active ? 'text-blue-400' : 'text-gray-400'}`}>
+                  {t.sub}
+                </span>
               </button>
             )
           })}
         </div>
       </div>
 
+      {/* Tab usage guide banner */}
+      <div className="bg-blue-50 border-b border-blue-100 px-4 sm:px-6 py-2">
+        <p className="text-xs text-blue-700">
+          <span className="font-semibold">Guide: </span>{TAB_GUIDE[tab]}
+        </p>
+      </div>
+
       <div className="p-4 sm:p-6 space-y-6">
-        {tab === 'teams'    && <TeamsTab teams={teamPerformance} counsellorStats={counsellorStats} />}
         {tab === 'overview' && <OverviewTab overview={overview} funnelData={funnelData} />}
+        {tab === 'teams'    && <TeamsTab teams={teamPerformance} counsellorStats={counsellorStats} />}
         {tab === 'pipeline' && <PipelineTab funnelData={funnelData} sourceData={sourceData} overview={overview} />}
         {tab === 'interest' && <InterestTab schoolInterest={schoolInterest} counsellorInterest={counsellorInterest} />}
       </div>
@@ -189,42 +209,86 @@ export function AdminAnalyticsClient({ overview, funnelData, sourceData, schoolI
 }
 
 // ============================================================
-// Tab 1 — Team Overview
+// Tab 1 — Daily Snapshot (Overview)
 // ============================================================
 function OverviewTab({ overview, funnelData }: { overview: Overview; funnelData: FunnelEntry[] }) {
   const maxCount = Math.max(...funnelData.map((f) => f.count), 1)
+  const attentionItems = [
+    overview.staleLeads > 0 && { label: `${overview.staleLeads} stale lead${overview.staleLeads > 1 ? 's' : ''} — no activity for 3+ days`, urgency: 'red', href: '/admin/leads?filter=stale', action: 'Go to Leads & assign or follow up' },
+    overview.unassigned > 0 && { label: `${overview.unassigned} lead${overview.unassigned > 1 ? 's' : ''} not assigned to any counsellor`, urgency: 'orange', href: '/admin/leads?tab=unassigned', action: 'Assign to a counsellor now' },
+    overview.todayFollowUps > 0 && { label: `${overview.todayFollowUps} follow-up${overview.todayFollowUps > 1 ? 's' : ''} are due today`, urgency: 'blue', href: '/admin/leads?tab=followups', action: 'Check counsellors are on top of these' },
+    overview.todayVisits > 0 && { label: `${overview.todayVisits} campus visit${overview.todayVisits > 1 ? 's' : ''} scheduled today`, urgency: 'purple', href: '/admin/leads?tab=visits', action: 'Make sure counsellors are prepared' },
+  ].filter(Boolean) as { label: string; urgency: string; href: string; action: string }[]
+
+  const urgencyStyle: Record<string, string> = {
+    red:    'bg-red-50 border-red-200 text-red-800',
+    orange: 'bg-orange-50 border-orange-200 text-orange-800',
+    blue:   'bg-blue-50 border-blue-200 text-blue-800',
+    purple: 'bg-purple-50 border-purple-200 text-purple-800',
+  }
+  const urgencyDot: Record<string, string> = {
+    red: 'bg-red-500', orange: 'bg-orange-400', blue: 'bg-blue-500', purple: 'bg-purple-500',
+  }
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-        <KPICard label="Total Leads" value={overview.totalLeads} icon={<Users className="h-5 w-5" />} iconBg="bg-blue-50" iconColor="text-blue-600" sub="active pipeline" />
-        <KPICard label="Enrolled" value={overview.enrolled} icon={<GraduationCap className="h-5 w-5" />} iconBg="bg-green-50" iconColor="text-green-600" sub={`${overview.conversionRate}% conversion`} subColor="text-green-600" />
-        <KPICard label="In Progress" value={overview.inProgress} icon={<TrendingUp className="h-5 w-5" />} iconBg="bg-indigo-50" iconColor="text-indigo-600" sub="being worked" />
-        <KPICard label="Cold / Wrong" value={overview.coldWrong} icon={<UserX className="h-5 w-5" />} iconBg="bg-gray-100" iconColor="text-gray-500" sub="not converting" />
+
+      {/* ── What needs attention ── */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-gray-500 shrink-0" />
+          <span className="text-sm font-semibold text-gray-700">What Needs Attention Right Now</span>
+          {attentionItems.length === 0 && (
+            <span className="ml-auto text-xs text-green-600 font-medium">All clear — nothing urgent</span>
+          )}
+        </div>
+        {attentionItems.length === 0 ? (
+          <div className="px-5 py-6 text-center text-gray-400 text-sm">No urgent items today. Your pipeline is healthy.</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {attentionItems.map((item, i) => (
+              <a key={i} href={item.href} className={`flex items-start gap-3 px-5 py-3.5 border-l-4 ${urgencyStyle[item.urgency]} hover:opacity-80 transition-opacity`}
+                style={{ borderLeftColor: item.urgency === 'red' ? '#ef4444' : item.urgency === 'orange' ? '#f97316' : item.urgency === 'blue' ? '#3b82f6' : '#a855f7' }}
+              >
+                <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${urgencyDot[item.urgency]}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">{item.label}</p>
+                  <p className="text-xs mt-0.5 opacity-70">Action: {item.action}</p>
+                </div>
+                <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-50" />
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
-      {(overview.staleLeads > 0 || overview.unassigned > 0 || overview.todayFollowUps > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <FlagCard value={overview.staleLeads} label="Stale Leads (3+ days silent)" icon={<AlertCircle className="h-5 w-5" />} color={overview.staleLeads > 0 ? 'red' : 'gray'} />
-          <FlagCard value={overview.unassigned} label="Unassigned Leads" icon={<Users className="h-5 w-5" />} color={overview.unassigned > 0 ? 'orange' : 'gray'} />
-          <FlagCard value={overview.todayFollowUps} label="Follow-ups Due Today" icon={<Clock className="h-5 w-5" />} color={overview.todayFollowUps > 0 ? 'blue' : 'gray'} />
-        </div>
-      )}
-
+      {/* ── Overall pipeline health ── */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Today&apos;s Pulse</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <PulseCard label="Calls Logged" value={overview.callsToday} icon={<PhoneCall className="h-4 w-4 text-blue-500" />} bg="bg-blue-50" />
-          <PulseCard label="Follow-ups" value={overview.todayFollowUps} icon={<Clock className="h-4 w-4 text-amber-500" />} bg="bg-amber-50" />
-          <PulseCard label="Campus Visits" value={overview.todayVisits} icon={<Building2 className="h-4 w-4 text-purple-500" />} bg="bg-purple-50" />
-          <PulseCard label="Stale Leads" value={overview.staleLeads} icon={<AlertCircle className="h-4 w-4 text-red-400" />} bg="bg-red-50" />
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Overall Pipeline Health</p>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+          <KPICard label="Total Leads" value={overview.totalLeads} icon={<Users className="h-5 w-5" />} iconBg="bg-blue-50" iconColor="text-blue-600" sub="active pipeline" />
+          <KPICard label="Enrolled" value={overview.enrolled} icon={<GraduationCap className="h-5 w-5" />} iconBg="bg-green-50" iconColor="text-green-600" sub={`${overview.conversionRate}% conversion`} subColor="text-green-600" />
+          <KPICard label="In Progress" value={overview.inProgress} icon={<TrendingUp className="h-5 w-5" />} iconBg="bg-indigo-50" iconColor="text-indigo-600" sub="being worked" />
+          <KPICard label="Cold / Wrong" value={overview.coldWrong} icon={<UserX className="h-5 w-5" />} iconBg="bg-gray-100" iconColor="text-gray-500" sub="not converting" />
         </div>
       </div>
 
+      {/* ── Today's activity ── */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Today&apos;s Activity</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <PulseCard label="Calls Logged Today" value={overview.callsToday} icon={<PhoneCall className="h-4 w-4 text-blue-500" />} bg="bg-blue-50" />
+          <PulseCard label="Follow-ups Due" value={overview.todayFollowUps} icon={<Clock className="h-4 w-4 text-amber-500" />} bg="bg-amber-50" />
+          <PulseCard label="Campus Visits" value={overview.todayVisits} icon={<Building2 className="h-4 w-4 text-purple-500" />} bg="bg-purple-50" />
+          <PulseCard label="Stale (3+ days)" value={overview.staleLeads} icon={<AlertCircle className="h-4 w-4 text-red-400" />} bg="bg-red-50" />
+        </div>
+      </div>
+
+      {/* ── Where are all leads right now ── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">Lead Stage Snapshot</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Where every lead sits right now</p>
+          <h3 className="font-semibold text-gray-900">Where Are All Leads Right Now?</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Each bar shows how many leads are at that stage — longer bar = more leads</p>
         </div>
         <div className="p-5 space-y-3">
           {funnelData.map((item) => {
@@ -932,17 +996,32 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
   return (
     <div className="border-t border-gray-200 bg-gray-50">
       <div className="overflow-x-auto">
+        {/* Color legend */}
+        <div className="px-5 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
+          <span className="font-semibold text-gray-500 uppercase tracking-wider">Key:</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Good</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Moderate</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Needs action — click the number</span>
+        </div>
         <table className="w-full text-xs">
           <thead className="bg-gray-100 border-b border-gray-200">
+            {/* Column group row */}
+            <tr className="border-b border-gray-200">
+              <th className="text-left px-5 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider" colSpan={1} />
+              <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-blue-500 uppercase tracking-wider border-l border-gray-200" colSpan={3}>Pipeline</th>
+              <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-green-600 uppercase tracking-wider border-l border-gray-200" colSpan={3}>Results</th>
+              <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-red-500 uppercase tracking-wider border-l border-gray-200" colSpan={4}>Needs Action (click to fix)</th>
+              <th className="px-4 py-1.5" />
+            </tr>
             <tr>
               <th className="text-left px-5 py-2.5 font-semibold text-gray-500">Counsellor</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Assigned</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500 border-l border-gray-100">Assigned</th>
               <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Called</th>
               <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Not Called</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Interested</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500 border-l border-gray-100">Interested</th>
               <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Enrolled</th>
               <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Conv%</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Follow-ups</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-gray-500 border-l border-gray-100">Follow-ups Today</th>
               <th className="text-right px-4 py-2.5 font-semibold text-red-400">Missed F/U</th>
               <th className="text-right px-4 py-2.5 font-semibold text-red-400">Visit Overdue</th>
               <th className="text-right px-4 py-2.5 font-semibold text-orange-400">No Show</th>

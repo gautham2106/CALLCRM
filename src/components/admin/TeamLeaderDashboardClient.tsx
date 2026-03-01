@@ -188,40 +188,43 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
 
         {/* Attention Needed */}
         {needsAttention.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-              <p className="text-sm font-semibold text-amber-800">Attention Needed</p>
+          <div className="bg-amber-50 border border-amber-300 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 bg-amber-100 border-b border-amber-200 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-700 shrink-0" />
+              <p className="text-sm font-bold text-amber-800">Action Required — These counsellors need your attention</p>
+              <span className="ml-auto text-xs text-amber-600">Click any item to open those leads</span>
             </div>
-            <div className="space-y-1.5">
+            <div className="divide-y divide-amber-100">
               {needsAttention.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-4">
-                  <Link href={`/admin/counsellors/${c.id}`} className="text-sm font-medium text-amber-900 hover:underline truncate">
+                <div key={c.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <Link href={`/admin/counsellors/${c.id}`} className="text-sm font-semibold text-amber-900 hover:underline truncate shrink-0">
                     {c.name}
                   </Link>
-                  <div className="flex items-center gap-3 text-xs shrink-0 flex-wrap justify-end">
+                  <div className="flex items-center gap-2 text-xs shrink-0 flex-wrap justify-end">
                     {c.missedFollowups > 0 && (
-                      <Link href={leadsUrl(c.id, 'tab=followups')} className="text-red-600 font-semibold hover:underline">
-                        {c.missedFollowups} missed F/U
+                      <Link href={leadsUrl(c.id, 'tab=followups')} className="inline-flex items-center gap-1 bg-red-100 text-red-700 font-semibold px-2.5 py-1 rounded-full hover:bg-red-200 transition-colors">
+                        {c.missedFollowups} missed follow-up{c.missedFollowups > 1 ? 's' : ''}
                       </Link>
                     )}
                     {c.visitsOverdue > 0 && (
-                      <Link href={leadsUrl(c.id, 'tab=visits')} className="text-red-600 font-semibold hover:underline">
+                      <Link href={leadsUrl(c.id, 'tab=visits')} className="inline-flex items-center gap-1 bg-red-100 text-red-700 font-semibold px-2.5 py-1 rounded-full hover:bg-red-200 transition-colors">
                         {c.visitsOverdue} visit{c.visitsOverdue > 1 ? 's' : ''} overdue
                       </Link>
                     )}
                     {c.noShow > 0 && (
-                      <Link href={leadsUrl(c.id, 'stage=No+Show')} className="text-orange-600 font-medium hover:underline">
-                        {c.noShow} no show
+                      <Link href={leadsUrl(c.id, 'stage=No+Show')} className="inline-flex items-center gap-1 bg-orange-100 text-orange-700 font-medium px-2.5 py-1 rounded-full hover:bg-orange-200 transition-colors">
+                        {c.noShow} no-show
                       </Link>
                     )}
                     {c.notCalled > 5 && (
-                      <Link href={leadsUrl(c.id)} className="text-gray-600 font-medium hover:underline">
+                      <Link href={leadsUrl(c.id)} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 font-medium px-2.5 py-1 rounded-full hover:bg-gray-200 transition-colors">
                         {c.notCalled} not called
                       </Link>
                     )}
                     {c.followUpsToday > 0 && (
-                      <span className="text-blue-600 font-medium">{c.followUpsToday} due today</span>
+                      <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 font-medium px-2.5 py-1 rounded-full">
+                        {c.followUpsToday} due today
+                      </span>
                     )}
                   </div>
                 </div>
@@ -239,11 +242,14 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-4 sm:px-6 py-3 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-900">Counsellor Performance</h2>
+            <div className="px-4 sm:px-6 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Counsellor Performance Table</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Sort any column by clicking its header. Red numbers need action — click them to open those leads.</p>
+              </div>
               <Link
                 href="/admin/leads"
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 shrink-0"
               >
                 View all leads →
               </Link>
@@ -251,8 +257,22 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
 
             {/* Desktop table */}
             <div className="hidden sm:block overflow-x-auto">
+              {/* Color legend */}
+              <div className="px-6 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
+                <span className="font-semibold text-gray-500 uppercase tracking-wider">Key:</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Good</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Needs attention — click numbers to open those leads</span>
+              </div>
               <table className="w-full text-sm">
                 <thead>
+                  {/* Column group headers */}
+                  <tr className="border-b border-gray-100 bg-gray-50 text-[10px] font-semibold uppercase tracking-wider">
+                    <th className="px-6 py-1.5 text-left text-gray-400" />
+                    <th className="px-4 py-1.5 text-center text-blue-500 border-l border-gray-200" colSpan={3}>Pipeline</th>
+                    <th className="px-4 py-1.5 text-center text-green-600 border-l border-gray-200" colSpan={4}>Results</th>
+                    <th className="px-4 py-1.5 text-center text-red-500 border-l border-gray-200" colSpan={4}>Needs Action ↓</th>
+                    <th />
+                  </tr>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <SortTh label="Counsellor"    col="name"          right={false} />
                     <SortTh label="Assigned"       col="assigned" />
@@ -262,7 +282,7 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                     <SortTh label="Not Interested" col="notInterested" />
                     <SortTh label="Enrolled"       col="enrolled" />
                     <SortTh label="Conv %"         col="conversion" />
-                    <SortTh label="Follow-ups"     col="followUpsToday" />
+                    <SortTh label="Follow-ups Today" col="followUpsToday" />
                     <SortTh label="Missed F/U"     col="missedFollowups" />
                     <SortTh label="Visit Overdue"  col="visitsOverdue" />
                     <SortTh label="No Show"        col="noShow" />

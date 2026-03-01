@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireCounsellor } from '@/lib/auth'
 import {
-  PhoneCall, Users, TrendingUp, GraduationCap, Clock, AlertTriangle, ArrowUpRight, Building2, XCircle,
+  PhoneCall, Users, TrendingUp, GraduationCap, Clock, ArrowUpRight, Building2,
+  CheckCircle2,
 } from 'lucide-react'
 import Link from 'next/link'
 import { LEAD_STAGE_COLORS, todayIST } from '@/lib/utils'
@@ -69,6 +70,97 @@ export default async function CounsellorDashboard() {
       <PushNotificationSetup todayFollowUps={todayFollowUps.length} todayVisits={todayVisits.length} />
 
       <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+
+        {/* ── Today's Action Plan ── */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-gray-500 shrink-0" />
+            <span className="text-sm font-semibold text-gray-700">Today&apos;s Action Plan</span>
+            <span className="ml-auto text-xs text-gray-400">Work through these in order ↓</span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {/* Step 1 — Missed follow-ups (URGENT) */}
+            <Link
+              href="/counsellor/leads?filter=missed-followup"
+              className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${missedFollowups > 0 ? 'hover:bg-red-50' : 'opacity-50 pointer-events-none'}`}
+            >
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${missedFollowups > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-400'}`}>1</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${missedFollowups > 0 ? 'text-red-700' : 'text-gray-400'}`}>
+                  {missedFollowups > 0 ? `Fix ${missedFollowups} missed follow-up${missedFollowups > 1 ? 's' : ''}` : 'No missed follow-ups'}
+                  {missedFollowups > 0 && <span className="ml-1.5 text-xs font-normal text-red-500">— overdue from a previous day</span>}
+                </p>
+              </div>
+              {missedFollowups > 0 && (
+                <span className="shrink-0 text-xs font-bold text-red-600 bg-red-100 px-2.5 py-1 rounded-full">URGENT</span>
+              )}
+              {missedFollowups === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
+            </Link>
+
+            {/* Step 2 — Today's follow-ups */}
+            <Link
+              href="/counsellor/leads?filter=today"
+              className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${todayFollowUps.length > 0 ? 'hover:bg-orange-50' : 'opacity-50 pointer-events-none'}`}
+            >
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${todayFollowUps.length > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>2</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${todayFollowUps.length > 0 ? 'text-orange-700' : 'text-gray-400'}`}>
+                  {todayFollowUps.length > 0 ? `Call ${todayFollowUps.length} follow-up${todayFollowUps.length > 1 ? 's' : ''} scheduled for today` : 'No follow-ups today'}
+                </p>
+              </div>
+              {todayFollowUps.length > 0 && <ArrowUpRight className="h-4 w-4 text-orange-500 shrink-0" />}
+              {todayFollowUps.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
+            </Link>
+
+            {/* Step 3 — Today's visits */}
+            <Link
+              href="/counsellor/leads?filter=visits"
+              className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${todayVisits.length > 0 ? 'hover:bg-purple-50' : 'opacity-50 pointer-events-none'}`}
+            >
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${todayVisits.length > 0 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-400'}`}>3</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${todayVisits.length > 0 ? 'text-purple-700' : 'text-gray-400'}`}>
+                  {todayVisits.length > 0 ? `Handle ${todayVisits.length} campus visit${todayVisits.length > 1 ? 's' : ''} today` : 'No campus visits today'}
+                  {visitsOverdue > 0 && <span className="ml-1.5 text-xs font-normal text-red-500">+ {visitsOverdue} overdue visit{visitsOverdue > 1 ? 's' : ''}</span>}
+                </p>
+              </div>
+              {(todayVisits.length > 0 || visitsOverdue > 0) && <ArrowUpRight className="h-4 w-4 text-purple-500 shrink-0" />}
+              {todayVisits.length === 0 && visitsOverdue === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
+            </Link>
+
+            {/* Step 4 — New leads not called */}
+            <Link
+              href="/counsellor/leads?filter=not-called"
+              className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${notCalled.length > 0 ? 'hover:bg-blue-50' : 'opacity-50 pointer-events-none'}`}
+            >
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${notCalled.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>4</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${notCalled.length > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
+                  {notCalled.length > 0 ? `Call ${notCalled.length} new lead${notCalled.length > 1 ? 's' : ''} you haven't contacted yet` : 'All leads contacted'}
+                </p>
+              </div>
+              {notCalled.length > 0 && <ArrowUpRight className="h-4 w-4 text-blue-500 shrink-0" />}
+              {notCalled.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
+            </Link>
+
+            {/* Step 5 — No-shows to reschedule */}
+            <Link
+              href="/counsellor/leads?filter=no-show"
+              className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${noShow > 0 ? 'hover:bg-amber-50' : 'opacity-50 pointer-events-none'}`}
+            >
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${noShow > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>5</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${noShow > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
+                  {noShow > 0 ? `Reschedule ${noShow} no-show${noShow > 1 ? 's' : ''}` : 'No no-shows to reschedule'}
+                  {noShow > 0 && <span className="ml-1.5 text-xs font-normal text-amber-600">— student didn&apos;t show up for visit</span>}
+                </p>
+              </div>
+              {noShow > 0 && <ArrowUpRight className="h-4 w-4 text-amber-500 shrink-0" />}
+              {noShow === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
+            </Link>
+          </div>
+        </div>
+
         {/* KPI Cards */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <Link href="/counsellor/leads" className="group">
@@ -119,53 +211,6 @@ export default async function CounsellorDashboard() {
           </div>
         </div>
 
-        {/* Alert Strip */}
-        {(missedFollowups > 0 || visitsOverdue > 0 || noShow > 0 || todayFollowUps.length > 0 || todayVisits.length > 0 || notCalled.length > 0) && (
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            {missedFollowups > 0 && (
-              <Link href="/counsellor/leads?filter=missed-followup" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-800 text-sm font-semibold hover:bg-red-100 transition-colors">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                {missedFollowups} missed follow-up{missedFollowups > 1 ? 's' : ''}
-                <ArrowUpRight className="h-3 w-3 opacity-60" />
-              </Link>
-            )}
-            {visitsOverdue > 0 && (
-              <Link href="/counsellor/leads?filter=visit-overdue" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-800 text-sm font-semibold hover:bg-red-100 transition-colors">
-                <Building2 className="h-4 w-4 text-red-500" />
-                {visitsOverdue} visit{visitsOverdue > 1 ? 's' : ''} overdue
-                <ArrowUpRight className="h-3 w-3 opacity-60" />
-              </Link>
-            )}
-            {noShow > 0 && (
-              <Link href="/counsellor/leads?filter=no-show" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-300 bg-orange-50 text-orange-800 text-sm font-semibold hover:bg-orange-100 transition-colors">
-                <XCircle className="h-4 w-4 text-orange-500" />
-                {noShow} no show{noShow > 1 ? 's' : ''} — reschedule
-                <ArrowUpRight className="h-3 w-3 opacity-60" />
-              </Link>
-            )}
-            {todayFollowUps.length > 0 && (
-              <Link href="/counsellor/leads?filter=today" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-200 bg-orange-50 text-orange-800 text-sm font-medium hover:bg-orange-100 transition-colors">
-                <Clock className="h-4 w-4 text-orange-500" />
-                {todayFollowUps.length} follow-up{todayFollowUps.length > 1 ? 's' : ''} today
-                <ArrowUpRight className="h-3 w-3 opacity-60" />
-              </Link>
-            )}
-            {todayVisits.length > 0 && (
-              <Link href="/counsellor/leads?filter=visits" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-purple-200 bg-purple-50 text-purple-800 text-sm font-medium hover:bg-purple-100 transition-colors">
-                <Building2 className="h-4 w-4 text-purple-500" />
-                {todayVisits.length} visit{todayVisits.length > 1 ? 's' : ''} today
-                <ArrowUpRight className="h-3 w-3 opacity-60" />
-              </Link>
-            )}
-            {notCalled.length > 0 && (
-              <Link href="/counsellor/leads?filter=not-called" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-red-800 text-sm font-medium hover:bg-red-100 transition-colors">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                {notCalled.length} leads not called yet
-                <ArrowUpRight className="h-3 w-3 opacity-60" />
-              </Link>
-            )}
-          </div>
-        )}
 
         {/* Lists */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
