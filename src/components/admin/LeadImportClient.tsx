@@ -41,7 +41,7 @@ interface Props {
   adminId: string
   sources: { id: string; source_name: string }[]
   courses: { id: string; course_name: string }[]
-  counsellors: { id: string; full_name: string }[]
+  counsellors: { id: string; name: string }[]
   customFields: CustomFieldDef[]
 }
 
@@ -507,7 +507,7 @@ export function LeadImportClient({ collegeId, adminId, sources, courses, counsel
                       <SelectContent>
                         <SelectItem value="__none__">— Leave unassigned —</SelectItem>
                         {counsellors.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -575,7 +575,7 @@ export function LeadImportClient({ collegeId, adminId, sources, courses, counsel
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Import Complete!</h2>
             {assignCounsellorId !== '__none__' && (
               <p className="text-sm text-blue-600 mb-2">
-                Assigned to <strong>{counsellors.find(c => c.id === assignCounsellorId)?.full_name}</strong> — they&apos;ve been notified.
+                Assigned to <strong>{counsellors.find(c => c.id === assignCounsellorId)?.name}</strong> — they&apos;ve been notified.
               </p>
             )}
             <div className="flex items-center justify-center gap-8 my-6">

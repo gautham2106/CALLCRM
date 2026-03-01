@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
   // Validate source_id belongs to this college (if provided)
   if (source_id) {
     const { data: sourceRow } = await admin
-      .from('sources')
+      .from('lead_sources')
       .select('id')
       .eq('id', source_id)
       .eq('college_id', profile.college_id)

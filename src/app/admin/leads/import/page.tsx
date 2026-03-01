@@ -19,11 +19,11 @@ export default async function ImportLeadsPage() {
       .eq('is_active', true),
     supabase
       .from('users')
-      .select('id, full_name')
+      .select('id, name')
       .eq('college_id', user.college_id!)
       .eq('role', 'counsellor')
       .eq('is_active', true)
-      .order('full_name'),
+      .order('name'),
     supabase
       .from('custom_field_definitions')
       .select('id, field_name, field_type, is_required')
