@@ -786,7 +786,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             </div>
             <div className="overflow-x-auto">
               {/* table-fixed + explicit col widths = every column exactly even */}
-              <table className="w-full text-sm table-fixed">
+              <table className="w-full min-w-max text-sm table-fixed">
                 <colgroup>
                   <col className="w-[220px]" />{/* Counsellor */}
                   <col className="w-[100px]" />{/* Status */}
