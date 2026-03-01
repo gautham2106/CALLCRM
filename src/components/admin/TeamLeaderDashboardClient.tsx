@@ -2,7 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Users, Phone, UserCheck, Calendar, AlertCircle, ArrowUpDown } from 'lucide-react'
+import { Users, Phone, UserCheck, Calendar, AlertCircle, ArrowUpDown, UserPlus, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { toast } from '@/components/ui/use-toast'
 
 interface CounsellorStat {
   id: string
@@ -23,11 +28,52 @@ interface Props {
   todayDate: string
 }
 
+const BLANK_FORM = { name: '', email: '', phone: '', pin: '', confirmPin: '' }
+
 type SortKey = 'name' | 'assigned' | 'called' | 'notCalled' | 'interested' | 'notInterested' | 'enrolled' | 'conversion' | 'followUpsToday'
 
-export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, todayDate }: Props) {
+export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: initialStats, todayDate }: Props) {
+  const [counsellorStats, setCounsellorStats] = useState<CounsellorStat[]>(initialStats)
   const [sortKey, setSortKey] = useState<SortKey>('notCalled')
   const [sortAsc, setSortAsc] = useState(false)
+  const [showAddDialog, setShowAddDialog] = useState(false)
+  const [form, setForm] = useState(BLANK_FORM)
+  const [saving, setSaving] = useState(false)
+
+  function setField(field: keyof typeof BLANK_FORM, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  async function handleCreate() {
+    if (!form.name.trim() || !form.email.trim() || !form.pin.trim()) {
+      toast({ title: 'Name, email and PIN are required', variant: 'destructive' })
+      return
+    }
+    if (form.pin !== form.confirmPin) {
+      toast({ title: 'PINs do not match', variant: 'destructive' })
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/team-leader/counsellors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() || undefined, pin: form.pin }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast({ title: data.error || 'Failed to create counsellor', variant: 'destructive' }); return }
+      // Optimistically add to stats with zeroes
+      setCounsellorStats((prev) => [...prev, {
+        id: data.user.id, name: data.user.name,
+        assigned: 0, called: 0, notCalled: 0, interested: 0, notInterested: 0, enrolled: 0, conversion: 0, followUpsToday: 0,
+      }])
+      toast({ title: `${data.user.name} added to your team` })
+      setShowAddDialog(false)
+      setForm(BLANK_FORM)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const totalAssigned  = counsellorStats.reduce((s, c) => s + c.assigned,      0)
   const totalEnrolled  = counsellorStats.reduce((s, c) => s + c.enrolled,      0)
@@ -82,9 +128,15 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, tod
               })}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-sm font-medium text-gray-900">{teamLeaderName}</p>
-            <p className="text-xs text-gray-500">Team Leader</p>
+          <div className="flex items-center gap-3">
+            <Button size="sm" onClick={() => setShowAddDialog(true)} className="flex items-center gap-1.5">
+              <UserPlus className="h-3.5 w-3.5" />
+              Add Counsellor
+            </Button>
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-900">{teamLeaderName}</p>
+              <p className="text-xs text-gray-500">Team Leader</p>
+            </div>
           </div>
         </div>
       </div>
@@ -277,6 +329,45 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats, tod
           </div>
         )}
       </div>
+
+      {/* Add Counsellor Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) setForm(BLANK_FORM) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Counsellor to Your Team</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Name *</Label>
+              <Input placeholder="Full name" value={form.name} onChange={(e) => setField('name', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email *</Label>
+              <Input type="email" placeholder="Email address" value={form.email} onChange={(e) => setField('email', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input type="tel" placeholder="Phone number (optional)" value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>PIN * <span className="text-gray-400 font-normal text-xs">(6 digits)</span></Label>
+                <Input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={form.pin} onChange={(e) => setField('pin', e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Confirm PIN *</Label>
+                <Input type="password" inputMode="numeric" maxLength={6} placeholder="••••••" value={form.confirmPin} onChange={(e) => setField('confirmPin', e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddDialog(false); setForm(BLANK_FORM) }} disabled={saving}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={saving}>
+              {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Creating…</> : 'Create Counsellor'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
