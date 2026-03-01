@@ -79,7 +79,10 @@ interface TeamPerformance {
   not_called: number
   interested: number
   not_interested: number
+  visit_scheduled: number
   visit_done: number
+  no_show: number
+  visits_overdue: number
   enrolled: number
   cold_wrong: number
   stale: number
@@ -97,6 +100,9 @@ interface CounsellorStat {
   enrolled: number
   conversion: number
   followUpsToday: number
+  noShow: number
+  visitsOverdue: number
+  missedFollowups: number
 }
 
 interface Props {
@@ -880,6 +886,16 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
               <span className={`text-xs font-medium ${team.followups_today > 0 ? 'text-blue-500' : 'text-gray-400'}`}>
                 Follow-ups today: <strong>{team.followups_today}</strong>
               </span>
+              {team.visits_overdue > 0 && (
+                <span className="text-xs font-medium text-red-500">
+                  Visits overdue: <strong>{team.visits_overdue}</strong>
+                </span>
+              )}
+              {team.no_show > 0 && (
+                <span className="text-xs font-medium text-orange-500">
+                  No show: <strong>{team.no_show}</strong>
+                </span>
+              )}
               <span className="text-xs text-gray-400">{team.not_called.toLocaleString()} uncalled</span>
               <button
                 onClick={() => setExpandedTeam(isExpanded ? null : team.team_leader_id)}
@@ -927,6 +943,9 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
               <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Enrolled</th>
               <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Conv%</th>
               <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Follow-ups</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-red-400">Missed F/U</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-red-400">Visit Overdue</th>
+              <th className="text-right px-4 py-2.5 font-semibold text-orange-400">No Show</th>
               <th className="px-4 py-2.5" />
             </tr>
           </thead>
@@ -948,6 +967,15 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums">
                   <span className={c.followUpsToday > 0 ? 'text-orange-500 font-medium' : 'text-gray-400'}>{c.followUpsToday}</span>
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums">
+                  <span className={c.missedFollowups > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}>{c.missedFollowups}</span>
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums">
+                  <span className={c.visitsOverdue > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}>{c.visitsOverdue}</span>
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums">
+                  <span className={c.noShow > 0 ? 'text-orange-500 font-medium' : 'text-gray-300'}>{c.noShow}</span>
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <Link

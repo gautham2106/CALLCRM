@@ -20,6 +20,9 @@ interface CounsellorStat {
   enrolled: number
   conversion: number
   followUpsToday: number
+  noShow: number
+  visitsOverdue: number
+  missedFollowups: number
 }
 
 interface Props {
@@ -30,7 +33,7 @@ interface Props {
 
 const BLANK_FORM = { name: '', email: '', phone: '', pin: '', confirmPin: '' }
 
-type SortKey = 'name' | 'assigned' | 'called' | 'notCalled' | 'interested' | 'notInterested' | 'enrolled' | 'conversion' | 'followUpsToday'
+type SortKey = 'name' | 'assigned' | 'called' | 'notCalled' | 'interested' | 'notInterested' | 'enrolled' | 'conversion' | 'followUpsToday' | 'missedFollowups' | 'visitsOverdue' | 'noShow'
 
 export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: initialStats, todayDate }: Props) {
   const [counsellorStats, setCounsellorStats] = useState<CounsellorStat[]>(initialStats)
@@ -65,7 +68,8 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
       // Optimistically add to stats with zeroes
       setCounsellorStats((prev) => [...prev, {
         id: data.user.id, name: data.user.name,
-        assigned: 0, called: 0, notCalled: 0, interested: 0, notInterested: 0, enrolled: 0, conversion: 0, followUpsToday: 0,
+        assigned: 0, called: 0, notCalled: 0, interested: 0, notInterested: 0, enrolled: 0, conversion: 0,
+        followUpsToday: 0, noShow: 0, visitsOverdue: 0, missedFollowups: 0,
       }])
       toast({ title: `${data.user.name} added to your team` })
       setShowAddDialog(false)
@@ -96,11 +100,14 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
     return sortAsc ? cmp : -cmp
   })
 
-  // Attention Needed: counsellors with high not-called counts or pending follow-ups
+  // Attention Needed: counsellors with any actionable overdue item
   const needsAttention = counsellorStats
-    .filter((c) => c.notCalled > 5 || c.followUpsToday > 0)
-    .sort((a, b) => (b.notCalled + b.followUpsToday * 2) - (a.notCalled + a.followUpsToday * 2))
-    .slice(0, 4)
+    .filter((c) => c.notCalled > 5 || c.followUpsToday > 0 || c.missedFollowups > 0 || c.visitsOverdue > 0 || c.noShow > 0)
+    .sort((a, b) =>
+      (b.missedFollowups * 3 + b.visitsOverdue * 3 + b.noShow * 2 + b.notCalled + b.followUpsToday * 2) -
+      (a.missedFollowups * 3 + a.visitsOverdue * 3 + a.noShow * 2 + a.notCalled + a.followUpsToday * 2)
+    )
+    .slice(0, 5)
 
   const SortTh = ({ label, col, right = true }: { label: string; col: SortKey; right?: boolean }) => (
     <th
@@ -188,12 +195,21 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                   <Link href={`/admin/counsellors/${c.id}`} className="text-sm font-medium text-amber-900 hover:underline truncate">
                     {c.name}
                   </Link>
-                  <div className="flex items-center gap-3 text-xs shrink-0">
+                  <div className="flex items-center gap-3 text-xs shrink-0 flex-wrap justify-end">
+                    {c.missedFollowups > 0 && (
+                      <span className="text-red-600 font-semibold">{c.missedFollowups} missed F/U</span>
+                    )}
+                    {c.visitsOverdue > 0 && (
+                      <span className="text-red-600 font-semibold">{c.visitsOverdue} visit{c.visitsOverdue > 1 ? 's' : ''} overdue</span>
+                    )}
+                    {c.noShow > 0 && (
+                      <span className="text-orange-600 font-medium">{c.noShow} no show</span>
+                    )}
                     {c.notCalled > 5 && (
-                      <span className="text-red-600 font-medium">{c.notCalled} not called</span>
+                      <span className="text-gray-600 font-medium">{c.notCalled} not called</span>
                     )}
                     {c.followUpsToday > 0 && (
-                      <span className="text-orange-600 font-medium">{c.followUpsToday} follow-up{c.followUpsToday > 1 ? 's' : ''} due</span>
+                      <span className="text-blue-600 font-medium">{c.followUpsToday} due today</span>
                     )}
                   </div>
                 </div>
@@ -235,6 +251,9 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                     <SortTh label="Enrolled"       col="enrolled" />
                     <SortTh label="Conv %"         col="conversion" />
                     <SortTh label="Follow-ups"     col="followUpsToday" />
+                    <SortTh label="Missed F/U"     col="missedFollowups" />
+                    <SortTh label="Visit Overdue"  col="visitsOverdue" />
+                    <SortTh label="No Show"        col="noShow" />
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -273,6 +292,21 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                       <td className="px-4 py-3.5 text-right">
                         <span className={c.followUpsToday > 0 ? 'text-orange-600 font-medium' : 'text-gray-400'}>
                           {c.followUpsToday}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <span className={c.missedFollowups > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}>
+                          {c.missedFollowups}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <span className={c.visitsOverdue > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}>
+                          {c.visitsOverdue}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <span className={c.noShow > 0 ? 'text-orange-500 font-medium' : 'text-gray-300'}>
+                          {c.noShow}
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-right">

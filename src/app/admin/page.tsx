@@ -113,17 +113,20 @@ async function getDashboardData(collegeId: string) {
     const calledN     = Number(s.called          || 0)
     const enrolledN   = Number(s.enrolled        || 0)
     return {
-      id:             c.id,
-      name:           c.name,
-      teamLeaderId:   c.team_leader_id as string | null,
-      assigned:       assignedN,
-      called:         calledN,
-      notCalled:      assignedN - calledN,
-      interested:     Number(s.interested      || 0),
-      enrolled:       enrolledN,
-      conversion:     assignedN > 0 ? Math.round((enrolledN / assignedN) * 100) : 0,
-      followUpsToday: Number(s.followups_today || 0),
-      visitsToday:    Number(s.visits_today    || 0),
+      id:              c.id,
+      name:            c.name,
+      teamLeaderId:    c.team_leader_id as string | null,
+      assigned:        assignedN,
+      called:          calledN,
+      notCalled:       assignedN - calledN,
+      interested:      Number(s.interested       || 0),
+      enrolled:        enrolledN,
+      conversion:      assignedN > 0 ? Math.round((enrolledN / assignedN) * 100) : 0,
+      followUpsToday:  Number(s.followups_today  || 0),
+      visitsToday:     Number(s.visits_today     || 0),
+      noShow:          Number(s.no_show          || 0),
+      visitsOverdue:   Number(s.visits_overdue   || 0),
+      missedFollowups: Number(s.missed_followups || 0),
     }
   })
 
@@ -194,7 +197,10 @@ async function getDashboardData(collegeId: string) {
     not_called:        Number(r.not_called),
     interested:        Number(r.interested),
     not_interested:    Number(r.not_interested),
+    visit_scheduled:   Number(r.visit_scheduled   || 0),
     visit_done:        Number(r.visit_done),
+    no_show:           Number(r.no_show           || 0),
+    visits_overdue:    Number(r.visits_overdue    || 0),
     enrolled:          Number(r.enrolled),
     cold_wrong:        Number(r.cold_wrong),
     stale:             Number(r.stale),
@@ -245,16 +251,19 @@ async function getTeamLeaderData(userId: string, collegeId: string) {
     const called    = Number(s.called    || 0)
     const enrolled  = Number(s.enrolled  || 0)
     return {
-      id:             c.id,
-      name:           c.name,
+      id:              c.id,
+      name:            c.name,
       assigned,
       called,
-      notCalled:      assigned - called,
-      interested:     Number(s.interested      || 0),
-      notInterested:  Number(s.not_interested  || 0),
+      notCalled:       assigned - called,
+      interested:      Number(s.interested       || 0),
+      notInterested:   Number(s.not_interested   || 0),
       enrolled,
-      conversion:     assigned > 0 ? Math.round((enrolled / assigned) * 100) : 0,
-      followUpsToday: Number(s.followups_today || 0),
+      conversion:      assigned > 0 ? Math.round((enrolled / assigned) * 100) : 0,
+      followUpsToday:  Number(s.followups_today  || 0),
+      noShow:          Number(s.no_show          || 0),
+      visitsOverdue:   Number(s.visits_overdue   || 0),
+      missedFollowups: Number(s.missed_followups || 0),
     }
   })
 
