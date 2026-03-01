@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
   Users, GraduationCap, PhoneCall, AlertCircle, Clock, Building2,
-  TrendingUp, Activity, UserX, Target, ArrowUp, ArrowDown, Minus, Shield,
+  TrendingUp, Activity, UserX, Target, ArrowUp, ArrowDown, ArrowUpDown, Minus, Shield,
   ChevronDown, ChevronRight, ExternalLink,
 } from 'lucide-react'
 
@@ -1041,7 +1041,14 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
 // ============================================================
 // Expanded counsellor panel within a team card
 // ============================================================
+type CounsellorPanelSortKey =
+  'name' | 'assigned' | 'called' | 'notCalled' | 'interested' |
+  'enrolled' | 'conversion' | 'followUpsToday' | 'missedFollowups' | 'visitsOverdue' | 'noShow'
+
 function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] }) {
+  const [sortKey, setSortKey] = useState<CounsellorPanelSortKey>('missedFollowups')
+  const [sortAsc, setSortAsc] = useState(false)
+
   if (counsellors.length === 0) {
     return (
       <div className="border-t border-gray-100 bg-gray-50 px-5 py-6 text-center text-sm text-gray-400">
@@ -1050,88 +1057,161 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
     )
   }
 
+  const handleSort = (key: CounsellorPanelSortKey) => {
+    if (sortKey === key) {
+      setSortAsc((a) => !a)
+    } else {
+      setSortKey(key)
+      setSortAsc(key === 'name') // name sorts A→Z by default, numbers sort high→low
+    }
+  }
+
+  const sorted = [...counsellors].sort((a, b) => {
+    const av = a[sortKey as keyof CounsellorStat]
+    const bv = b[sortKey as keyof CounsellorStat]
+    const cmp = typeof av === 'string'
+      ? (av as string).localeCompare(bv as string)
+      : (av as number) - (bv as number)
+    return sortAsc ? cmp : -cmp
+  })
+
+  // Sortable header cell
+  const SortTh = ({
+    label, col, right = true, colorClass = 'text-gray-500', extraClass = '',
+  }: { label: string; col: CounsellorPanelSortKey; right?: boolean; colorClass?: string; extraClass?: string }) => {
+    const active = sortKey === col
+    return (
+      <th
+        onClick={() => handleSort(col)}
+        className={`
+          px-4 py-2.5 text-xs font-semibold uppercase tracking-wide
+          cursor-pointer select-none transition-colors
+          ${right ? 'text-right' : 'text-left'}
+          ${active ? 'bg-blue-50 text-blue-600' : `${colorClass} hover:bg-gray-200`}
+          ${extraClass}
+        `}
+      >
+        <span className={`inline-flex items-center gap-1 ${right ? 'justify-end' : ''}`}>
+          {label}
+          <ArrowUpDown className={`h-3 w-3 shrink-0 ${active ? 'text-blue-500' : 'opacity-25'}`} />
+        </span>
+      </th>
+    )
+  }
+
   return (
     <div className="border-t border-gray-200 bg-gray-50">
       <div className="overflow-x-auto">
-        {/* Color legend */}
-        <div className="px-5 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
+        {/* Legend + hint */}
+        <div className="px-5 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center gap-4 text-[10px] text-gray-400">
           <span className="font-semibold text-gray-500 uppercase tracking-wider">Key:</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Good</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Moderate</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Needs action — click the number</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Needs action</span>
+          <span className="ml-auto opacity-70">Click any column header to sort · Click numbers to open those leads</span>
         </div>
+
         <table className="w-full text-xs">
           <thead className="bg-gray-100 border-b border-gray-200">
-            {/* Column group row */}
+            {/* Column group labels */}
             <tr className="border-b border-gray-200">
-              <th className="text-left px-5 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider" colSpan={1} />
+              <th className="px-5 py-1.5" />
               <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-blue-500 uppercase tracking-wider border-l border-gray-200" colSpan={3}>Pipeline</th>
               <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-green-600 uppercase tracking-wider border-l border-gray-200" colSpan={3}>Results</th>
-              <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-red-500 uppercase tracking-wider border-l border-gray-200" colSpan={4}>Needs Action (click to fix)</th>
+              <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-red-500 uppercase tracking-wider border-l border-gray-200" colSpan={4}>Needs Action</th>
               <th className="px-4 py-1.5" />
             </tr>
+            {/* Sortable column headers */}
             <tr>
-              <th className="text-left px-5 py-2.5 font-semibold text-gray-500">Counsellor</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500 border-l border-gray-100">Assigned</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Called</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Not Called</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500 border-l border-gray-100">Interested</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Enrolled</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Conv%</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-gray-500 border-l border-gray-100">Follow-ups Today</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-red-400">Missed F/U</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-red-400">Visit Overdue</th>
-              <th className="text-right px-4 py-2.5 font-semibold text-orange-400">No Show</th>
+              <SortTh label="Counsellor"       col="name"           right={false} extraClass="px-5" />
+              <SortTh label="Assigned"         col="assigned"                     extraClass="border-l border-gray-100" />
+              <SortTh label="Called"           col="called" />
+              <SortTh label="Not Called"       col="notCalled"      colorClass="text-gray-500" />
+              <SortTh label="Interested"       col="interested"                   extraClass="border-l border-gray-100" />
+              <SortTh label="Enrolled"         col="enrolled"       colorClass="text-green-600" />
+              <SortTh label="Conv%"            col="conversion"     colorClass="text-green-600" />
+              <SortTh label="Follow-ups Today" col="followUpsToday"               extraClass="border-l border-gray-100" />
+              <SortTh label="Missed F/U"       col="missedFollowups" colorClass="text-red-400" />
+              <SortTh label="Visit Overdue"    col="visitsOverdue"  colorClass="text-red-400" />
+              <SortTh label="No Show"          col="noShow"         colorClass="text-orange-400" />
               <th className="px-4 py-2.5" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {counsellors.map((c) => {
+            {sorted.map((c) => {
               const leadsUrl = (extra?: string) =>
                 `/admin/leads?counsellor=${c.id}${extra ? `&${extra}` : ''}`
               return (
                 <tr key={c.id} className="hover:bg-white transition-colors">
-                  <td className="px-5 py-2.5 font-medium text-gray-900">{c.name}</td>
+                  {/* Counsellor name — clickable link to profile */}
+                  <td className="px-5 py-2.5">
+                    <Link
+                      href={`/admin/counsellors/${c.id}`}
+                      className="font-medium text-gray-900 hover:text-blue-600 hover:underline"
+                    >
+                      {c.name}
+                    </Link>
+                  </td>
+                  {/* Assigned */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     <Link href={leadsUrl()} className="text-gray-600 hover:text-blue-600 hover:underline">{c.assigned}</Link>
                   </td>
+                  {/* Called — plain count, no specific filter exists */}
                   <td className="px-4 py-2.5 text-right text-gray-600 tabular-nums">{c.called}</td>
+                  {/* Not Called — links to counsellor's all leads so admin can assign/follow up */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
-                    <span className={c.notCalled > 5 ? 'text-red-600 font-semibold' : 'text-gray-400'}>{c.notCalled}</span>
+                    {c.notCalled > 0 ? (
+                      <Link
+                        href={leadsUrl()}
+                        className={`hover:underline ${c.notCalled > 5 ? 'text-red-600 font-semibold' : 'text-gray-500'}`}
+                      >
+                        {c.notCalled}
+                      </Link>
+                    ) : <span className="text-gray-300">0</span>}
                   </td>
+                  {/* Interested */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     {c.interested > 0 ? (
                       <Link href={leadsUrl('callStage=Interested')} className="text-blue-600 font-medium hover:underline">{c.interested}</Link>
                     ) : <span className="text-gray-400">0</span>}
                   </td>
+                  {/* Enrolled */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     {c.enrolled > 0 ? (
                       <Link href={leadsUrl('stage=Enrolled')} className="text-green-600 font-bold hover:underline">{c.enrolled}</Link>
                     ) : <span className="text-gray-400">0</span>}
                   </td>
+                  {/* Conv% */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     <span className={`font-semibold ${c.conversion >= 10 ? 'text-green-600' : c.conversion >= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
                       {c.conversion}%
                     </span>
                   </td>
+                  {/* Follow-ups Today — now clickable */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
-                    <span className={c.followUpsToday > 0 ? 'text-orange-500 font-medium' : 'text-gray-400'}>{c.followUpsToday}</span>
+                    {c.followUpsToday > 0 ? (
+                      <Link href={leadsUrl('tab=followups')} className="text-orange-500 font-medium hover:underline">{c.followUpsToday}</Link>
+                    ) : <span className="text-gray-300">0</span>}
                   </td>
+                  {/* Missed Follow-ups */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     {c.missedFollowups > 0 ? (
                       <Link href={leadsUrl('tab=followups')} className="text-red-600 font-semibold hover:underline">{c.missedFollowups}</Link>
                     ) : <span className="text-gray-300">0</span>}
                   </td>
+                  {/* Visits Overdue */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     {c.visitsOverdue > 0 ? (
                       <Link href={leadsUrl('tab=visits')} className="text-red-600 font-semibold hover:underline">{c.visitsOverdue}</Link>
                     ) : <span className="text-gray-300">0</span>}
                   </td>
+                  {/* No Show */}
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     {c.noShow > 0 ? (
                       <Link href={leadsUrl('stage=No+Show')} className="text-orange-500 font-medium hover:underline">{c.noShow}</Link>
                     ) : <span className="text-gray-300">0</span>}
                   </td>
+                  {/* View profile */}
                   <td className="px-4 py-2.5 text-right">
                     <Link
                       href={`/admin/counsellors/${c.id}`}
