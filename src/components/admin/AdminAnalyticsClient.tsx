@@ -780,10 +780,10 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
 // ============================================================
 // Tab 1 — Team Performance (now the default tab)
 // ============================================================
-type TeamSortKey = 'enrollRate' | 'callCoverage' | 'staleRate' | 'totalLeads' | 'interestedRate' | 'niRate'
+type TeamSortKey = 'alertScore' | 'enrollRate' | 'callCoverage' | 'staleRate' | 'totalLeads' | 'interestedRate' | 'niRate'
 
 function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counsellorStats: CounsellorStat[] }) {
-  const [sortKey, setSortKey] = useState<TeamSortKey>('enrollRate')
+  const [sortKey, setSortKey] = useState<TeamSortKey>('alertScore')
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
 
   if (teams.length === 0) {
@@ -809,29 +809,35 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
     return { bar: '#ef4444', text: 'text-red-600' }
   }
 
+  // Urgency score — higher = more attention needed
+  const alertScore = (t: TeamPerformance) =>
+    t.visits_overdue * 3 + t.no_show * 2 + t.followups_today * 2 + pct(t.stale, t.total_leads)
+
   const totalLeads    = teams.reduce((s, t) => s + t.total_leads, 0)
   const totalEnrolled = teams.reduce((s, t) => s + t.enrolled, 0)
   const overallRate   = pct(totalEnrolled, totalLeads)
 
   const sortedTeams = [...teams].sort((a, b) => {
-    if (sortKey === 'enrollRate')     return pct(b.enrolled,       b.total_leads) - pct(a.enrolled,       a.total_leads)
-    if (sortKey === 'callCoverage')  return pct(b.called,         b.total_leads) - pct(a.called,         a.total_leads)
-    if (sortKey === 'staleRate')     return pct(a.stale,          a.total_leads) - pct(b.stale,          b.total_leads) // asc — lower is better
-    if (sortKey === 'totalLeads')    return b.total_leads - a.total_leads
-    if (sortKey === 'interestedRate') return pct(b.interested,    b.called)      - pct(a.interested,    a.called)
-    if (sortKey === 'niRate')        return pct(a.not_interested, a.called)      - pct(b.not_interested, b.called) // asc — lower NI is better
+    if (sortKey === 'alertScore')     return alertScore(b)                                - alertScore(a)
+    if (sortKey === 'enrollRate')     return pct(b.enrolled,       b.total_leads)         - pct(a.enrolled,       a.total_leads)
+    if (sortKey === 'callCoverage')   return pct(b.called,         b.total_leads)         - pct(a.called,         a.total_leads)
+    if (sortKey === 'staleRate')      return pct(a.stale,          a.total_leads)         - pct(b.stale,          b.total_leads)
+    if (sortKey === 'totalLeads')     return b.total_leads - a.total_leads
+    if (sortKey === 'interestedRate') return pct(b.interested,     b.called)              - pct(a.interested,     a.called)
+    if (sortKey === 'niRate')         return pct(a.not_interested, a.called)              - pct(b.not_interested, b.called)
     return 0
   })
 
   const RANK_BADGES = ['🥇', '🥈', '🥉']
 
-  const sortOptions: { key: TeamSortKey; label: string }[] = [
-    { key: 'enrollRate',     label: 'Enrollment Rate' },
-    { key: 'callCoverage',   label: 'Call Coverage' },
-    { key: 'interestedRate', label: 'Interest Rate' },
-    { key: 'niRate',         label: 'Least NI' },
-    { key: 'staleRate',      label: 'Least Stale' },
-    { key: 'totalLeads',     label: 'Total Leads' },
+  const sortOptions: { key: TeamSortKey; label: string; title: string }[] = [
+    { key: 'alertScore',     label: '🚨 Needs Attention', title: 'Show teams with urgent issues first' },
+    { key: 'enrollRate',     label: 'Enrollment Rate',    title: 'Best converters first' },
+    { key: 'callCoverage',   label: 'Call Coverage',      title: 'Most calls made first' },
+    { key: 'interestedRate', label: 'Interest Rate',      title: 'Most interested leads first' },
+    { key: 'niRate',         label: 'Least NI',           title: 'Fewest not-interested first' },
+    { key: 'staleRate',      label: 'Least Stale',        title: 'Fewest inactive leads first' },
+    { key: 'totalLeads',     label: 'Total Leads',        title: 'Largest pipeline first' },
   ]
 
   return (
@@ -845,12 +851,13 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
       </div>
 
       {/* Sort controls + legend */}
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sort by:</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider shrink-0">Sort by:</span>
         {sortOptions.map((o) => (
           <button
             key={o.key}
             onClick={() => setSortKey(o.key)}
+            title={o.title}
             className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
               sortKey === o.key
                 ? 'bg-blue-600 text-white'
@@ -860,44 +867,77 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
             {o.label}
           </button>
         ))}
-        <span className="ml-auto text-[11px] text-gray-400 hidden sm:inline">
-          <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-500 inline-block" /> Good</span>
-          {' · '}
-          <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" /> Average</span>
-          {' · '}
-          <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block" /> Needs attention</span>
+        <span className="ml-auto text-[11px] text-gray-400 hidden sm:flex items-center gap-3">
+          <span className="flex items-center gap-1"><span className="w-3 h-4 rounded-sm bg-red-400 inline-block" /> Urgent</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-4 rounded-sm bg-amber-400 inline-block" /> Moderate</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-4 rounded-sm bg-green-500 inline-block" /> Healthy</span>
+          <span className="opacity-60">(left border = team status)</span>
         </span>
       </div>
 
       {/* Team cards */}
       {sortedTeams.map((team, idx) => {
-        const coverage    = pct(team.called,         team.total_leads)
-        const interestRate= pct(team.interested,     team.called)
-        const niRate      = pct(team.not_interested, team.called)
-        const visitRate   = pct(team.visit_done,     team.interested)
-        const closingRate = pct(team.enrolled,       team.visit_done)
-        const enrollRate  = pct(team.enrolled,       team.total_leads)
-        const staleRate   = pct(team.stale,          team.total_leads)
-        const deadRate    = pct(team.cold_wrong,     team.total_leads)
-        const isExpanded  = expandedTeam === team.team_leader_id
+        const coverage     = pct(team.called,         team.total_leads)
+        const interestRate = pct(team.interested,     team.called)
+        const niRate       = pct(team.not_interested, team.called)
+        const visitRate    = pct(team.visit_done,     team.interested)
+        const closingRate  = pct(team.enrolled,       team.visit_done)
+        const enrollRate   = pct(team.enrolled,       team.total_leads)
+        const staleRate    = pct(team.stale,          team.total_leads)
+        const deadRate     = pct(team.cold_wrong,     team.total_leads)
+        const isExpanded   = expandedTeam === team.team_leader_id
+
+        const hasUrgentAlerts   = team.visits_overdue > 0 || team.no_show > 0
+        const hasModerateAlerts = team.followups_today > 0 || staleRate > 20
+
+        // Left border color shows team health at a glance
+        const borderColor = hasUrgentAlerts
+          ? 'border-l-red-400'
+          : hasModerateAlerts
+          ? 'border-l-amber-400'
+          : 'border-l-green-500'
 
         const enrollColors = band(enrollRate, 8, 15)
 
         const metrics: {
           label: string; pct: number; num: number; sub: string
-          lo: number; hi: number; invert?: boolean
+          lo: number; hi: number; invert?: boolean; href?: string
         }[] = [
-          { label: 'Call Coverage',    pct: coverage,     num: team.called,         sub: 'called',        lo: 60, hi: 80 },
-          { label: 'Interest Rate',    pct: interestRate, num: team.interested,     sub: 'interested',    lo: 25, hi: 45 },
-          { label: 'Not Interested ↓', pct: niRate,       num: team.not_interested, sub: 'not interested',lo: 30, hi: 50, invert: true },
-          { label: 'Visit Conversion', pct: visitRate,    num: team.visit_done,     sub: 'visits',        lo: 30, hi: 55 },
-          { label: 'Closing Rate',     pct: closingRate,  num: team.enrolled,       sub: 'enrolled',      lo: 40, hi: 65 },
+          { label: 'Call Coverage',    pct: coverage,     num: team.called,         sub: 'called',         lo: 60, hi: 80 },
+          { label: 'Interest Rate',    pct: interestRate, num: team.interested,     sub: 'interested',     lo: 25, hi: 45 },
+          { label: 'Not Interested ↓', pct: niRate,       num: team.not_interested, sub: 'not interested', lo: 30, hi: 50, invert: true },
+          { label: 'Visit Conversion', pct: visitRate,    num: team.visit_done,     sub: 'visits done',    lo: 30, hi: 55, href: '/admin/leads?tab=visits' },
+          { label: 'Closing Rate',     pct: closingRate,  num: team.enrolled,       sub: 'enrolled',       lo: 40, hi: 65, href: '/admin/leads?stage=Enrolled' },
         ]
 
         const teamCounsellors = counsellorStats.filter((c) => c.teamLeaderId === team.team_leader_id)
 
         return (
-          <div key={team.team_leader_id} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div key={team.team_leader_id} className={`bg-white border border-gray-200 border-l-4 ${borderColor} rounded-xl overflow-hidden`}>
+
+            {/* Urgent alert strip — only shown when overdue visits or no-shows exist */}
+            {hasUrgentAlerts && (
+              <div className="bg-red-50 border-b border-red-100 px-5 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                <span className="text-xs font-bold text-red-700">Action needed:</span>
+                {team.visits_overdue > 0 && (
+                  <Link href="/admin/leads?tab=visits" className="text-xs text-red-600 font-semibold underline hover:text-red-800">
+                    {team.visits_overdue} visit{team.visits_overdue > 1 ? 's' : ''} overdue
+                  </Link>
+                )}
+                {team.no_show > 0 && (
+                  <Link href="/admin/leads?stage=No+Show" className="text-xs text-orange-600 font-semibold underline hover:text-orange-800">
+                    {team.no_show} no-show{team.no_show > 1 ? 's' : ''}
+                  </Link>
+                )}
+                {team.followups_today > 0 && (
+                  <Link href="/admin/leads?tab=followups" className="text-xs text-blue-600 font-semibold underline hover:text-blue-800">
+                    {team.followups_today} follow-up{team.followups_today > 1 ? 's' : ''} due today
+                  </Link>
+                )}
+              </div>
+            )}
+
             {/* Header */}
             <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
@@ -907,14 +947,21 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
                   <p className="text-sm text-gray-500 mt-0.5">
                     {team.total_counsellors} counsellor{team.total_counsellors !== 1 ? 's' : ''}
                     &nbsp;·&nbsp;
-                    {team.total_leads.toLocaleString()} leads
+                    <Link href="/admin/leads" className="hover:text-blue-600 hover:underline tabular-nums">
+                      {team.total_leads.toLocaleString()} leads
+                    </Link>
                   </p>
                 </div>
               </div>
               <div className="text-right shrink-0">
                 <p className={`text-3xl font-bold tabular-nums leading-none ${enrollColors.text}`}>{enrollRate}%</p>
                 <p className="text-[11px] text-gray-400 mt-1">Enrollment Rate</p>
-                <p className={`text-xs font-semibold mt-0.5 ${enrollColors.text}`}>{team.enrolled} enrolled</p>
+                <Link
+                  href="/admin/leads?stage=Enrolled"
+                  className={`text-xs font-semibold mt-0.5 hover:underline inline-flex items-center gap-0.5 ${enrollColors.text}`}
+                >
+                  {team.enrolled} enrolled →
+                </Link>
               </div>
             </div>
 
@@ -931,36 +978,46 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
                       <div className="h-full rounded-md transition-all duration-500" style={{ width: `${barW}%`, backgroundColor: colors.bar }} />
                     </div>
                     <span className={`text-sm font-bold w-10 shrink-0 tabular-nums text-right ${colors.text}`}>{m.pct}%</span>
-                    <span className="text-xs text-gray-400 w-24 shrink-0 tabular-nums hidden sm:inline">
-                      {m.num.toLocaleString()} {m.sub}
+                    <span className="text-xs text-gray-400 w-28 shrink-0 tabular-nums hidden sm:inline">
+                      {m.href ? (
+                        <Link href={m.href} className="hover:text-blue-600 hover:underline">
+                          {m.num.toLocaleString()} {m.sub}
+                        </Link>
+                      ) : (
+                        <>{m.num.toLocaleString()} {m.sub}</>
+                      )}
                     </span>
                   </div>
                 )
               })}
             </div>
 
-            {/* Footer: health indicators + expand toggle */}
-            <div className="px-5 pb-4 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-gray-50 pt-3">
+            {/* Footer: clickable alert stats + expand toggle */}
+            <div className="px-5 pb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-gray-100 pt-3">
               <span className={`text-xs font-medium ${staleRate > 20 ? 'text-red-500' : staleRate > 10 ? 'text-amber-500' : 'text-gray-400'}`}>
-                Stale: <strong>{staleRate}%</strong> <span className="font-normal">({team.stale})</span>
+                Stale: <strong>{staleRate}%</strong> ({team.stale})
               </span>
               <span className={`text-xs font-medium ${deadRate > 30 ? 'text-red-500' : deadRate > 15 ? 'text-amber-500' : 'text-gray-400'}`}>
-                Dead: <strong>{deadRate}%</strong> <span className="font-normal">({team.cold_wrong})</span>
+                Dead: <strong>{deadRate}%</strong> ({team.cold_wrong})
               </span>
-              <span className={`text-xs font-medium ${team.followups_today > 0 ? 'text-blue-500' : 'text-gray-400'}`}>
-                Follow-ups today: <strong>{team.followups_today}</strong>
+              <span className="text-xs text-gray-400">
+                {team.not_called.toLocaleString()} uncalled
               </span>
+              {team.followups_today > 0 && (
+                <Link href="/admin/leads?tab=followups" className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
+                  {team.followups_today} follow-up{team.followups_today > 1 ? 's' : ''} today →
+                </Link>
+              )}
               {team.visits_overdue > 0 && (
-                <span className="text-xs font-medium text-red-500">
-                  Visits overdue: <strong>{team.visits_overdue}</strong>
-                </span>
+                <Link href="/admin/leads?tab=visits" className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline">
+                  {team.visits_overdue} visit{team.visits_overdue > 1 ? 's' : ''} overdue →
+                </Link>
               )}
               {team.no_show > 0 && (
-                <span className="text-xs font-medium text-orange-500">
-                  No show: <strong>{team.no_show}</strong>
-                </span>
+                <Link href="/admin/leads?stage=No+Show" className="text-xs font-semibold text-orange-500 hover:text-orange-700 hover:underline">
+                  {team.no_show} no-show{team.no_show > 1 ? 's' : ''} →
+                </Link>
               )}
-              <span className="text-xs text-gray-400">{team.not_called.toLocaleString()} uncalled</span>
               <button
                 onClick={() => setExpandedTeam(isExpanded ? null : team.team_leader_id)}
                 className="ml-auto flex items-center gap-1.5 text-xs text-blue-600 font-medium hover:text-blue-700 transition-colors"
