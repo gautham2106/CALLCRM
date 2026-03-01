@@ -106,6 +106,18 @@ function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): num
   }
 }
 
+// Module-level helper — stable reference, avoids React treating it as a new
+// component type on every render (which happens when defined inside .map())
+function NumCell({ href, value, color }: { href?: string; value: number; color?: string }) {
+  return (
+    <td className="px-2 py-3 text-center tabular-nums align-middle">
+      {href && value > 0
+        ? <Link href={href} className={`font-bold text-sm hover:underline ${color ?? 'text-gray-800'}`}>{value}</Link>
+        : <span className={`font-bold text-sm ${value > 0 ? (color ?? 'text-gray-800') : 'text-gray-300'}`}>{value}</span>}
+    </td>
+  )
+}
+
 export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sources, courses, customFields, unassignedCount }: Props) {
   const supabase = createClient()
   const today = todayIST()
@@ -550,6 +562,16 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     }
   }
 
+  // Computed before JSX — avoids IIFE anti-pattern inside render
+  const totalUrgent = counsellors.reduce((sum, c) => {
+    const leads = (c.assigned_leads || []).filter((l) => l.is_active !== false)
+    return sum
+      + leads.filter((l) => l.follow_up_date === today).length
+      + leads.filter((l) => l.follow_up_date != null && l.follow_up_date < today).length
+      + leads.filter((l) => l.visit_date != null && l.visit_date < today && l.current_lead_stage === 'Visit Scheduled').length
+      + leads.filter((l) => l.current_lead_stage === 'No Show').length
+  }, 0)
+
   return (
     <div className="p-4 sm:p-6 space-y-4">
       {/* Header */}
@@ -750,16 +772,6 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
           </div>
 
           {/* Desktop table — two tab views so neither is too wide */}
-          {(() => {
-            const totalUrgent = counsellors.reduce((sum, c) => {
-              const leads = (c.assigned_leads || []).filter((l) => l.is_active !== false)
-              return sum
-                + leads.filter((l) => l.follow_up_date === today).length
-                + leads.filter((l) => l.follow_up_date != null && l.follow_up_date < today).length
-                + leads.filter((l) => l.visit_date != null && l.visit_date < today && l.current_lead_stage === 'Visit Scheduled').length
-                + leads.filter((l) => l.current_lead_stage === 'No Show').length
-            }, 0)
-            return (
           <div className="hidden sm:block bg-white border border-gray-200 rounded-xl overflow-hidden">
             {/* Tab switcher */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
@@ -889,14 +901,6 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                       const rowUrgent       = followUpsToday + missedFollowups + visitsOverdue + noShow
 
                       const lUrl = (extra?: string) => `/admin/leads?counsellor=${c.id}${extra ? `&${extra}` : ''}`
-                      // Reusable number cell — centred, consistent size
-                      const NumCell = ({ href, value, color }: { href?: string; value: number; color?: string }) => (
-                        <td className="px-2 py-3 text-center tabular-nums align-middle">
-                          {href && value > 0
-                            ? <Link href={href} className={`font-bold text-sm hover:underline ${color ?? 'text-gray-800'}`}>{value}</Link>
-                            : <span className={`font-bold text-sm ${value > 0 ? (color ?? 'text-gray-800') : 'text-gray-300'}`}>{value}</span>}
-                        </td>
-                      )
 
                       return (
                         <tr key={c.id} className={`hover:bg-gray-50 transition-colors align-middle ${!c.is_active ? 'opacity-50' : ''}`}>
@@ -977,8 +981,6 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
               </table>
             </div>
           </div>
-            )
-          })()}
         </>
       )}
 
