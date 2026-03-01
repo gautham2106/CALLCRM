@@ -24,6 +24,8 @@ EXCEPTION WHEN undefined_object THEN NULL;
 END$$;
 
 -- 3. Update get_team_performance to include no_show count
+-- Must drop first because the return type (OUT columns) changed
+DROP FUNCTION IF EXISTS get_team_performance(UUID, DATE);
 CREATE OR REPLACE FUNCTION get_team_performance(p_college_id UUID, p_today DATE)
 RETURNS TABLE(
   team_leader_id    UUID,
