@@ -466,11 +466,17 @@ function SourceLeadPanel({ source: s }: { source: SourceStat }) {
 // ============================================================
 // Tab 3 — Interest Analytics
 // ============================================================
+const INTEREST_PAGE_SIZE = 10
+
 function InterestTab({ schoolInterest, counsellorInterest }: {
   schoolInterest: SchoolInterest[]; counsellorInterest: CounsellorInterest[]
 }) {
   const [schoolSort, setSchoolSort] = useState<'total' | 'interested' | 'not_interested' | 'rate'>('total')
   const [counsellorSort, setCounsellorSort] = useState<'ni_ratio' | 'total_called' | 'interested' | 'not_interested'>('ni_ratio')
+  const [schoolPage, setSchoolPage] = useState(0)
+  const [counsellorPage, setCounsellorPage] = useState(0)
+  const [showAllSchools, setShowAllSchools] = useState(false)
+  const [showAllCounsellors, setShowAllCounsellors] = useState(false)
 
   const sortedSchools = [...schoolInterest].sort((a, b) => {
     if (schoolSort === 'rate') {
@@ -496,13 +502,52 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
     return (b[counsellorSort] as number) - (a[counsellorSort] as number)
   })
 
+  const schoolTotalPages = Math.ceil(sortedSchools.length / INTEREST_PAGE_SIZE)
+  const pagedSchools = showAllSchools ? sortedSchools : sortedSchools.slice(schoolPage * INTEREST_PAGE_SIZE, (schoolPage + 1) * INTEREST_PAGE_SIZE)
+
+  const counsellorTotalPages = Math.ceil(sortedCounsellors.length / INTEREST_PAGE_SIZE)
+  const pagedCounsellors = showAllCounsellors ? sortedCounsellors : sortedCounsellors.slice(counsellorPage * INTEREST_PAGE_SIZE, (counsellorPage + 1) * INTEREST_PAGE_SIZE)
+
   return (
     <div className="space-y-6">
       {/* School Interest Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">School-wise Interest</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Interest rates across schools — identify which schools respond best</p>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="font-semibold text-gray-900">School-wise Interest</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Interest rates across schools — identify which schools respond best</p>
+          </div>
+          {schoolInterest.length > INTEREST_PAGE_SIZE && (
+            <div className="flex items-center gap-2 shrink-0">
+              {!showAllSchools && schoolTotalPages > 1 && (
+                <>
+                  <span className="text-xs text-gray-400">
+                    {schoolPage + 1} / {schoolTotalPages}
+                  </span>
+                  <button
+                    onClick={() => setSchoolPage((p) => Math.max(0, p - 1))}
+                    disabled={schoolPage === 0}
+                    className="text-xs px-2.5 py-1 rounded font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ← Prev
+                  </button>
+                  <button
+                    onClick={() => setSchoolPage((p) => Math.min(schoolTotalPages - 1, p + 1))}
+                    disabled={schoolPage === schoolTotalPages - 1}
+                    className="text-xs px-2.5 py-1 rounded font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next →
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => { setShowAllSchools((v) => !v); setSchoolPage(0) }}
+                className="text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                {showAllSchools ? 'Show Less' : `See All (${schoolInterest.length})`}
+              </button>
+            </div>
+          )}
         </div>
         {schoolInterest.length === 0 ? (
           <div className="py-12 text-center text-gray-400 text-sm">No school data yet. Import leads with school names to see analytics.</div>
@@ -520,7 +565,7 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
                   ].map((col) => (
                     <th
                       key={col.key}
-                      onClick={() => setSchoolSort(col.key as typeof schoolSort)}
+                      onClick={() => { setSchoolSort(col.key as typeof schoolSort); setSchoolPage(0) }}
                       className={`px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider cursor-pointer hover:text-gray-800 ${
                         schoolSort === col.key ? 'text-blue-600' : 'text-gray-500'
                       }`}
@@ -531,7 +576,7 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sortedSchools.map((s) => {
+                {pagedSchools.map((s) => {
                   const rate = s.total > 0 ? Math.round((s.interested / s.total) * 100) : 0
                   const bestRate = Math.max(...schoolInterest.filter((x) => x.total >= 5).map((x) => x.total > 0 ? Math.round((x.interested / x.total) * 100) : 0), 0)
                   const worstRate = Math.min(...schoolInterest.filter((x) => x.total >= 5).map((x) => x.total > 0 ? Math.round((x.interested / x.total) * 100) : 100), 100)
@@ -557,11 +602,44 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
 
       {/* Counsellor Interest Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">Counsellor-wise Interest Analysis</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Detect abnormal &quot;Not Interested&quot; ratios — counsellors flagged if NI ratio is 1.5x above average (min 10 calls)
-          </p>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="font-semibold text-gray-900">Counsellor-wise Interest Analysis</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Detect abnormal &quot;Not Interested&quot; ratios — counsellors flagged if NI ratio is 1.5x above average (min 10 calls)
+            </p>
+          </div>
+          {counsellorInterest.length > INTEREST_PAGE_SIZE && (
+            <div className="flex items-center gap-2 shrink-0">
+              {!showAllCounsellors && counsellorTotalPages > 1 && (
+                <>
+                  <span className="text-xs text-gray-400">
+                    {counsellorPage + 1} / {counsellorTotalPages}
+                  </span>
+                  <button
+                    onClick={() => setCounsellorPage((p) => Math.max(0, p - 1))}
+                    disabled={counsellorPage === 0}
+                    className="text-xs px-2.5 py-1 rounded font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ← Prev
+                  </button>
+                  <button
+                    onClick={() => setCounsellorPage((p) => Math.min(counsellorTotalPages - 1, p + 1))}
+                    disabled={counsellorPage === counsellorTotalPages - 1}
+                    className="text-xs px-2.5 py-1 rounded font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next →
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => { setShowAllCounsellors((v) => !v); setCounsellorPage(0) }}
+                className="text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                {showAllCounsellors ? 'Show Less' : `See All (${counsellorInterest.length})`}
+              </button>
+            </div>
+          )}
         </div>
         {counsellorInterest.length === 0 ? (
           <div className="py-12 text-center text-gray-400 text-sm">No call data yet.</div>
@@ -579,7 +657,7 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
                   ].map((col) => (
                     <th
                       key={col.key}
-                      onClick={() => setCounsellorSort(col.key as typeof counsellorSort)}
+                      onClick={() => { setCounsellorSort(col.key as typeof counsellorSort); setCounsellorPage(0) }}
                       className={`px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider cursor-pointer hover:text-gray-800 ${
                         counsellorSort === col.key ? 'text-blue-600' : 'text-gray-500'
                       }`}
@@ -590,7 +668,7 @@ function InterestTab({ schoolInterest, counsellorInterest }: {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sortedCounsellors.map((c) => {
+                {pagedCounsellors.map((c) => {
                   const niRatio = c.total_called > 0 ? Math.round((c.not_interested / c.total_called) * 100) : 0
                   const isFlagged = c.total_called >= 10 && avgNIRatio > 0 && (c.not_interested / c.total_called) > avgNIRatio * 1.5
                   return (
