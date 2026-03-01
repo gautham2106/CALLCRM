@@ -32,40 +32,90 @@ Built with **Next.js 16**, **Supabase**, and **Tailwind CSS**.
 ### Admin Portal
 
 #### Analytics Dashboard (`/admin`)
+
 - **KPI Cards** — Total leads, enrolled count, in-progress, cold/wrong leads, unassigned count, today's follow-ups, stale leads, today's visits, calls made today
 - **Funnel Chart** — Stage-by-stage lead count across the full admission pipeline
-- **Counsellor Performance Table** — Per-counsellor breakdown: assigned, called, not called, interested, **not interested**, enrolled, conversion %, follow-ups today, missed follow-ups, visits overdue, no-show; sortable by any column; all numbers link to filtered leads
-- **Source Intelligence** — Lead source table showing total, enrolled, conversion rate, month-over-month trend; tap any row to expand a 20-lead preview panel with a "View all N leads →" deep-link to the filtered leads page
-- **School Interest Analytics** — Which schools generate the most leads and interest
-- **Counsellor Interest Stats** — Interested vs not-interested rate per counsellor
-- **Team Performance Funnel** — Per team-leader: counsellors, total leads, called, not-called, interested, **not interested**, enrolled, stale, today's follow-ups
+- **Counsellor Performance Table** — Per-counsellor: assigned, called, not called, interested, not interested, enrolled, conversion %, follow-ups today, missed follow-ups, visits overdue, no-show; sortable by any column; all numbers link to the filtered leads page
+- **Source Intelligence** — Lead source table: total, enrolled, conversion rate, month-over-month trend; tap any row to expand a 20-lead preview panel with a "View all N leads →" deep-link to the filtered leads page
+- **Interest Intelligence** — School-wise and counsellor-wise interest analytics (see [Interest Intelligence](#interest-intelligence) below)
+- **Team Performance Funnel** — Per team-leader: counsellors, total leads, called, not-called, interested, not interested, enrolled, stale, today's follow-ups
 - **Stale Lead Alerts** — Leads untouched for 3+ days flagged on the dashboard
 - All analytics computed via SQL aggregate RPCs — no full-table JS scans
 
+---
+
 #### Lead Management (`/admin/leads`)
-- Server-side paginated lead table (never loads full dataset in browser)
-- **Search** — Name, phone, email, city full-text search with debounce
-- **Filters** — Stage, counsellor, source (including "Unknown / No Source"), course, school; deep-linkable via URL params (`?source=<id>`)
-- **Tabs** — All leads / Unassigned only
-- **Bulk actions** — Select individual leads or all matching leads; bulk assign or reassign
-- **CSV Export** — Exports all matching leads (respects active filters) as a `.csv` file
+
+- Server-side paginated lead table — never loads the full dataset in the browser
+- **Search** — Name, phone, email, city full-text search with 400 ms debounce; PostgREST operators stripped from input
+- **Filters** — Lead stage, call stage, counsellor (or "Unassigned"), source (including "Unknown / No Source"), course, school; all filters are deep-linkable via URL params (e.g. `?source=<id>`, `?stage=Enrolled`, `?callStage=Not+Interested`)
+- **Tabs** — All / Unassigned / Visit Follow-up (overdue visits) / Missed Follow-ups
+- **Bulk actions** — Select individual rows or all matching leads across pages; bulk assign, reassign, change stage, or delete
+- **Select all matching** — When filtered, "Select all {N} matching leads" fetches every ID for the active filter set (not just the current page) and applies bulk actions to the entire result
+- **Auto-Distribute** — Spreads unassigned leads equally across all active counsellors in one click
+- **CSV Export** — Exports all leads matching the current filters as a `.csv` file including all custom field columns (admin only)
 - **Add Lead** — Inline dialog with duplicate phone detection per college
-- **Lead Detail** (`/admin/leads/[id]`) — Full lead profile with 3 tabs: Lead Info + Super Fields, Call Diary, Assignment History
+- **Lead Detail** (`/admin/leads/[id]`) — Full lead profile (see [Lead Detail](#lead-detail) below)
+
+---
+
+#### Lead Detail
+
+Both admin and counsellor views share the same `LeadDetailClient` component. Behaviour differs by role.
+
+##### Header
+
+| Element | Description |
+|---|---|
+| **Call button** | `tel:{phone}` link — triggers native phone dialler on mobile, system phone client on desktop |
+| **WhatsApp button** | Opens `https://wa.me/91{phone}` in a new tab. Country code `91` is prepended automatically; any non-digit characters are stripped from the number first. An optional pre-filled message can be appended as a URL-encoded query param |
+| **Lead name** | Large heading with role-based editability |
+| **Stage badges** | Lead stage + call stage — colour-coded pills |
+| **Visit badge** | Purple pill with calendar icon when a visit date is scheduled |
+| **Meta strip** | Phone · City · School · Course interest · Source · Assigned counsellor · Follow-up date (orange if today or overdue) |
+
+##### Tab 1 — Lead Info
+
+- **Basic fields**: Name, phone, email, city, school name, course interest, source — admins can edit all fields; counsellors can edit all except name, phone, and source
+- **Status & follow-up**: Lead stage, visit date, follow-up date, notes — editable by both roles
+- **Super Fields**: Every active custom field defined for the college is rendered here with the appropriate input (see [Super Fields](#super-fields--custom-fields))
+- **Save Changes** button — saves lead fields and all custom field values in one request; checks for duplicate phone before saving (admin only)
+
+##### Tab 2 — Call Diary
+
+- Full chronological call log with the most recent entry at the top
+- Each entry shows: call result, lead stage at that time, counsellor name, timestamp, notes, and the next follow-up date scheduled
+- **Log a Call** button opens a modal to record: call result, updated lead stage, notes, and next follow-up date
+- Saving the log creates an immutable row in `call_diary` and updates `current_call_stage` and `current_lead_stage` on the lead
+
+##### Tab 3 — Assignment History
+
+- Complete audit trail of every assignment and reassignment
+- Each entry shows: previous owner → new owner, who made the change, timestamp, and reason (required on reassign)
+
+---
 
 #### CSV Import (`/admin/leads/import`)
+
 - Drag-and-drop or file-picker upload
 - Column mapping UI — map spreadsheet columns to CRM fields
 - Duplicate phone detection before import
-- Preview first N rows before committing
-- Background import with progress feedback
+- Preview of the first N rows before committing
+- Background import with progress feedback; push notification sent to admin on completion
+
+---
 
 #### Assignment System (`/admin/assignment`)
+
 - Assign unassigned leads to a counsellor one-by-one or in bulk
 - **Auto-distribute** — Spreads leads equally across all active counsellors
 - Reassign with a mandatory reason (logged in assignment history)
-- Real-time push notification sent to counsellor on new assignment
+- Real-time push notification sent to the counsellor on new assignment
+
+---
 
 #### Counsellor Management (`/admin/counsellors`)
+
 - List all counsellors with full performance data
 - Add new counsellor (creates Supabase Auth user + profile row in one step)
 - Activate / deactivate counsellors
@@ -79,66 +129,160 @@ Built with **Next.js 16**, **Supabase**, and **Tailwind CSS**.
 | **Action Items** | Counsellor · Status · F/U Today · Missed F/U · Visit O/D · No Show |
 
 - **Action Items** tab shows a red badge with the total urgent count across all counsellors
-- Every column header is **clickable to sort** (click again to reverse direction)
-- Every number is a **clickable link** to the filtered leads page for that counsellor + metric
+- Every column header is clickable to sort (click again to reverse direction)
+- Every number is a clickable link to the filtered leads page for that counsellor + metric
 - Counsellor avatar turns red when they have outstanding action items
-- Sort pills above the table also drive column sort on both mobile and desktop
 
 **Mobile card view:**
-- Each counsellor shows as a card with the same Performance stats in a 2-row grid
-- A **"Needs attention" red strip** appears at the bottom of a card only when any urgent count (F/U Today, Missed F/U, Visit Overdue, No Show) is greater than zero
+
+- Each counsellor shows as a card with Performance stats in a 2-row grid
+- A red **"Needs attention"** strip appears at the bottom only when any urgent count (F/U Today, Missed F/U, Visit Overdue, No Show) is > 0
 - Card border turns red when the counsellor has action items outstanding
 
+---
+
+#### Interest Intelligence
+
+Accessible from the **Interest** tab on the admin analytics dashboard.
+
+##### School-wise Interest Stats
+
+Answers: *Which schools send students who are most likely to be interested?*
+
+| Column | Description |
+|---|---|
+| School | School name |
+| Total | All leads from this school |
+| Interested | Leads where `current_call_stage = 'Interested'` |
+| Not Interested | Leads where `current_call_stage = 'Not Interested'` |
+| Interest Rate % | `interested / total × 100` |
+
+- Best-rate school (min. 5 leads) highlighted in green; worst-rate in red
+- Sortable by any column; paginated 10 rows at a time with a "See All" toggle
+- Powered by `get_school_interest_stats` SQL RPC
+
+##### Counsellor-wise Interest Analysis
+
+Answers: *Which counsellors have an unusually high "Not Interested" rate — and may need coaching?*
+
+| Column | Description |
+|---|---|
+| Counsellor | Name + "Review" badge if flagged |
+| Called | Total leads the counsellor has called |
+| Interested | Count of interested leads |
+| Not Interested | Count of not-interested leads |
+| NI Ratio % | `not_interested / total_called × 100` |
+
+**Flagging logic:** A counsellor with 10+ calls is flagged when their NI ratio exceeds `avg NI ratio × 1.5`. The average ratio and flag threshold are shown at the bottom of the panel.
+
+- Sortable by any column; paginated with a "See All" toggle
+- Powered by `get_counsellor_interest_stats` SQL RPC
+
+---
+
+#### Super Fields / Custom Fields (`/admin/super-fields`)
+
+Build custom fields for the lead profile without touching code.
+
+**Supported field types:**
+
+| Type | UI rendered on lead detail |
+|---|---|
+| Text | Single-line text input |
+| Number | Numeric input |
+| Phone | `tel` input |
+| Email | `email` input |
+| Dropdown | Select with configurable options |
+| Date | Date picker |
+| Checkbox | Toggle (stored as `'true'` / `'false'`) |
+| Textarea | Multi-line text, 3 rows |
+
+**Management (admin only):**
+
+- Add a field — enter name, choose type, add dropdown options if applicable, mark as required
+- Edit — update name, type, options, or required status at any time
+- Show / hide — toggle `is_active` without deleting the field or its values
+- Delete — permanent removal with confirmation dialog
+- Display order — controlled by `display_order` integer; drag handle in the UI
+
+**How values are stored:**
+
+- Field definitions live in `custom_field_definitions` (per college)
+- Values live in `custom_field_values` (per lead × per field, upserted on save)
+- Composite unique key: `(lead_id, field_id)`
+- All types stored as `TEXT`; checkbox uses `'true'` / `'false'`
+- `updated_by` and `updated_at` tracked on every value row
+
+**CSV Export integration:**
+
+- Custom fields appear as additional columns in the exported CSV
+- Columns ordered by `display_order`; only `is_active` fields are included
+
+---
+
+#### School Name & School Filtering
+
+- `school_name` is a text field on every lead — captured at import or manual entry
+- Shown in the lead detail header meta strip and in the lead table
+- **School filter** in the admin leads table — dropdown populated from all unique school names in the college's leads
+- Deep-linkable: `/admin/leads?school={school_name}`
+- Feeds directly into the **School-wise Interest Stats** panel in Interest Intelligence
+
+---
+
 #### Team Leader Management (`/admin/team-leaders`)
+
 - Create team leader accounts
 - Assign counsellors to a team leader
-- Team leaders see only their own counsellors' leads and stats
+- Team leaders are scoped to see only their own counsellors' leads and stats
+
+---
 
 #### Course Management (`/admin/courses`)
+
 - Add and manage courses offered by the college
 - Courses are selectable when adding or editing leads
 - Filter leads by course in the leads table
 
+---
+
 #### Lead Sources (`/admin/sources`)
+
 - Add / deactivate lead sources (e.g. Google Ad, Instagram, Walk-in, Reference)
-- Source used to tag leads at creation; snapshot stored on the lead record
+- Source used to tag leads at creation; snapshot stored on the lead record so renaming a source later does not break historical data
 - Source Intelligence analytics powered by these tags
 
-#### Super Fields (`/admin/super-fields`)
-- Build custom fields for the lead profile without touching code
-- Field types: **Text**, **Number**, **Phone**, **Email**, **Dropdown**, **Date**, **Checkbox**, **Textarea**
-- Mark fields as required
-- Drag-and-drop display order (via `display_order`)
-- Values stored per-lead in `custom_field_values`
+---
 
 #### Settings (`/admin/settings`)
+
 - College profile — name, email, phone, address, logo
 
 ---
 
 ### Team Leader Portal
 
-Team leaders share the admin layout but are scoped to their own team:
+Team leaders share the admin layout but are scoped to their own team.
 
-- **Dashboard** — Dedicated team leader view with a full counsellor performance table showing: Assigned, Called, Not Called, Interested, **Not Interested**, Enrolled, Conv%, Follow-ups Today, Missed F/U, Visit Overdue, No Show — all sortable, all numbers link to filtered leads
-- **Leads** — See all leads assigned to their counsellors; can search, filter, export
-- **Assignment** — Assign/reassign leads within their team
-- **Counsellors** — View their counsellors' performance with the same two-tab table (Performance / Action Items) as the admin view; cannot create new users
+- **Dashboard** — Full counsellor performance table: Assigned, Called, Not Called, Interested, Not Interested, Enrolled, Conv%, Follow-ups Today, Missed F/U, Visit Overdue, No Show — all sortable, all numbers link to filtered leads
+- **Leads** — All leads assigned to their counsellors; search, filter, export
+- **Assignment** — Assign / reassign leads within their team
+- **Counsellors** — Same two-tab table (Performance / Action Items) as the admin view; cannot create new users
 
-**Team Leader counsellor stats include:**
+**Counsellor stats — metric definitions:**
 
 | Metric | Source |
 |---|---|
 | Assigned | Total active leads assigned to the counsellor |
 | Called | Leads where a call stage has been logged |
 | Not Called | Assigned − Called |
-| Interested | Leads where current call stage = `Interested` |
-| Not Interested | Leads where current call stage = `Not Interested` |
-| Enrolled | Leads where current lead stage = `Enrolled` |
+| Interested | Leads where `current_call_stage = 'Interested'` |
+| Not Interested | Leads where `current_call_stage = 'Not Interested'` |
+| Enrolled | Leads where `current_lead_stage = 'Enrolled'` |
 | Conv% | Enrolled ÷ Assigned × 100 |
 | Follow-ups Today | Active leads with `follow_up_date = today` |
 | Missed F/U | Active leads with `follow_up_date < today` |
-| Visit Overdue | Leads in `Visit Scheduled` stage with `visit_date < today` |
+| Visit Overdue | Leads in `Visit Scheduled` with `visit_date < today` |
 | No Show | Leads in `No Show` stage |
 
 ---
@@ -146,31 +290,39 @@ Team leaders share the admin layout but are scoped to their own team:
 ### Counsellor Portal
 
 #### Dashboard (`/counsellor`)
+
 - Today's follow-ups count and list
 - Not-called leads count
 - Personal stats: assigned, called, interested, enrolled
 
 #### My Leads (`/counsellor/leads`)
-- Card-based lead list (mobile-friendly)
+
+- Card-based lead list (mobile-first)
 - Tabs: **All** / **Follow-ups today** / **Not Called**
-- Tap a card to open lead detail
+- Each card shows: name, phone, school, city, lead stage, call stage badge, follow-up date
+- **Call button** (`tel:` link) and **WhatsApp button** (`wa.me` link) on every card for one-tap action
 
 #### Lead Detail (`/counsellor/leads/[id]`)
-- **Tab 1 — Lead Info**: Name, phone, email, city, school, course interest, source, priority, follow-up date, notes, all Super Fields
-- **Tab 2 — Call Diary**: Full chronological call log with stage, notes, follow-up date per call; log a new call inline
-- **Tab 3 — Assignment History**: Who assigned/reassigned this lead and why
+
+Same three-tab layout as admin (Lead Info · Call Diary · Assignment History) with these differences:
+
+- Cannot edit name, phone, or source
+- Cannot reassign leads
+- Can log calls and update all status/date fields
 
 #### Call Logging
-- Select call stage (Call Picked / Interested / Not Interested / Call Not Picked / Call Later)
+
+- Select call result (Call Picked / Interested / Not Interested / Call Not Picked / Call Later)
 - Update lead stage
 - Add notes
 - Set follow-up date
-- Submitting creates an immutable record in `call_diary`
+- Submitting creates an immutable record in `call_diary` and updates the lead's current stages
 
 #### Notifications (`/counsellor/notifications`)
-- Real-time in-app bell icon with unread badge
+
+- Real-time in-app bell icon with unread badge (Supabase Realtime)
 - Full notification list page
-- Push notifications via Web Push API (if subscribed)
+- Push notifications via Web Push API (browser prompt on first visit)
 
 ---
 
@@ -197,6 +349,7 @@ Team leaders share the admin layout but are scoped to their own team:
 ## Database Schema
 
 ### `colleges`
+
 College profile. All data is scoped to a `college_id`.
 
 | Column | Type | Notes |
@@ -209,6 +362,7 @@ College profile. All data is scoped to a `college_id`.
 | is_active | BOOLEAN | |
 
 ### `users`
+
 All user accounts — admins, team leaders, counsellors.
 
 | Column | Type | Notes |
@@ -222,6 +376,7 @@ All user accounts — admins, team leaders, counsellors.
 | is_active | BOOLEAN | |
 
 ### `leads`
+
 Core entity. One row per enquiry.
 
 | Column | Type | Notes |
@@ -229,8 +384,8 @@ Core entity. One row per enquiry.
 | id | UUID PK | |
 | college_id | UUID FK | |
 | name, phone, email, city | TEXT | |
-| school_name | TEXT | School the student came from |
-| course_interest | TEXT | Free-text interest |
+| school_name | TEXT | School the student came from; feeds Interest Intelligence |
+| course_interest | TEXT | Free-text interest note |
 | course_id | UUID FK → courses | |
 | source_id | UUID FK → lead_sources | |
 | source_name | TEXT | Snapshot at creation time |
@@ -244,31 +399,35 @@ Core entity. One row per enquiry.
 | is_active | BOOLEAN | Soft delete |
 
 ### `call_diary`
+
 Immutable call log. Append-only.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID PK | |
 | lead_id | UUID FK | |
+| college_id | UUID FK | |
 | called_by | UUID FK → users | |
-| call_stage | TEXT | |
-| lead_stage_at_time | TEXT | Snapshot |
+| call_stage | TEXT | Result of the call |
+| lead_stage_at_time | TEXT | Snapshot of lead stage at call time |
 | notes | TEXT | |
-| follow_up_date | DATE | |
+| follow_up_date | DATE | Next follow-up scheduled during this call |
 
 ### `lead_assignment_history`
+
 Full audit trail of every assignment and reassignment.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID PK | |
 | lead_id | UUID FK | |
-| assigned_from | UUID FK → users | Previous owner |
+| assigned_from | UUID FK → users | Previous owner (null on first assignment) |
 | assigned_to | UUID FK → users | New owner |
 | assigned_by | UUID FK → users | Who made the change |
 | reason | TEXT | Required on reassign |
 
 ### `custom_field_definitions`
+
 Schema for Super Fields, defined per college.
 
 | Column | Type | Notes |
@@ -277,20 +436,25 @@ Schema for Super Fields, defined per college.
 | college_id | UUID FK | |
 | field_name | TEXT | |
 | field_type | TEXT | `text` / `number` / `phone` / `email` / `dropdown` / `date` / `checkbox` / `textarea` |
-| dropdown_options | JSONB | Array of strings for dropdown |
-| is_required | BOOLEAN | |
-| display_order | INTEGER | |
+| dropdown_options | JSONB | Array of strings for dropdown fields |
+| is_required | BOOLEAN | Enforced in the lead detail save path |
+| display_order | INTEGER | Controls rendering order on lead detail |
+| is_active | BOOLEAN | Soft hide/show without deletion |
 
 ### `custom_field_values`
+
 Per-lead values for Super Fields.
 
 | Column | Type | Notes |
 |---|---|---|
-| lead_id + field_id | UUID FKs | Composite unique |
-| value | TEXT | All types stored as text |
+| lead_id + field_id | UUID FKs | Composite unique key |
+| value | TEXT | All types stored as text; checkbox = `'true'`/`'false'` |
+| college_id | UUID FK | Denormalised for RLS |
 | updated_by | UUID FK → users | |
+| updated_at | TIMESTAMPTZ | |
 
 ### `courses`
+
 Courses offered by the college.
 
 | Column | Type | Notes |
@@ -300,6 +464,7 @@ Courses offered by the college.
 | course_name | TEXT | |
 
 ### `lead_sources`
+
 Configurable source list per college.
 
 | Column | Type | Notes |
@@ -309,6 +474,7 @@ Configurable source list per college.
 | source_name | TEXT | e.g. "Google Ad", "Walk-in" |
 
 ### `notifications`
+
 In-app notification store.
 
 | Column | Type | Notes |
@@ -317,9 +483,10 @@ In-app notification store.
 | user_id | UUID FK | |
 | title, body | TEXT | |
 | is_read | BOOLEAN | |
-| lead_id | UUID FK | Optional deep-link |
+| lead_id | UUID FK | Optional deep-link target |
 
 ### `push_subscriptions`
+
 Web Push API device subscriptions.
 
 | Column | Type | Notes |
@@ -327,7 +494,7 @@ Web Push API device subscriptions.
 | id | UUID PK | |
 | user_id | UUID FK | |
 | endpoint | TEXT UNIQUE | Push endpoint URL |
-| keys | JSONB | `auth` + `p256dh` |
+| keys | JSONB | `auth` + `p256dh` keys |
 
 ---
 
@@ -335,18 +502,20 @@ Web Push API device subscriptions.
 
 | Route | Method | Description |
 |---|---|---|
-| `GET /api/admin/leads` | GET | Paginated, filtered lead list. Params: `page`, `limit`, `search`, `stage`, `counsellor`, `source`, `course`, `school`, `tab`, `export` |
+| `GET /api/admin/leads` | GET | Paginated, filtered lead list. Params: `page`, `limit`, `search`, `stage`, `callStage`, `counsellor`, `source`, `course`, `school`, `tab`, `export`, `ids_only` |
 | `POST /api/admin/leads` | POST | Create a single lead with duplicate phone check |
-| `POST /api/admin/assign` | POST | Single or bulk lead assignment / reassignment. Sends push notification to assignee |
+| `PATCH /api/admin/leads` | PATCH | Bulk stage update for selected lead IDs |
+| `DELETE /api/admin/leads` | DELETE | Bulk delete selected lead IDs |
+| `POST /api/admin/assign` | POST | Single or bulk lead assignment / reassignment; sends push notification to assignee |
 | `GET /api/admin/counsellors` | GET | List counsellors (scoped to TL if role = team_leader) |
 | `POST /api/admin/counsellors` | POST | Create counsellor (Auth user + profile row) |
 | `GET /api/admin/team-leaders` | GET | List team leaders for the college |
 | `POST /api/admin/team-leaders` | POST | Create team leader account |
-| `POST /api/admin/import-notify` | POST | Send push notification to admin after CSV import completes |
+| `POST /api/admin/import-notify` | POST | Send push notification to admin after CSV import |
 | `POST /api/push/subscribe` | POST | Register a Web Push device subscription |
 | `POST /api/push/test` | POST | Send a test push notification |
-| `GET /api/cron/reminders` | GET | Cron endpoint — sends follow-up/visit push reminders to counsellors (protected by `CRON_SECRET`) |
-| `ANY /api/supabase/[...path]` | ANY | Supabase proxy (passes through to Supabase REST API) |
+| `GET /api/cron/reminders` | GET | Cron endpoint — sends follow-up/visit reminders to counsellors (protected by `CRON_SECRET`) |
+| `ANY /api/supabase/[...path]` | ANY | Supabase proxy |
 
 ---
 
@@ -372,7 +541,7 @@ New Enquiry → Contacted → Visit Scheduled → Visit Done
 
 ### Lead Priority
 
-`Hot` / `Warm` / `Cold` — set by the counsellor, visible in the lead card.
+`Hot` / `Warm` / `Cold` — set by the counsellor, visible in the lead card and detail header.
 
 ---
 
@@ -392,6 +561,7 @@ New Enquiry → Contacted → Visit Scheduled → Visit Done
 | Log calls | ❌ | ❌ | ✅ |
 | View analytics dashboard | ✅ | ✅ (own team) | ❌ |
 | Edit college settings | ✅ | ❌ | ❌ |
+| Edit lead name / phone / source | ✅ | ❌ | ❌ |
 
 Route protection is enforced in `src/middleware.ts` (redirects by role) and in each server component via `requireAdmin()` / `requireAdminOrTeamLeader()` / `requireCounsellor()` helpers in `src/lib/auth.ts`.
 
@@ -590,19 +760,19 @@ src/
 │   │   │   └── import/page.tsx       # CSV import
 │   │   ├── assignment/page.tsx       # Bulk assignment
 │   │   ├── counsellors/
-│   │   │   ├── page.tsx              # Counsellor list
+│   │   │   ├── page.tsx              # Counsellor list + two-tab perf table
 │   │   │   └── [id]/page.tsx         # Counsellor detail
 │   │   ├── team-leaders/page.tsx     # Team leader management
 │   │   ├── courses/page.tsx          # Course management
 │   │   ├── sources/page.tsx          # Lead source management
 │   │   ├── super-fields/page.tsx     # Custom field builder
-│   │   └── settings/page.tsx        # College settings
+│   │   └── settings/page.tsx         # College settings
 │   ├── counsellor/
 │   │   ├── page.tsx                  # Counsellor dashboard
 │   │   ├── leads/
 │   │   │   ├── page.tsx              # My leads (card view)
 │   │   │   └── [id]/page.tsx         # Lead detail
-│   │   └── notifications/page.tsx   # Notification list
+│   │   └── notifications/page.tsx    # Notification list
 │   └── api/
 │       ├── admin/
 │       │   ├── leads/route.ts        # CRUD + paginated query
@@ -618,27 +788,27 @@ src/
 │       └── supabase/[...path]/route.ts
 ├── components/
 │   ├── admin/
-│   │   ├── AdminAnalyticsClient.tsx  # Dashboard tabs, charts, TeamCounsellorPanel
-│   │   ├── AdminLeadsClient.tsx      # Lead table + filters
-│   │   ├── AdminAssignmentClient.tsx # Assignment UI
-│   │   ├── CounsellorsClient.tsx     # Counsellor management + two-tab perf table
-│   │   ├── AdminImportClient.tsx     # CSV import wizard
-│   │   ├── AdminCoursesClient.tsx    # Course management
-│   │   ├── AdminSourcesClient.tsx    # Source management
-│   │   ├── AdminSuperFieldsClient.tsx# Custom field builder
-│   │   ├── AdminSettingsClient.tsx   # College settings
-│   │   └── TeamLeaderDashboardClient.tsx # TL dashboard with counsellor stats
+│   │   ├── AdminAnalyticsClient.tsx      # Dashboard: KPIs, funnel, source intel, interest intel, team perf
+│   │   ├── AdminLeadsClient.tsx          # Lead table + filters + bulk actions
+│   │   ├── AdminAssignmentClient.tsx     # Assignment UI
+│   │   ├── CounsellorsClient.tsx         # Counsellor management + two-tab perf table
+│   │   ├── AdminImportClient.tsx         # CSV import wizard
+│   │   ├── AdminCoursesClient.tsx        # Course management
+│   │   ├── AdminSourcesClient.tsx        # Source management
+│   │   ├── AdminSuperFieldsClient.tsx    # Custom field builder
+│   │   ├── AdminSettingsClient.tsx       # College settings
+│   │   └── TeamLeaderDashboardClient.tsx # TL dashboard with counsellor stats table
 │   ├── counsellor/
 │   │   ├── CounsellorDashboardClient.tsx
-│   │   ├── CounsellorLeadsClient.tsx
+│   │   ├── CounsellorLeadsClient.tsx     # Card list with Call + WhatsApp buttons
 │   │   └── CounsellorNotificationsClient.tsx
 │   ├── shared/
-│   │   └── LeadDetailClient.tsx      # Used by both admin + counsellor detail pages
+│   │   └── LeadDetailClient.tsx          # Used by both admin + counsellor detail pages
 │   ├── layout/
 │   │   ├── AdminSidebar.tsx
 │   │   ├── CounsellorSidebar.tsx
 │   │   └── TopBar.tsx
-│   └── ui/                           # Base components (Button, Card, Dialog, Select …)
+│   └── ui/                               # Base components (Button, Card, Dialog, Select …)
 ├── lib/
 │   ├── supabase/
 │   │   ├── client.ts                 # Browser Supabase client
@@ -646,7 +816,7 @@ src/
 │   │   └── admin.ts                  # Service role client (API routes)
 │   ├── auth.ts                       # requireAdmin / requireCounsellor helpers
 │   ├── webpush.ts                    # sendPush() wrapper
-│   └── utils.ts                      # todayIST(), stage colours, constants
+│   └── utils.ts                      # todayIST(), getWhatsAppLink(), getCallLink(), stage colours
 ├── middleware.ts                     # Route protection + role-based redirects
 └── types/
     └── database.ts                   # TypeScript types for all DB tables
@@ -660,7 +830,8 @@ supabase/
 ## Performance Notes
 
 - Lead tables never fetch all rows — server-side pagination via `GET /api/admin/leads` with `range()`
-- All dashboard analytics use SQL `GROUP BY` aggregate RPCs (`get_stage_counts`, `get_counsellor_stats`, `get_source_stats`, etc.) — no full-table JS aggregation
+- All dashboard analytics use SQL `GROUP BY` aggregate RPCs (`get_stage_counts`, `get_counsellor_stats`, `get_source_stats`, `get_school_interest_stats`, `get_counsellor_interest_stats`, `get_team_performance`) — no full-table JS aggregation
 - Source Intelligence preview fetches 20 leads per source using a window function (`ROW_NUMBER() OVER PARTITION BY source`) in `get_source_recent_leads`
 - Composite indexes on `(college_id, current_lead_stage)`, `(college_id, assigned_to)`, `(college_id, follow_up_date)`, `(college_id, updated_at)` cover all common filter patterns
 - All times stored in UTC; IST conversion happens at display time via `todayIST()` and `toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })`
+- WhatsApp and Call links are pure HTML anchors — zero JS overhead; country code normalisation happens in `getWhatsAppLink()` in `utils.ts`
