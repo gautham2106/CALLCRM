@@ -13,7 +13,7 @@ import {
 } from '@/lib/utils'
 import {
   Search, Phone, MessageCircle, Users, Clock, PhoneOff, Building2, Pencil,
-  ChevronLeft, ChevronRight, Calendar,
+  ChevronLeft, ChevronRight, Calendar, GraduationCap, TrendingUp, XCircle, AlertTriangle,
 } from 'lucide-react'
 import { LeadSlidePanel } from '@/components/shared/LeadSlidePanel'
 
@@ -48,9 +48,14 @@ const STAGE_PILL: Record<string, string> = {
   'Visit Done': 'bg-indigo-50 text-indigo-700',
   'Application Started': 'bg-orange-50 text-orange-700',
   'Enrolled': 'bg-green-50 text-green-700',
+  'No Show': 'bg-red-50 text-red-600',
   'Cold Lead': 'bg-gray-100 text-gray-500',
   'Wrong Lead': 'bg-red-50 text-red-500',
 }
+
+const TERMINAL_STAGES = ['Enrolled', 'Cold Lead', 'Wrong Lead', 'No Show']
+
+type FilterTab = 'all' | 'today' | 'visits' | 'not-called' | 'interested' | 'enrolled' | 'no-show' | 'visit-overdue' | 'missed-followup'
 
 const CALL_PILL: Record<string, string> = {
   'Call Picked':     'text-green-600',
@@ -62,15 +67,13 @@ const CALL_PILL: Record<string, string> = {
 
 export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }: Props) {
   const searchParams = useSearchParams()
-  const initialFilter = searchParams.get('filter') || 'all'
+  const initialFilter = (searchParams.get('filter') || 'all') as FilterTab
 
   const [leads, setLeads] = useState(initialLeads)
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('all')
-  const [filterTab, setFilterTab] = useState<'all' | 'today' | 'visits' | 'not-called'>(
-    initialFilter as 'all' | 'today' | 'visits' | 'not-called'
-  )
+  const [filterTab, setFilterTab] = useState<FilterTab>(initialFilter)
   const [page, setPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
 
@@ -80,9 +83,16 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
 
   const filtered = useMemo(() => {
     let result = leads
-    if (filterTab === 'today') result = result.filter((l) => l.follow_up_date === today)
-    else if (filterTab === 'visits') result = result.filter((l) => l.visit_date === today)
+    if (filterTab === 'today')           result = result.filter((l) => l.follow_up_date === today)
+    else if (filterTab === 'visits')     result = result.filter((l) => l.visit_date === today)
     else if (filterTab === 'not-called') result = result.filter((l) => !l.current_call_stage)
+    else if (filterTab === 'interested') result = result.filter((l) => l.current_call_stage === 'Interested')
+    else if (filterTab === 'enrolled')   result = result.filter((l) => l.current_lead_stage === 'Enrolled')
+    else if (filterTab === 'no-show')    result = result.filter((l) => l.current_lead_stage === 'No Show')
+    else if (filterTab === 'visit-overdue')
+      result = result.filter((l) => l.current_lead_stage === 'Visit Scheduled' && l.visit_date != null && l.visit_date < today)
+    else if (filterTab === 'missed-followup')
+      result = result.filter((l) => l.follow_up_date != null && l.follow_up_date < today && !TERMINAL_STAGES.includes(l.current_lead_stage))
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(
@@ -101,23 +111,35 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
   const safePage = filtered.length === 0 ? 0 : Math.min(page, Math.max(0, totalPages - 1))
   const paginated = showAll ? filtered : filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
 
-  const tabCount = {
-    all: leads.length,
-    today: leads.filter((l) => l.follow_up_date === today).length,
-    visits: leads.filter((l) => l.visit_date === today).length,
-    'not-called': leads.filter((l) => !l.current_call_stage).length,
+  const tabCount: Record<FilterTab, number> = {
+    all:               leads.length,
+    today:             leads.filter((l) => l.follow_up_date === today).length,
+    visits:            leads.filter((l) => l.visit_date === today).length,
+    'not-called':      leads.filter((l) => !l.current_call_stage).length,
+    interested:        leads.filter((l) => l.current_call_stage === 'Interested').length,
+    enrolled:          leads.filter((l) => l.current_lead_stage === 'Enrolled').length,
+    'no-show':         leads.filter((l) => l.current_lead_stage === 'No Show').length,
+    'visit-overdue':   leads.filter((l) => l.current_lead_stage === 'Visit Scheduled' && l.visit_date != null && l.visit_date < today).length,
+    'missed-followup': leads.filter((l) => l.follow_up_date != null && l.follow_up_date < today && !TERMINAL_STAGES.includes(l.current_lead_stage)).length,
   }
 
   const handleLeadUpdated = (id: string, updated: Partial<Lead>) => {
     setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...updated } : l))
   }
 
-  const tabs = [
-    { key: 'all' as const, label: 'All', icon: Users },
-    { key: 'today' as const, label: 'Follow-ups', icon: Clock },
-    { key: 'visits' as const, label: "Today's Visits", icon: Building2 },
-    { key: 'not-called' as const, label: 'Not Called', icon: PhoneOff },
+  const allTabs: { key: FilterTab; label: string; icon: React.ElementType; danger?: boolean }[] = [
+    { key: 'all',             label: 'All',            icon: Users },
+    { key: 'missed-followup', label: 'Missed F/U',     icon: AlertTriangle, danger: true },
+    { key: 'visit-overdue',   label: 'Visit Overdue',  icon: Building2,     danger: true },
+    { key: 'no-show',         label: 'No Show',        icon: XCircle,       danger: true },
+    { key: 'today',           label: 'Due Today',      icon: Clock },
+    { key: 'visits',          label: "Today's Visits", icon: Building2 },
+    { key: 'not-called',      label: 'Not Called',     icon: PhoneOff },
+    { key: 'interested',      label: 'Interested',     icon: TrendingUp },
+    { key: 'enrolled',        label: 'Enrolled',       icon: GraduationCap },
   ]
+  // Always show All + active tab; show others only if they have leads
+  const tabs = allTabs.filter((t) => t.key === 'all' || t.key === filterTab || tabCount[t.key] > 0)
 
   return (
     <div className="min-h-full bg-gray-50">
@@ -130,25 +152,30 @@ export function CounsellorLeadsClient({ initialLeads, counsellorId, collegeId }:
       <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
         {/* Tabs */}
         <div className="flex border-b border-gray-200 bg-white px-2 sm:px-4 rounded-t-xl -mb-px overflow-x-auto scrollbar-none">
-          {tabs.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => { setFilterTab(key); resetPage() }}
-              className={`flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-                filterTab === key
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              {label}
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                filterTab === key ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-              }`}>
-                {tabCount[key]}
-              </span>
-            </button>
-          ))}
+          {tabs.map(({ key, label, icon: Icon, danger }) => {
+            const isActive = filterTab === key
+            const activeColor = danger ? 'border-red-500 text-red-600' : 'border-blue-600 text-blue-600'
+            const badgeColor  = isActive
+              ? (danger ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700')
+              : (danger && tabCount[key] > 0 ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500')
+            return (
+              <button
+                key={key}
+                onClick={() => { setFilterTab(key); resetPage() }}
+                className={`flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                  isActive
+                    ? activeColor
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                {label}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${badgeColor}`}>
+                  {tabCount[key]}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Filters */}

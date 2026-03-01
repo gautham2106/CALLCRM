@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireCounsellor } from '@/lib/auth'
 import {
-  PhoneCall, Users, TrendingUp, GraduationCap, Clock, AlertTriangle, ArrowUpRight, Building2,
+  PhoneCall, Users, TrendingUp, GraduationCap, Clock, AlertTriangle, ArrowUpRight, Building2, XCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { LEAD_STAGE_COLORS, todayIST } from '@/lib/utils'
@@ -30,6 +30,8 @@ export default async function CounsellorDashboard() {
       .gte('created_at', today),
   ])
 
+  const TERMINAL = ['Enrolled', 'Cold Lead', 'Wrong Lead', 'No Show']
+
   const allLeads = leads || []
   const totalAssigned = allLeads.length
   const enrolled = allLeads.filter((l) => l.current_lead_stage === 'Enrolled').length
@@ -37,6 +39,13 @@ export default async function CounsellorDashboard() {
   const todayFollowUps = allLeads.filter((l) => l.follow_up_date === today)
   const todayVisits = allLeads.filter((l) => l.visit_date === today)
   const notCalled = allLeads.filter((l) => !l.current_call_stage)
+  const noShow = allLeads.filter((l) => l.current_lead_stage === 'No Show').length
+  const visitsOverdue = allLeads.filter((l) =>
+    l.current_lead_stage === 'Visit Scheduled' && l.visit_date && l.visit_date < today
+  ).length
+  const missedFollowups = allLeads.filter((l) =>
+    l.follow_up_date && l.follow_up_date < today && !TERMINAL.includes(l.current_lead_stage)
+  ).length
   const conversion = totalAssigned > 0 ? Math.round((enrolled / totalAssigned) * 100) : 0
 
   return (
@@ -62,8 +71,8 @@ export default async function CounsellorDashboard() {
       <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* KPI Cards */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-          <Link href="/counsellor/leads">
-            <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-start justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
+          <Link href="/counsellor/leads" className="group">
+            <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-start justify-between hover:shadow-md hover:border-gray-300 transition-all">
               <div>
                 <p className="text-xs sm:text-sm font-medium text-gray-500">My Leads</p>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 tabular-nums">{totalAssigned}</p>
@@ -74,26 +83,30 @@ export default async function CounsellorDashboard() {
               </div>
             </div>
           </Link>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-start justify-between">
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-gray-500">Enrolled</p>
-              <p className="text-2xl sm:text-3xl font-bold text-green-600 mt-1 tabular-nums">{enrolled}</p>
-              <p className="text-xs text-green-600 font-medium mt-1">{conversion}% conversion</p>
+          <Link href="/counsellor/leads?filter=enrolled" className="group">
+            <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-start justify-between hover:shadow-md hover:border-gray-300 transition-all">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-500">Enrolled</p>
+                <p className="text-2xl sm:text-3xl font-bold text-green-600 mt-1 tabular-nums">{enrolled}</p>
+                <p className="text-xs text-green-600 font-medium mt-1">{conversion}% conversion</p>
+              </div>
+              <div className="p-2.5 sm:p-3 rounded-xl bg-green-50 text-green-600 group-hover:scale-110 transition-transform">
+                <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
             </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-green-50 text-green-600">
-              <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5" />
+          </Link>
+          <Link href="/counsellor/leads?filter=interested" className="group">
+            <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-start justify-between hover:shadow-md hover:border-gray-300 transition-all">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-500">Interested</p>
+                <p className="text-2xl sm:text-3xl font-bold text-indigo-600 mt-1 tabular-nums">{interested}</p>
+                <p className="text-xs text-gray-400 mt-1">warm leads</p>
+              </div>
+              <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
             </div>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-start justify-between">
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-gray-500">Interested</p>
-              <p className="text-2xl sm:text-3xl font-bold text-indigo-600 mt-1 tabular-nums">{interested}</p>
-              <p className="text-xs text-gray-400 mt-1">warm leads</p>
-            </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 text-indigo-600">
-              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-          </div>
+          </Link>
           <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex items-start justify-between">
             <div>
               <p className="text-xs sm:text-sm font-medium text-gray-500">Calls Today</p>
@@ -107,8 +120,29 @@ export default async function CounsellorDashboard() {
         </div>
 
         {/* Alert Strip */}
-        {(todayFollowUps.length > 0 || todayVisits.length > 0 || notCalled.length > 0) && (
+        {(missedFollowups > 0 || visitsOverdue > 0 || noShow > 0 || todayFollowUps.length > 0 || todayVisits.length > 0 || notCalled.length > 0) && (
           <div className="flex flex-wrap gap-2 sm:gap-3">
+            {missedFollowups > 0 && (
+              <Link href="/counsellor/leads?filter=missed-followup" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-800 text-sm font-semibold hover:bg-red-100 transition-colors">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+                {missedFollowups} missed follow-up{missedFollowups > 1 ? 's' : ''}
+                <ArrowUpRight className="h-3 w-3 opacity-60" />
+              </Link>
+            )}
+            {visitsOverdue > 0 && (
+              <Link href="/counsellor/leads?filter=visit-overdue" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 bg-red-50 text-red-800 text-sm font-semibold hover:bg-red-100 transition-colors">
+                <Building2 className="h-4 w-4 text-red-500" />
+                {visitsOverdue} visit{visitsOverdue > 1 ? 's' : ''} overdue
+                <ArrowUpRight className="h-3 w-3 opacity-60" />
+              </Link>
+            )}
+            {noShow > 0 && (
+              <Link href="/counsellor/leads?filter=no-show" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-300 bg-orange-50 text-orange-800 text-sm font-semibold hover:bg-orange-100 transition-colors">
+                <XCircle className="h-4 w-4 text-orange-500" />
+                {noShow} no show{noShow > 1 ? 's' : ''} — reschedule
+                <ArrowUpRight className="h-3 w-3 opacity-60" />
+              </Link>
+            )}
             {todayFollowUps.length > 0 && (
               <Link href="/counsellor/leads?filter=today" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-200 bg-orange-50 text-orange-800 text-sm font-medium hover:bg-orange-100 transition-colors">
                 <Clock className="h-4 w-4 text-orange-500" />
