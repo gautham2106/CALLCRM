@@ -43,7 +43,7 @@ export default async function SourcesPage() {
     if (month === lastMonthStr) statsMap[key].lastMonth++
   })
 
-  const stageOrder = ['New Enquiry', 'Contacted', 'Visit Scheduled', 'Visit Done', 'Application Started', 'Enrolled', 'Cold Lead', 'Wrong Lead']
+  const stageOrder = ['New Enquiry', 'Contacted', 'Visit Scheduled', 'Visit Done', 'No Show', 'Application Started', 'Enrolled', 'Cold Lead', 'Wrong Lead']
   const sourceStats = (sources || []).map((s: any) => {
     const stats = statsMap[s.id] || { total: 0, enrolled: 0, thisMonth: 0, lastMonth: 0, stages: {} }
     return {

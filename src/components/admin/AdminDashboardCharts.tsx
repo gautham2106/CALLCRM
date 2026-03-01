@@ -45,6 +45,7 @@ const STAGE_CHART_COLORS: Record<string, string> = {
   'Contacted': '#f59e0b',
   'Visit Scheduled': '#8b5cf6',
   'Visit Done': '#6366f1',
+  'No Show': '#f43f5e',
   'Application Started': '#f97316',
   'Enrolled': '#22c55e',
   'Cold Lead': '#6b7280',

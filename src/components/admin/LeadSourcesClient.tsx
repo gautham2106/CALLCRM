@@ -60,6 +60,7 @@ const STAGE_PILL: Record<string, string> = {
   'Contacted': 'bg-amber-50 text-amber-700',
   'Visit Scheduled': 'bg-purple-50 text-purple-700',
   'Visit Done': 'bg-indigo-50 text-indigo-700',
+  'No Show': 'bg-red-50 text-red-700',
   'Application Started': 'bg-orange-50 text-orange-700',
   'Enrolled': 'bg-green-50 text-green-700',
   'Cold Lead': 'bg-gray-100 text-gray-500',

@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 //   counsellor  string  assigned_to UUID, or 'unassigned'
 //   source      string  source_name exact match, or '__none__'
 //   course      string  course_id UUID, or '__none__'
-//   tab         string  'unassigned' filters to is_active leads with no counsellor
+//   tab         string  'unassigned' | 'visits' (overdue visit follow-ups)
 //   export      'true'  skips pagination limit — returns all matching rows for CSV
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -80,7 +80,15 @@ export async function GET(request: NextRequest) {
   if (!isExport && !isIdsOnly) query = query.range(page * limit, page * limit + limit - 1)
 
   // Filters
-  if (tab === 'unassigned' || counsellor === 'unassigned') {
+  if (tab === 'visits') {
+    // Overdue visits: visit_date is in the past and lead is still "Visit Scheduled"
+    // (not marked as Visit Done or No Show) — needs counsellor follow-up
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+    query = query
+      .eq('current_lead_stage', 'Visit Scheduled')
+      .not('visit_date', 'is', null)
+      .lt('visit_date', todayStr)
+  } else if (tab === 'unassigned' || counsellor === 'unassigned') {
     query = query.is('assigned_to', null)
   } else if (counsellor) {
     // Validate the counsellor belongs to this team leader's team
@@ -115,9 +123,28 @@ export async function GET(request: NextRequest) {
     .is('assigned_to', null)
     .or('is_active.is.null,is_active.eq.true')
 
-  const [{ data, count, error }, { count: unassignedTotal }] = await Promise.all([
+  // Visits overdue count: visit_date passed but still "Visit Scheduled"
+  const todayForCount = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  let visitsOverdueQuery = admin
+    .from('leads')
+    .select('*', { count: 'exact', head: true })
+    .eq('college_id', profile.college_id)
+    .eq('current_lead_stage', 'Visit Scheduled')
+    .not('visit_date', 'is', null)
+    .lt('visit_date', todayForCount)
+    .or('is_active.is.null,is_active.eq.true')
+  if (teamCounsellorIds !== null) {
+    if (teamCounsellorIds.length === 0) {
+      visitsOverdueQuery = visitsOverdueQuery.in('assigned_to', ['00000000-0000-0000-0000-000000000000'])
+    } else {
+      visitsOverdueQuery = visitsOverdueQuery.in('assigned_to', teamCounsellorIds)
+    }
+  }
+
+  const [{ data, count, error }, { count: unassignedTotal }, { count: visitsOverdueTotal }] = await Promise.all([
     query,
     unassignedCountPromise,
+    visitsOverdueQuery,
   ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -141,6 +168,7 @@ export async function GET(request: NextRequest) {
       leads: data || [],
       total: count || 0,
       unassigned_total: unassignedTotal || 0,
+      visits_overdue_total: visitsOverdueTotal || 0,
       custom_field_definitions: fieldDefs || [],
       custom_field_values: fieldValues || [],
     })
@@ -150,6 +178,7 @@ export async function GET(request: NextRequest) {
     leads: data || [],
     total: count || 0,
     unassigned_total: unassignedTotal || 0,
+    visits_overdue_total: visitsOverdueTotal || 0,
   })
 }
 

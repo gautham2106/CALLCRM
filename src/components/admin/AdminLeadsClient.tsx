@@ -33,6 +33,7 @@ import {
   CheckCircle,
   Building2,
   Calendar,
+  CalendarX,
   ChevronLeft,
   ChevronRight,
   Trash2,
@@ -93,6 +94,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
   const [leads, setLeads] = useState<Lead[]>([])
   const [total, setTotal] = useState(0)
   const [unassignedTotal, setUnassignedTotal] = useState(0)
+  const [visitsOverdueTotal, setVisitsOverdueTotal] = useState(0)
   const [loading, setLoading] = useState(true)
 
   // ---- Filter state ----
@@ -103,7 +105,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
   const [sourceFilter, setSourceFilter] = useState(initialSourceFilter || 'all')
   const [courseFilter, setCourseFilter] = useState('all')
   const [schoolFilter, setSchoolFilter] = useState('all')
-  const [activeTab, setActiveTab] = useState<'all' | 'unassigned'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'unassigned' | 'visits'>('all')
   const [page, setPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
   const [selectAllMatching, setSelectAllMatching] = useState(false)
@@ -150,6 +152,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
     if (stageFilter !== 'all')     p.set('stage', stageFilter)
     if (counsellorFilter !== 'all') p.set('counsellor', counsellorFilter)
     if (activeTab === 'unassigned') p.set('tab', 'unassigned')
+    if (activeTab === 'visits') p.set('tab', 'visits')
 
     // Resolve source ID → source name for the API
     if (sourceFilter !== 'all') {
@@ -179,6 +182,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
       setLeads(json.leads || [])
       setTotal(json.total || 0)
       setUnassignedTotal(json.unassigned_total || 0)
+      setVisitsOverdueTotal(json.visits_overdue_total || 0)
     } catch {
       toast({ title: 'Failed to load leads', variant: 'destructive' })
     } finally {
@@ -543,28 +547,55 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
       <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
         {/* Tabs */}
         <div className="flex gap-1 border-b border-gray-200 bg-white px-4 rounded-t-xl -mb-px">
-          {(['all', 'unassigned'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); resetPage() }}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-                activeTab === tab
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              {tab === 'all' ? (
-                <><Users className="h-3.5 w-3.5" /> All Leads</>
-              ) : (
-                <><CircleAlert className="h-3.5 w-3.5" /> Unassigned</>
-              )}
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                activeTab === tab ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-              }`}>
-                {tab === 'all' ? total.toLocaleString() : unassignedTotal.toLocaleString()}
-              </span>
-            </button>
-          ))}
+          <button
+            onClick={() => { setActiveTab('all'); resetPage() }}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'all'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Users className="h-3.5 w-3.5" /> All Leads
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+              activeTab === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+            }`}>
+              {total.toLocaleString()}
+            </span>
+          </button>
+          <button
+            onClick={() => { setActiveTab('unassigned'); resetPage() }}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'unassigned'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <CircleAlert className="h-3.5 w-3.5" /> Unassigned
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+              activeTab === 'unassigned' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+            }`}>
+              {unassignedTotal.toLocaleString()}
+            </span>
+          </button>
+          <button
+            onClick={() => { setActiveTab('visits'); resetPage() }}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'visits'
+                ? 'border-orange-600 text-orange-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <CalendarX className="h-3.5 w-3.5" /> Visit Follow-up
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+              activeTab === 'visits'
+                ? 'bg-orange-100 text-orange-700'
+                : visitsOverdueTotal > 0
+                  ? 'bg-orange-100 text-orange-700'
+                  : 'bg-gray-100 text-gray-500'
+            }`}>
+              {visitsOverdueTotal.toLocaleString()}
+            </span>
+          </button>
         </div>
 
         {/* Filters */}
@@ -644,6 +675,17 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
             )}
           </div>
         </div>
+
+        {/* Visit Follow-up info banner */}
+        {activeTab === 'visits' && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 flex items-start gap-2 text-sm text-orange-800">
+            <CalendarX className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>
+              <strong>Visit Follow-up required:</strong> These leads had a visit scheduled on a past date but are still marked as &quot;Visit Scheduled&quot;.
+              Ask the counsellor to update the stage to <strong>Visit Done</strong> (visit happened) or <strong>No Show</strong> (lead didn&apos;t arrive).
+            </span>
+          </div>
+        )}
 
         {/* Select All Matching banner */}
         {selectedIds.size > 0 && total > leads.length && (

@@ -277,7 +277,7 @@ export default async function AdminDashboard() {
 
   const data = await getDashboardData(user.college_id!)
 
-  const stageOrder = ['New Enquiry', 'Contacted', 'Visit Scheduled', 'Visit Done', 'Application Started', 'Enrolled', 'Cold Lead', 'Wrong Lead']
+  const stageOrder = ['New Enquiry', 'Contacted', 'Visit Scheduled', 'Visit Done', 'No Show', 'Application Started', 'Enrolled', 'Cold Lead', 'Wrong Lead']
   const funnelData = stageOrder.map((stage) => ({ stage, count: data.stageCounts[stage] || 0 }))
 
   const sourceArray = Object.entries(data.sourceStats)
