@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 //   counsellor  string  assigned_to UUID, or 'unassigned'
 //   source      string  source_name exact match, or '__none__'
 //   course      string  course_id UUID, or '__none__'
-//   tab         string  'unassigned' | 'visits' (overdue visit follow-ups)
+//   tab         string  'unassigned' | 'visits' | 'followups' (overdue)
 //   export      'true'  skips pagination limit — returns all matching rows for CSV
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
   if (teamCounsellorIds !== null) {
     if (teamCounsellorIds.length === 0) {
       // No counsellors → return empty
-      return NextResponse.json({ leads: [], total: 0, unassigned_total: 0 })
+      return NextResponse.json({ leads: [], total: 0, unassigned_total: 0, visits_overdue_total: 0, followups_overdue_total: 0 })
     }
     query = query.in('assigned_to', teamCounsellorIds)
   }
@@ -88,6 +88,13 @@ export async function GET(request: NextRequest) {
       .eq('current_lead_stage', 'Visit Scheduled')
       .not('visit_date', 'is', null)
       .lt('visit_date', todayStr)
+  } else if (tab === 'followups') {
+    // Overdue follow-ups: follow_up_date is in the past and lead is still active
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+    query = query
+      .not('follow_up_date', 'is', null)
+      .lt('follow_up_date', todayStr)
+      .not('current_lead_stage', 'in', '("Enrolled","Cold Lead","Wrong Lead","No Show")')
   } else if (tab === 'unassigned' || counsellor === 'unassigned') {
     query = query.is('assigned_to', null)
   } else if (counsellor) {
@@ -125,6 +132,11 @@ export async function GET(request: NextRequest) {
 
   // Visits overdue count: visit_date passed but still "Visit Scheduled"
   const todayForCount = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  const EMPTY_SCOPE = ['00000000-0000-0000-0000-000000000000']
+  const scopeIds = teamCounsellorIds !== null
+    ? (teamCounsellorIds.length === 0 ? EMPTY_SCOPE : teamCounsellorIds)
+    : null
+
   let visitsOverdueQuery = admin
     .from('leads')
     .select('*', { count: 'exact', head: true })
@@ -133,18 +145,29 @@ export async function GET(request: NextRequest) {
     .not('visit_date', 'is', null)
     .lt('visit_date', todayForCount)
     .or('is_active.is.null,is_active.eq.true')
-  if (teamCounsellorIds !== null) {
-    if (teamCounsellorIds.length === 0) {
-      visitsOverdueQuery = visitsOverdueQuery.in('assigned_to', ['00000000-0000-0000-0000-000000000000'])
-    } else {
-      visitsOverdueQuery = visitsOverdueQuery.in('assigned_to', teamCounsellorIds)
-    }
-  }
+  if (scopeIds) visitsOverdueQuery = visitsOverdueQuery.in('assigned_to', scopeIds)
 
-  const [{ data, count, error }, { count: unassignedTotal }, { count: visitsOverdueTotal }] = await Promise.all([
+  // Follow-ups overdue count: follow_up_date passed and lead is still active
+  let followupsOverdueQuery = admin
+    .from('leads')
+    .select('*', { count: 'exact', head: true })
+    .eq('college_id', profile.college_id)
+    .not('follow_up_date', 'is', null)
+    .lt('follow_up_date', todayForCount)
+    .not('current_lead_stage', 'in', '("Enrolled","Cold Lead","Wrong Lead","No Show")')
+    .or('is_active.is.null,is_active.eq.true')
+  if (scopeIds) followupsOverdueQuery = followupsOverdueQuery.in('assigned_to', scopeIds)
+
+  const [
+    { data, count, error },
+    { count: unassignedTotal },
+    { count: visitsOverdueTotal },
+    { count: followupsOverdueTotal },
+  ] = await Promise.all([
     query,
     unassignedCountPromise,
     visitsOverdueQuery,
+    followupsOverdueQuery,
   ])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -169,6 +192,7 @@ export async function GET(request: NextRequest) {
       total: count || 0,
       unassigned_total: unassignedTotal || 0,
       visits_overdue_total: visitsOverdueTotal || 0,
+      followups_overdue_total: followupsOverdueTotal || 0,
       custom_field_definitions: fieldDefs || [],
       custom_field_values: fieldValues || [],
     })
@@ -179,6 +203,7 @@ export async function GET(request: NextRequest) {
     total: count || 0,
     unassigned_total: unassignedTotal || 0,
     visits_overdue_total: visitsOverdueTotal || 0,
+    followups_overdue_total: followupsOverdueTotal || 0,
   })
 }
 

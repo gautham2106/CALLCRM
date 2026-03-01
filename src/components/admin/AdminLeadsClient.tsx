@@ -34,6 +34,7 @@ import {
   Building2,
   Calendar,
   CalendarX,
+  Clock,
   ChevronLeft,
   ChevronRight,
   Trash2,
@@ -95,6 +96,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
   const [total, setTotal] = useState(0)
   const [unassignedTotal, setUnassignedTotal] = useState(0)
   const [visitsOverdueTotal, setVisitsOverdueTotal] = useState(0)
+  const [followupsOverdueTotal, setFollowupsOverdueTotal] = useState(0)
   const [loading, setLoading] = useState(true)
 
   // ---- Filter state ----
@@ -105,7 +107,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
   const [sourceFilter, setSourceFilter] = useState(initialSourceFilter || 'all')
   const [courseFilter, setCourseFilter] = useState('all')
   const [schoolFilter, setSchoolFilter] = useState('all')
-  const [activeTab, setActiveTab] = useState<'all' | 'unassigned' | 'visits'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'unassigned' | 'visits' | 'followups'>('all')
   const [page, setPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
   const [selectAllMatching, setSelectAllMatching] = useState(false)
@@ -153,6 +155,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
     if (counsellorFilter !== 'all') p.set('counsellor', counsellorFilter)
     if (activeTab === 'unassigned') p.set('tab', 'unassigned')
     if (activeTab === 'visits') p.set('tab', 'visits')
+    if (activeTab === 'followups') p.set('tab', 'followups')
 
     // Resolve source ID → source name for the API
     if (sourceFilter !== 'all') {
@@ -183,6 +186,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
       setTotal(json.total || 0)
       setUnassignedTotal(json.unassigned_total || 0)
       setVisitsOverdueTotal(json.visits_overdue_total || 0)
+      setFollowupsOverdueTotal(json.followups_overdue_total || 0)
     } catch {
       toast({ title: 'Failed to load leads', variant: 'destructive' })
     } finally {
@@ -596,6 +600,25 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
               {visitsOverdueTotal.toLocaleString()}
             </span>
           </button>
+          <button
+            onClick={() => { setActiveTab('followups'); resetPage() }}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'followups'
+                ? 'border-rose-600 text-rose-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" /> Follow-up Overdue
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+              activeTab === 'followups'
+                ? 'bg-rose-100 text-rose-700'
+                : followupsOverdueTotal > 0
+                  ? 'bg-rose-100 text-rose-700'
+                  : 'bg-gray-100 text-gray-500'
+            }`}>
+              {followupsOverdueTotal.toLocaleString()}
+            </span>
+          </button>
         </div>
 
         {/* Filters */}
@@ -683,6 +706,17 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
             <span>
               <strong>Visit Follow-up required:</strong> These leads had a visit scheduled on a past date but are still marked as &quot;Visit Scheduled&quot;.
               Ask the counsellor to update the stage to <strong>Visit Done</strong> (visit happened) or <strong>No Show</strong> (lead didn&apos;t arrive).
+            </span>
+          </div>
+        )}
+
+        {/* Follow-up overdue info banner */}
+        {activeTab === 'followups' && (
+          <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 flex items-start gap-2 text-sm text-rose-800">
+            <Clock className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>
+              <strong>Follow-up overdue:</strong> These leads had a follow-up date set in the past but have not been contacted yet.
+              The counsellor needs to call them and log the update or reschedule the follow-up.
             </span>
           </div>
         )}
