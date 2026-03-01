@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireCounsellor } from '@/lib/auth'
 import {
   PhoneCall, Users, TrendingUp, GraduationCap, Clock, ArrowUpRight, Building2,
-  CheckCircle2,
+  CheckCircle2, AlertTriangle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { LEAD_STAGE_COLORS, todayIST } from '@/lib/utils'
