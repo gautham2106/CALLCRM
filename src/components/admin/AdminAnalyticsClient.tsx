@@ -965,7 +965,7 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     {c.interested > 0 ? (
-                      <Link href={leadsUrl('stage=Interested')} className="text-blue-600 font-medium hover:underline">{c.interested}</Link>
+                      <Link href={leadsUrl('callStage=Interested')} className="text-blue-600 font-medium hover:underline">{c.interested}</Link>
                     ) : <span className="text-gray-400">0</span>}
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">

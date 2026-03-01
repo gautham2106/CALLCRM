@@ -295,14 +295,14 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                       </td>
                       <td className="px-4 py-3.5 text-right tabular-nums">
                         {c.interested > 0 ? (
-                          <Link href={leadsUrl(c.id, 'stage=Interested')} className="text-blue-600 font-medium hover:underline">
+                          <Link href={leadsUrl(c.id, 'callStage=Interested')} className="text-blue-600 font-medium hover:underline">
                             {c.interested}
                           </Link>
                         ) : <span className="text-gray-400">0</span>}
                       </td>
                       <td className="px-4 py-3.5 text-right tabular-nums">
                         {c.notInterested > 0 ? (
-                          <Link href={leadsUrl(c.id, 'stage=Not+Interested')} className="text-orange-500 font-medium hover:underline">
+                          <Link href={leadsUrl(c.id, 'callStage=Not+Interested')} className="text-orange-500 font-medium hover:underline">
                             {c.notInterested}
                           </Link>
                         ) : <span className="text-gray-400">0</span>}
@@ -389,7 +389,7 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                     </div>
                     <div className="bg-gray-50 rounded-lg p-2">
                       {c.interested > 0 ? (
-                        <Link href={leadsUrl(c.id, 'stage=Interested')} className="block">
+                        <Link href={leadsUrl(c.id, 'callStage=Interested')} className="block">
                           <p className="text-base font-bold text-blue-600 hover:underline">{c.interested}</p>
                           <p className="text-[10px] text-gray-400 mt-0.5">Interested</p>
                         </Link>

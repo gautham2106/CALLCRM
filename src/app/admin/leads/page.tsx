@@ -12,10 +12,11 @@ export default async function AdminLeadsPage({
     source?: string
     tab?: string
     stage?: string
+    callStage?: string
     counsellor?: string
   }>
 }) {
-  const { source: initialSource, tab: initialTab, stage: initialStage, counsellor: initialCounsellor } = await searchParams
+  const { source: initialSource, tab: initialTab, stage: initialStage, callStage: initialCallStage, counsellor: initialCounsellor } = await searchParams
   const user = await requireAdminOrTeamLeader()
   const supabase = createAdminClient()
   const isTeamLeader = user.role === 'team_leader'
@@ -77,6 +78,7 @@ export default async function AdminLeadsPage({
       initialSourceFilter={initialSource || 'all'}
       initialTab={(initialTab === 'visits' || initialTab === 'followups' || initialTab === 'unassigned') ? initialTab : 'all'}
       initialStageFilter={initialStage || 'all'}
+      initialCallStageFilter={initialCallStage || 'all'}
       initialCounsellorFilter={initialCounsellor || 'all'}
     />
   )

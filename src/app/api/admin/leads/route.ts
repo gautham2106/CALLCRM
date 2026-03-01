@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   const rawSearch  = (sp.get('search') || '').trim().slice(0, 200)
   const search     = rawSearch.replace(/[()[\]{}<>|&!]/g, '')
   const stage      = sp.get('stage')      || ''
+  const callStage  = sp.get('callStage')  || ''   // current_call_stage filter
   const counsellor = sp.get('counsellor') || ''
   const source     = sp.get('source')     || ''   // source_name value or '__none__'
   const course     = sp.get('course')     || ''   // course_id or '__none__'
@@ -120,6 +121,7 @@ export async function GET(request: NextRequest) {
     query = query.eq('assigned_to', counsellor)
   }
   if (stage)              query = query.eq('current_lead_stage', stage)
+  if (callStage)          query = query.eq('current_call_stage', callStage)
   if (source === '__none__') query = query.is('source_name', null)
   else if (source)        query = query.eq('source_name', source)
   if (course === '__none__') query = query.is('course_id', null)

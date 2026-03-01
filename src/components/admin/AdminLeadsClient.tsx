@@ -85,13 +85,14 @@ interface Props {
   initialSourceFilter?: string
   initialTab?: 'all' | 'unassigned' | 'visits' | 'followups'
   initialStageFilter?: string
+  initialCallStageFilter?: string
   initialCounsellorFilter?: string
 }
 
 const PAGE_SIZE = 50
 const EMPTY_LEAD_FORM = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
-export function AdminLeadsClient({ counsellors, sources, courses, customFields, schools, collegeId, adminId, userRole, initialSourceFilter, initialTab, initialStageFilter, initialCounsellorFilter }: Props) {
+export function AdminLeadsClient({ counsellors, sources, courses, customFields, schools, collegeId, adminId, userRole, initialSourceFilter, initialTab, initialStageFilter, initialCallStageFilter, initialCounsellorFilter }: Props) {
   const supabase = createClient()
 
   // ---- Server-side paginated lead state ----
@@ -106,6 +107,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [stageFilter, setStageFilter] = useState(initialStageFilter || 'all')
+  const [callStageFilter, setCallStageFilter] = useState(initialCallStageFilter || 'all')
   const [counsellorFilter, setCounsellorFilter] = useState(initialCounsellorFilter || 'all')
   const [sourceFilter, setSourceFilter] = useState(initialSourceFilter || 'all')
   const [courseFilter, setCourseFilter] = useState('all')
@@ -155,6 +157,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
     if (showAll || forceExport) p.set('export', 'true')
     if (debouncedSearch)           p.set('search', debouncedSearch)
     if (stageFilter !== 'all')     p.set('stage', stageFilter)
+    if (callStageFilter !== 'all') p.set('callStage', callStageFilter)
     if (counsellorFilter !== 'all') p.set('counsellor', counsellorFilter)
     if (activeTab === 'unassigned') p.set('tab', 'unassigned')
     if (activeTab === 'visits') p.set('tab', 'visits')
@@ -176,7 +179,7 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
       p.set('school', schoolFilter)
     }
     return p
-  }, [page, showAll, debouncedSearch, stageFilter, counsellorFilter, sourceFilter, courseFilter, schoolFilter, activeTab, sources])
+  }, [page, showAll, debouncedSearch, stageFilter, callStageFilter, counsellorFilter, sourceFilter, courseFilter, schoolFilter, activeTab, sources])
 
   // ---- Core fetch function ----
   const fetchLeads = useCallback(async (overridePage?: number) => {
@@ -691,9 +694,9 @@ export function AdminLeadsClient({ counsellors, sources, courses, customFields, 
                 </SelectContent>
               </Select>
             )}
-            {(search || stageFilter !== 'all' || counsellorFilter !== 'all' || sourceFilter !== 'all' || courseFilter !== 'all' || schoolFilter !== 'all') && (
+            {(search || stageFilter !== 'all' || callStageFilter !== 'all' || counsellorFilter !== 'all' || sourceFilter !== 'all' || courseFilter !== 'all' || schoolFilter !== 'all') && (
               <button
-                onClick={() => { setSearch(''); setStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all'); setCourseFilter('all'); setSchoolFilter('all'); resetPage() }}
+                onClick={() => { setSearch(''); setStageFilter('all'); setCallStageFilter('all'); setCounsellorFilter('all'); setSourceFilter('all'); setCourseFilter('all'); setSchoolFilter('all'); resetPage() }}
                 className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                 Clear
