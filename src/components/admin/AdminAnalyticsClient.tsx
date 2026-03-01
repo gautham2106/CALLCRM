@@ -97,6 +97,7 @@ interface CounsellorStat {
   called: number
   notCalled: number
   interested: number
+  notInterested: number
   enrolled: number
   conversion: number
   followUpsToday: number
@@ -1042,7 +1043,7 @@ function TeamsTab({ teams, counsellorStats }: { teams: TeamPerformance[]; counse
 // Expanded counsellor panel within a team card
 // ============================================================
 type CounsellorPanelSortKey =
-  'name' | 'assigned' | 'called' | 'notCalled' | 'interested' |
+  'name' | 'assigned' | 'called' | 'notCalled' | 'interested' | 'notInterested' |
   'enrolled' | 'conversion' | 'followUpsToday' | 'missedFollowups' | 'visitsOverdue' | 'noShow'
 
 function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] }) {
@@ -1117,7 +1118,7 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
             <tr className="border-b border-gray-200">
               <th className="px-5 py-1.5" />
               <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-blue-500 uppercase tracking-wider border-l border-gray-200" colSpan={3}>Pipeline</th>
-              <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-green-600 uppercase tracking-wider border-l border-gray-200" colSpan={3}>Results</th>
+              <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-green-600 uppercase tracking-wider border-l border-gray-200" colSpan={4}>Results</th>
               <th className="text-center px-4 py-1.5 text-[10px] font-semibold text-red-500 uppercase tracking-wider border-l border-gray-200" colSpan={4}>Needs Action</th>
               <th className="px-4 py-1.5" />
             </tr>
@@ -1128,6 +1129,7 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
               <SortTh label="Called"           col="called" />
               <SortTh label="Not Called"       col="notCalled"      colorClass="text-gray-500" />
               <SortTh label="Interested"       col="interested"                   extraClass="border-l border-gray-100" />
+              <SortTh label="Not Interested"   col="notInterested"  colorClass="text-orange-500" />
               <SortTh label="Enrolled"         col="enrolled"       colorClass="text-green-600" />
               <SortTh label="Conv%"            col="conversion"     colorClass="text-green-600" />
               <SortTh label="Follow-ups Today" col="followUpsToday"               extraClass="border-l border-gray-100" />
@@ -1173,6 +1175,12 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
                   <td className="px-4 py-2.5 text-right tabular-nums">
                     {c.interested > 0 ? (
                       <Link href={leadsUrl('callStage=Interested')} className="text-blue-600 font-medium hover:underline">{c.interested}</Link>
+                    ) : <span className="text-gray-400">0</span>}
+                  </td>
+                  {/* Not Interested */}
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {c.notInterested > 0 ? (
+                      <Link href={leadsUrl('callStage=Not+Interested')} className="text-orange-500 font-medium hover:underline">{c.notInterested}</Link>
                     ) : <span className="text-gray-400">0</span>}
                   </td>
                   {/* Enrolled */}

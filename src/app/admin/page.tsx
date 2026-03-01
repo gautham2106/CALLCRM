@@ -120,6 +120,7 @@ async function getDashboardData(collegeId: string) {
       called:          calledN,
       notCalled:       assignedN - calledN,
       interested:      Number(s.interested       || 0),
+      notInterested:   Number(s.not_interested   || 0),
       enrolled:        enrolledN,
       conversion:      assignedN > 0 ? Math.round((enrolledN / assignedN) * 100) : 0,
       followUpsToday:  Number(s.followups_today  || 0),
