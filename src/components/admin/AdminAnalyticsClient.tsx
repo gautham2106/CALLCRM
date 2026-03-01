@@ -950,43 +950,63 @@ function TeamCounsellorPanel({ counsellors }: { counsellors: CounsellorStat[] })
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {counsellors.map((c) => (
-              <tr key={c.id} className="hover:bg-white transition-colors">
-                <td className="px-5 py-2.5 font-medium text-gray-900">{c.name}</td>
-                <td className="px-4 py-2.5 text-right text-gray-600 tabular-nums">{c.assigned}</td>
-                <td className="px-4 py-2.5 text-right text-gray-600 tabular-nums">{c.called}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums">
-                  <span className={c.notCalled > 5 ? 'text-red-600 font-semibold' : 'text-gray-400'}>{c.notCalled}</span>
-                </td>
-                <td className="px-4 py-2.5 text-right text-blue-600 font-medium tabular-nums">{c.interested}</td>
-                <td className="px-4 py-2.5 text-right text-green-600 font-bold tabular-nums">{c.enrolled}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums">
-                  <span className={`font-semibold ${c.conversion >= 10 ? 'text-green-600' : c.conversion >= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
-                    {c.conversion}%
-                  </span>
-                </td>
-                <td className="px-4 py-2.5 text-right tabular-nums">
-                  <span className={c.followUpsToday > 0 ? 'text-orange-500 font-medium' : 'text-gray-400'}>{c.followUpsToday}</span>
-                </td>
-                <td className="px-4 py-2.5 text-right tabular-nums">
-                  <span className={c.missedFollowups > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}>{c.missedFollowups}</span>
-                </td>
-                <td className="px-4 py-2.5 text-right tabular-nums">
-                  <span className={c.visitsOverdue > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}>{c.visitsOverdue}</span>
-                </td>
-                <td className="px-4 py-2.5 text-right tabular-nums">
-                  <span className={c.noShow > 0 ? 'text-orange-500 font-medium' : 'text-gray-300'}>{c.noShow}</span>
-                </td>
-                <td className="px-4 py-2.5 text-right">
-                  <Link
-                    href={`/admin/counsellors/${c.id}`}
-                    className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
-                  >
-                    View <ExternalLink className="h-3 w-3" />
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {counsellors.map((c) => {
+              const leadsUrl = (extra?: string) =>
+                `/admin/leads?counsellor=${c.id}${extra ? `&${extra}` : ''}`
+              return (
+                <tr key={c.id} className="hover:bg-white transition-colors">
+                  <td className="px-5 py-2.5 font-medium text-gray-900">{c.name}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    <Link href={leadsUrl()} className="text-gray-600 hover:text-blue-600 hover:underline">{c.assigned}</Link>
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-gray-600 tabular-nums">{c.called}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    <span className={c.notCalled > 5 ? 'text-red-600 font-semibold' : 'text-gray-400'}>{c.notCalled}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {c.interested > 0 ? (
+                      <Link href={leadsUrl('stage=Interested')} className="text-blue-600 font-medium hover:underline">{c.interested}</Link>
+                    ) : <span className="text-gray-400">0</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {c.enrolled > 0 ? (
+                      <Link href={leadsUrl('stage=Enrolled')} className="text-green-600 font-bold hover:underline">{c.enrolled}</Link>
+                    ) : <span className="text-gray-400">0</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    <span className={`font-semibold ${c.conversion >= 10 ? 'text-green-600' : c.conversion >= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
+                      {c.conversion}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    <span className={c.followUpsToday > 0 ? 'text-orange-500 font-medium' : 'text-gray-400'}>{c.followUpsToday}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {c.missedFollowups > 0 ? (
+                      <Link href={leadsUrl('tab=followups')} className="text-red-600 font-semibold hover:underline">{c.missedFollowups}</Link>
+                    ) : <span className="text-gray-300">0</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {c.visitsOverdue > 0 ? (
+                      <Link href={leadsUrl('tab=visits')} className="text-red-600 font-semibold hover:underline">{c.visitsOverdue}</Link>
+                    ) : <span className="text-gray-300">0</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {c.noShow > 0 ? (
+                      <Link href={leadsUrl('stage=No+Show')} className="text-orange-500 font-medium hover:underline">{c.noShow}</Link>
+                    ) : <span className="text-gray-300">0</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <Link
+                      href={`/admin/counsellors/${c.id}`}
+                      className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
+                    >
+                      View <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

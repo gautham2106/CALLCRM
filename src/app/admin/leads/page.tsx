@@ -8,9 +8,14 @@ import { AdminLeadsClient } from '@/components/admin/AdminLeadsClient'
 export default async function AdminLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string }>
+  searchParams: Promise<{
+    source?: string
+    tab?: string
+    stage?: string
+    counsellor?: string
+  }>
 }) {
-  const { source: initialSource } = await searchParams
+  const { source: initialSource, tab: initialTab, stage: initialStage, counsellor: initialCounsellor } = await searchParams
   const user = await requireAdminOrTeamLeader()
   const supabase = createAdminClient()
   const isTeamLeader = user.role === 'team_leader'
@@ -70,6 +75,9 @@ export default async function AdminLeadsPage({
       adminId={user.id}
       userRole={user.role}
       initialSourceFilter={initialSource || 'all'}
+      initialTab={(initialTab === 'visits' || initialTab === 'followups' || initialTab === 'unassigned') ? initialTab : 'all'}
+      initialStageFilter={initialStage || 'all'}
+      initialCounsellorFilter={initialCounsellor || 'all'}
     />
   )
 }

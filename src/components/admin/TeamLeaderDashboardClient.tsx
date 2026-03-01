@@ -109,6 +109,10 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
     )
     .slice(0, 5)
 
+  // Build a URL to the leads page pre-filtered for a counsellor
+  const leadsUrl = (counsellorId: string, extra?: string) =>
+    `/admin/leads?counsellor=${counsellorId}${extra ? `&${extra}` : ''}`
+
   const SortTh = ({ label, col, right = true }: { label: string; col: SortKey; right?: boolean }) => (
     <th
       onClick={() => handleSort(col)}
@@ -197,16 +201,24 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                   </Link>
                   <div className="flex items-center gap-3 text-xs shrink-0 flex-wrap justify-end">
                     {c.missedFollowups > 0 && (
-                      <span className="text-red-600 font-semibold">{c.missedFollowups} missed F/U</span>
+                      <Link href={leadsUrl(c.id, 'tab=followups')} className="text-red-600 font-semibold hover:underline">
+                        {c.missedFollowups} missed F/U
+                      </Link>
                     )}
                     {c.visitsOverdue > 0 && (
-                      <span className="text-red-600 font-semibold">{c.visitsOverdue} visit{c.visitsOverdue > 1 ? 's' : ''} overdue</span>
+                      <Link href={leadsUrl(c.id, 'tab=visits')} className="text-red-600 font-semibold hover:underline">
+                        {c.visitsOverdue} visit{c.visitsOverdue > 1 ? 's' : ''} overdue
+                      </Link>
                     )}
                     {c.noShow > 0 && (
-                      <span className="text-orange-600 font-medium">{c.noShow} no show</span>
+                      <Link href={leadsUrl(c.id, 'stage=No+Show')} className="text-orange-600 font-medium hover:underline">
+                        {c.noShow} no show
+                      </Link>
                     )}
                     {c.notCalled > 5 && (
-                      <span className="text-gray-600 font-medium">{c.notCalled} not called</span>
+                      <Link href={leadsUrl(c.id)} className="text-gray-600 font-medium hover:underline">
+                        {c.notCalled} not called
+                      </Link>
                     )}
                     {c.followUpsToday > 0 && (
                       <span className="text-blue-600 font-medium">{c.followUpsToday} due today</span>
@@ -270,44 +282,68 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                           <span className="font-medium text-gray-900">{c.name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 text-right text-gray-700">{c.assigned}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700">{c.called}</td>
                       <td className="px-4 py-3.5 text-right">
+                        <Link href={leadsUrl(c.id)} className="text-gray-700 hover:text-blue-600 hover:underline tabular-nums">
+                          {c.assigned}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{c.called}</td>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
                         <span className={c.notCalled > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
                           {c.notCalled}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-right text-blue-600 font-medium">{c.interested}</td>
-                      <td className="px-4 py-3.5 text-right">
-                        <span className={c.notInterested > 0 ? 'text-orange-500 font-medium' : 'text-gray-400'}>
-                          {c.notInterested}
-                        </span>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
+                        {c.interested > 0 ? (
+                          <Link href={leadsUrl(c.id, 'stage=Interested')} className="text-blue-600 font-medium hover:underline">
+                            {c.interested}
+                          </Link>
+                        ) : <span className="text-gray-400">0</span>}
                       </td>
-                      <td className="px-4 py-3.5 text-right text-green-600 font-bold">{c.enrolled}</td>
-                      <td className="px-4 py-3.5 text-right">
+                      <td className="px-4 py-3.5 text-right tabular-nums">
+                        {c.notInterested > 0 ? (
+                          <Link href={leadsUrl(c.id, 'stage=Not+Interested')} className="text-orange-500 font-medium hover:underline">
+                            {c.notInterested}
+                          </Link>
+                        ) : <span className="text-gray-400">0</span>}
+                      </td>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
+                        {c.enrolled > 0 ? (
+                          <Link href={leadsUrl(c.id, 'stage=Enrolled')} className="text-green-600 font-bold hover:underline">
+                            {c.enrolled}
+                          </Link>
+                        ) : <span className="text-gray-400">0</span>}
+                      </td>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
                         <span className={`font-medium ${c.conversion >= 10 ? 'text-green-600' : c.conversion >= 5 ? 'text-amber-600' : 'text-gray-500'}`}>
                           {c.conversion}%
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-right">
+                      <td className="px-4 py-3.5 text-right tabular-nums">
                         <span className={c.followUpsToday > 0 ? 'text-orange-600 font-medium' : 'text-gray-400'}>
                           {c.followUpsToday}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <span className={c.missedFollowups > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}>
-                          {c.missedFollowups}
-                        </span>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
+                        {c.missedFollowups > 0 ? (
+                          <Link href={leadsUrl(c.id, 'tab=followups')} className="text-red-600 font-semibold hover:underline">
+                            {c.missedFollowups}
+                          </Link>
+                        ) : <span className="text-gray-300">0</span>}
                       </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <span className={c.visitsOverdue > 0 ? 'text-red-600 font-semibold' : 'text-gray-300'}>
-                          {c.visitsOverdue}
-                        </span>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
+                        {c.visitsOverdue > 0 ? (
+                          <Link href={leadsUrl(c.id, 'tab=visits')} className="text-red-600 font-semibold hover:underline">
+                            {c.visitsOverdue}
+                          </Link>
+                        ) : <span className="text-gray-300">0</span>}
                       </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <span className={c.noShow > 0 ? 'text-orange-500 font-medium' : 'text-gray-300'}>
-                          {c.noShow}
-                        </span>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
+                        {c.noShow > 0 ? (
+                          <Link href={leadsUrl(c.id, 'stage=No+Show')} className="text-orange-500 font-medium hover:underline">
+                            {c.noShow}
+                          </Link>
+                        ) : <span className="text-gray-300">0</span>}
                       </td>
                       <td className="px-4 py-3.5 text-right">
                         <Link
@@ -337,25 +373,75 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                     <Link href={`/admin/counsellors/${c.id}`} className="text-xs text-blue-600 font-medium">View →</Link>
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-center">
-                    {[
-                      { label: 'Assigned',      value: c.assigned,      color: 'text-gray-700' },
-                      { label: 'Called',        value: c.called,        color: 'text-gray-700' },
-                      { label: 'Not Called',    value: c.notCalled,     color: c.notCalled > 0 ? 'text-red-600' : 'text-gray-400' },
-                      { label: 'Interested',    value: c.interested,    color: 'text-blue-600' },
-                      { label: 'Not Interested',value: c.notInterested, color: c.notInterested > 0 ? 'text-orange-500' : 'text-gray-400' },
-                      { label: 'Enrolled',      value: c.enrolled,      color: 'text-green-600' },
-                      { label: 'Conv %',        value: `${c.conversion}%`, color: c.conversion >= 10 ? 'text-green-600' : 'text-gray-500' },
-                    ].map((m) => (
-                      <div key={m.label} className="bg-gray-50 rounded-lg p-2">
-                        <p className={`text-base font-bold ${m.color}`}>{m.value}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{m.label}</p>
-                      </div>
-                    ))}
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      <Link href={leadsUrl(c.id)} className="block">
+                        <p className="text-base font-bold text-gray-700 hover:text-blue-600">{c.assigned}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Assigned</p>
+                      </Link>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      <p className="text-base font-bold text-gray-700">{c.called}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Called</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      <p className={`text-base font-bold ${c.notCalled > 0 ? 'text-red-600' : 'text-gray-400'}`}>{c.notCalled}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Not Called</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      {c.interested > 0 ? (
+                        <Link href={leadsUrl(c.id, 'stage=Interested')} className="block">
+                          <p className="text-base font-bold text-blue-600 hover:underline">{c.interested}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Interested</p>
+                        </Link>
+                      ) : (
+                        <>
+                          <p className="text-base font-bold text-gray-400">0</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Interested</p>
+                        </>
+                      )}
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      {c.enrolled > 0 ? (
+                        <Link href={leadsUrl(c.id, 'stage=Enrolled')} className="block">
+                          <p className="text-base font-bold text-green-600 hover:underline">{c.enrolled}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Enrolled</p>
+                        </Link>
+                      ) : (
+                        <>
+                          <p className="text-base font-bold text-gray-400">0</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Enrolled</p>
+                        </>
+                      )}
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      <p className={`text-base font-bold ${c.conversion >= 10 ? 'text-green-600' : 'text-gray-500'}`}>{c.conversion}%</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Conv %</p>
+                    </div>
                   </div>
-                  {c.followUpsToday > 0 && (
-                    <p className="mt-2 text-xs text-orange-600 font-medium">
-                      {c.followUpsToday} follow-up{c.followUpsToday > 1 ? 's' : ''} due today
-                    </p>
+                  {/* Overdue alert row */}
+                  {(c.missedFollowups > 0 || c.visitsOverdue > 0 || c.noShow > 0 || c.followUpsToday > 0) && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {c.missedFollowups > 0 && (
+                        <Link href={leadsUrl(c.id, 'tab=followups')} className="text-xs bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full hover:bg-red-100">
+                          {c.missedFollowups} missed F/U
+                        </Link>
+                      )}
+                      {c.visitsOverdue > 0 && (
+                        <Link href={leadsUrl(c.id, 'tab=visits')} className="text-xs bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full hover:bg-red-100">
+                          {c.visitsOverdue} visit overdue
+                        </Link>
+                      )}
+                      {c.noShow > 0 && (
+                        <Link href={leadsUrl(c.id, 'stage=No+Show')} className="text-xs bg-orange-50 text-orange-600 font-medium px-2 py-0.5 rounded-full hover:bg-orange-100">
+                          {c.noShow} no show
+                        </Link>
+                      )}
+                      {c.followUpsToday > 0 && (
+                        <span className="text-xs bg-blue-50 text-blue-600 font-medium px-2 py-0.5 rounded-full">
+                          {c.followUpsToday} due today
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
