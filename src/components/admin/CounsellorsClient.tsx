@@ -785,31 +785,56 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
               <span className="text-[10px] text-gray-400">Click column headers to sort · Click numbers to open leads</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              {/* table-fixed + explicit col widths = every column exactly even */}
+              <table className="w-full text-sm table-fixed">
+                <colgroup>
+                  <col className="w-[220px]" />{/* Counsellor */}
+                  <col className="w-[100px]" />{/* Status */}
+                  {tableView === 'performance' ? (
+                    <>
+                      <col className="w-[88px]" />{/* Assigned */}
+                      <col className="w-[88px]" />{/* Called */}
+                      <col className="w-[88px]" />{/* Not Called */}
+                      <col className="w-[88px]" />{/* Interested */}
+                      <col className="w-[112px]" />{/* Not Interested */}
+                      <col className="w-[88px]" />{/* Enrolled */}
+                      <col className="w-[72px]" />{/* Conv% */}
+                    </>
+                  ) : (
+                    <>
+                      <col className="w-[120px]" />{/* F/U Today */}
+                      <col className="w-[110px]" />{/* Missed F/U */}
+                      <col className="w-[115px]" />{/* Visit Overdue */}
+                      <col className="w-[95px]" />{/* No Show */}
+                    </>
+                  )}
+                  <col className="w-[152px]" />{/* Actions */}
+                </colgroup>
+
                 <thead className="bg-gray-50 border-b border-gray-200">
                   {/* Column group label row */}
                   <tr className="border-b border-gray-200 text-[10px] font-semibold uppercase tracking-wider">
-                    <th className="px-4 py-1.5 text-left text-gray-400" colSpan={2} />
+                    <th colSpan={2} />
                     {tableView === 'performance' ? (
                       <>
-                        <th className="px-4 py-1.5 text-center text-blue-500 border-l border-gray-200" colSpan={3}>Pipeline</th>
-                        <th className="px-4 py-1.5 text-center text-green-600 border-l border-gray-200" colSpan={4}>Results</th>
+                        <th className="py-1.5 text-center text-blue-500 border-l border-gray-200" colSpan={3}>Pipeline</th>
+                        <th className="py-1.5 text-center text-green-600 border-l border-gray-200" colSpan={4}>Results</th>
                       </>
                     ) : (
-                      <th className="px-4 py-1.5 text-center text-red-500 border-l border-gray-200" colSpan={4}>Needs Action</th>
+                      <th className="py-1.5 text-center text-red-500 border-l border-gray-200" colSpan={4}>Needs Action</th>
                     )}
-                    <th className="px-4 py-1.5" />
+                    <th />
                   </tr>
                   {/* Sortable column headers */}
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[180px]">Counsellor</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Counsellor</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                     {tableView === 'performance'
-                      ? ((['assigned','called','notCalled','interested','notInterested','enrolled','conversion'] as SortKey[])).map((col, i) => (
+                      ? (['assigned','called','notCalled','interested','notInterested','enrolled','conversion'] as SortKey[]).map((col, i) => (
                           <th
                             key={col}
                             onClick={() => handleColSort(col)}
-                            className={`px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors whitespace-nowrap
+                            className={`px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors
                               ${i === 0 ? 'border-l border-gray-200' : ''}
                               ${i === 3 ? 'border-l border-gray-200' : ''}
                               ${sortBy === col
@@ -818,30 +843,31 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                                 : 'text-gray-500 hover:bg-gray-100'
                               }`}
                           >
-                            <span className="inline-flex items-center justify-end gap-1 w-full">
-                              {({ assigned:'Assigned', called:'Called', notCalled:'Not Called', interested:'Interested', notInterested:'Not Interested', enrolled:'Enrolled', conversion:'Conv%' } as Record<string,string>)[col]}
+                            <span className="inline-flex items-center justify-center gap-0.5">
+                              {({ assigned:'Assigned', called:'Called', notCalled:'Not Called', interested:'Interested', notInterested:'Not Int.', enrolled:'Enrolled', conversion:'Conv%' } as Record<string,string>)[col]}
                               <ArrowUpDown className={`h-3 w-3 shrink-0 ${sortBy === col ? 'text-blue-500' : 'opacity-25'}`} />
                             </span>
                           </th>
                         ))
-                      : ((['followUpsToday','missedFollowups','visitsOverdue','noShow'] as SortKey[])).map((col, i) => (
+                      : (['followUpsToday','missedFollowups','visitsOverdue','noShow'] as SortKey[]).map((col, i) => (
                           <th
                             key={col}
                             onClick={() => handleColSort(col)}
-                            className={`px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors whitespace-nowrap
+                            className={`px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors
                               ${i === 0 ? 'border-l border-gray-200' : ''}
                               ${sortBy === col ? 'bg-red-50 text-red-600' : 'text-red-400 hover:bg-gray-100'}`}
                           >
-                            <span className="inline-flex items-center justify-end gap-1 w-full">
-                              {({ followUpsToday:'Follow-ups Today', missedFollowups:'Missed F/U', visitsOverdue:'Visit Overdue', noShow:'No Show' } as Record<string,string>)[col]}
+                            <span className="inline-flex items-center justify-center gap-0.5">
+                              {({ followUpsToday:'F/U Today', missedFollowups:'Missed F/U', visitsOverdue:'Visit O/D', noShow:'No Show' } as Record<string,string>)[col]}
                               <ArrowUpDown className={`h-3 w-3 shrink-0 ${sortBy === col ? 'text-red-500' : 'opacity-25'}`} />
                             </span>
                           </th>
                         ))
                     }
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-gray-100">
                   {[...counsellors]
                     .sort((a, b) => sortAsc
@@ -863,86 +889,61 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                       const rowUrgent       = followUpsToday + missedFollowups + visitsOverdue + noShow
 
                       const lUrl = (extra?: string) => `/admin/leads?counsellor=${c.id}${extra ? `&${extra}` : ''}`
+                      // Reusable number cell — centred, consistent size
+                      const NumCell = ({ href, value, color }: { href?: string; value: number; color?: string }) => (
+                        <td className="px-2 py-3 text-center tabular-nums align-middle">
+                          {href && value > 0
+                            ? <Link href={href} className={`font-bold text-sm hover:underline ${color ?? 'text-gray-800'}`}>{value}</Link>
+                            : <span className={`font-bold text-sm ${value > 0 ? (color ?? 'text-gray-800') : 'text-gray-300'}`}>{value}</span>}
+                        </td>
+                      )
 
                       return (
-                        <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${!c.is_active ? 'opacity-50' : ''}`}>
+                        <tr key={c.id} className={`hover:bg-gray-50 transition-colors align-middle ${!c.is_active ? 'opacity-50' : ''}`}>
                           {/* Counsellor */}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${rowUrgent > 0 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-700'}`}>
                                 {c.name.charAt(0).toUpperCase()}
                               </div>
                               <div className="min-w-0">
-                                <Link href={`/admin/counsellors/${c.id}`} className="font-semibold text-gray-900 hover:text-blue-600 hover:underline text-sm">{c.name}</Link>
-                                <p className="text-xs text-gray-400 truncate max-w-[140px]">{c.email}</p>
+                                <Link href={`/admin/counsellors/${c.id}`} className="font-semibold text-gray-900 hover:text-blue-600 hover:underline text-sm block truncate">{c.name}</Link>
+                                <p className="text-xs text-gray-400 truncate">{c.email}</p>
                               </div>
                             </div>
                           </td>
-                          {/* Status */}
-                          <td className="px-4 py-3">
-                            <div className="flex flex-col gap-1">
-                              <Badge variant={c.is_active ? 'success' : 'secondary'} className="w-fit">
-                                {c.is_active ? 'Active' : 'Inactive'}
-                              </Badge>
-                              {rowUrgent > 0 && (
-                                <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full flex items-center gap-1 w-fit">
-                                  <AlertCircle className="h-2.5 w-2.5" />{rowUrgent}
-                                </span>
-                              )}
-                            </div>
+                          {/* Status — single line, no stacking */}
+                          <td className="px-3 py-3 text-center align-middle">
+                            <Badge variant={c.is_active ? 'success' : 'secondary'} className="w-fit mx-auto">
+                              {c.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
                           </td>
 
-                          {/* Performance view columns */}
+                          {/* Performance columns */}
                           {tableView === 'performance' ? (
                             <>
-                              <td className="px-4 py-3 text-right border-l border-gray-100">
-                                <Link href={lUrl()} className="font-bold text-gray-900 hover:text-blue-600 hover:underline tabular-nums">{total}</Link>
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-600">{called}</td>
-                              <td className="px-4 py-3 text-right tabular-nums">
-                                <Link href={lUrl()} className={`font-bold hover:underline ${notCalled > 0 ? 'text-red-500' : 'text-gray-300'}`}>{notCalled}</Link>
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums border-l border-gray-100">
-                                <Link href={lUrl('callStage=Interested')} className={`font-bold hover:underline ${interested > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>{interested}</Link>
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums">
-                                <Link href={lUrl('callStage=Not+Interested')} className={`font-bold hover:underline ${notInterested > 0 ? 'text-orange-500' : 'text-gray-300'}`}>{notInterested}</Link>
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums">
-                                <Link href={lUrl('stage=Enrolled')} className={`font-bold hover:underline ${enrolled > 0 ? 'text-green-600' : 'text-gray-300'}`}>{enrolled}</Link>
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums">
-                                <span className={`font-bold ${conversion >= 10 ? 'text-green-600' : conversion >= 5 ? 'text-amber-600' : 'text-gray-400'}`}>{conversion}%</span>
+                              <NumCell href={lUrl()} value={total} color="text-gray-800" />
+                              <NumCell value={called} color="text-gray-600" />
+                              <NumCell href={lUrl()} value={notCalled} color="text-red-500" />
+                              <NumCell href={lUrl('callStage=Interested')} value={interested} color="text-indigo-600" />
+                              <NumCell href={lUrl('callStage=Not+Interested')} value={notInterested} color="text-orange-500" />
+                              <NumCell href={lUrl('stage=Enrolled')} value={enrolled} color="text-green-600" />
+                              <td className="px-2 py-3 text-center tabular-nums align-middle">
+                                <span className={`font-bold text-sm ${conversion >= 10 ? 'text-green-600' : conversion >= 5 ? 'text-amber-600' : 'text-gray-400'}`}>{conversion}%</span>
                               </td>
                             </>
                           ) : (
                             <>
-                              <td className="px-4 py-3 text-right tabular-nums border-l border-gray-100">
-                                {followUpsToday > 0
-                                  ? <Link href={lUrl('tab=followups')} className="font-bold text-orange-500 hover:underline">{followUpsToday}</Link>
-                                  : <span className="text-gray-300">0</span>}
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums">
-                                {missedFollowups > 0
-                                  ? <Link href={lUrl('tab=followups')} className="font-bold text-red-600 hover:underline">{missedFollowups}</Link>
-                                  : <span className="text-gray-300">0</span>}
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums">
-                                {visitsOverdue > 0
-                                  ? <Link href={lUrl('tab=visits')} className="font-bold text-red-600 hover:underline">{visitsOverdue}</Link>
-                                  : <span className="text-gray-300">0</span>}
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums">
-                                {noShow > 0
-                                  ? <Link href={lUrl('stage=No+Show')} className="font-bold text-orange-500 hover:underline">{noShow}</Link>
-                                  : <span className="text-gray-300">0</span>}
-                              </td>
+                              <NumCell href={followUpsToday > 0 ? lUrl('tab=followups') : undefined} value={followUpsToday} color="text-orange-500" />
+                              <NumCell href={missedFollowups > 0 ? lUrl('tab=followups') : undefined} value={missedFollowups} color="text-red-600" />
+                              <NumCell href={visitsOverdue > 0 ? lUrl('tab=visits') : undefined} value={visitsOverdue} color="text-red-600" />
+                              <NumCell href={noShow > 0 ? lUrl('stage=No+Show') : undefined} value={noShow} color="text-orange-500" />
                             </>
                           )}
 
                           {/* Actions */}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-1.5">
+                          <td className="px-3 py-3 align-middle">
+                            <div className="flex items-center justify-center gap-1.5">
                               <Button
                                 size="sm"
                                 className="gap-1 bg-green-600 hover:bg-green-700 text-white h-7 text-xs px-2"
