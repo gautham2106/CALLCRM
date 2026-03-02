@@ -172,9 +172,10 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
   const saveLead = async () => {
     if (!lead) return
     setSaving(true)
-    const { error } = await supabase
-      .from('leads')
-      .update({
+    const res = await fetch(`/api/leads/${lead.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         name: lead.name,
         phone: lead.phone,
         email: lead.email,
@@ -189,25 +190,19 @@ export function LeadSlidePanel({ leadId, collegeId, currentUserId, onClose, onLe
         visit_date: lead.visit_date || null,
         follow_up_date: lead.follow_up_date || null,
         notes: lead.notes,
-      })
-      .eq('id', lead.id)
-    if (!error) {
-      // Save custom field values
-      for (const [fieldId, value] of Object.entries(fieldValues)) {
-        await supabase
-          .from('custom_field_values')
-          .upsert({
-            lead_id: lead.id,
-            field_id: fieldId,
-            college_id: collegeId,
-            value: value || null,
-            updated_by: currentUserId,
-          }, { onConflict: 'lead_id,field_id' })
-      }
+        customFields: fieldValues,
+      }),
+    })
+    if (res.ok) {
       onLeadUpdated?.(lead.id, lead)
       toast({ title: 'Lead updated', variant: 'success' })
     } else {
-      toast({ title: 'Save failed', description: error.message, variant: 'destructive' })
+      const json = await res.json().catch(() => ({}))
+      if (res.status === 409) {
+        toast({ title: 'Duplicate phone', description: json.error, variant: 'destructive' })
+      } else {
+        toast({ title: 'Save failed', description: json.error || 'Unknown error', variant: 'destructive' })
+      }
     }
     setSaving(false)
   }

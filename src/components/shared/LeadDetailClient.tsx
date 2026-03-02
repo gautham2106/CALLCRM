@@ -133,24 +133,7 @@ export function LeadDetailClient({
   const saveLeadInfo = async () => {
     setSaving(true)
 
-    // Admin-only: check for duplicate phone if phone was changed
-    if (userRole === 'admin' && lead.phone.trim() !== initialLead.phone) {
-      const { data: dup } = await supabase
-        .from('leads')
-        .select('id, name')
-        .eq('college_id', collegeId)
-        .eq('phone', lead.phone.trim())
-        .neq('id', lead.id)
-        .limit(1)
-        .maybeSingle()
-      if (dup) {
-        toast({ title: 'Duplicate phone', description: `Phone already used by "${dup.name}"`, variant: 'destructive' })
-        setSaving(false)
-        return
-      }
-    }
-
-    const updatePayload: Record<string, unknown> = {
+    const body: Record<string, unknown> = {
       current_lead_stage: lead.current_lead_stage,
       current_call_stage: lead.current_call_stage,
       visit_date: lead.visit_date || null,
@@ -161,35 +144,31 @@ export function LeadDetailClient({
       school_name: lead.school_name,
       course_interest: lead.course_interest,
       course_id: lead.course_id || null,
+      customFields: fieldValues,
     }
 
     if (userRole === 'admin') {
-      updatePayload.name = lead.name
-      updatePayload.phone = lead.phone.trim()
-      updatePayload.source_id = lead.source_id || null
-      updatePayload.source_name = lead.source_name || null
+      body.name = lead.name
+      body.phone = lead.phone.trim()
+      body.source_id = lead.source_id || null
+      body.source_name = lead.source_name || null
     }
 
-    const { error } = await supabase
-      .from('leads')
-      .update(updatePayload)
-      .eq('id', lead.id)
+    const res = await fetch(`/api/leads/${lead.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
 
-    if (!error) {
-      for (const [fieldId, value] of Object.entries(fieldValues)) {
-        await supabase
-          .from('custom_field_values')
-          .upsert({
-            lead_id: lead.id,
-            field_id: fieldId,
-            college_id: collegeId,
-            value: value || null,
-            updated_by: currentUserId,
-          }, { onConflict: 'lead_id,field_id' })
-      }
+    if (res.ok) {
       toast({ title: 'Lead updated', description: 'All changes saved.', variant: 'success' })
     } else {
-      toast({ title: 'Save failed', description: error.message, variant: 'destructive' })
+      const json = await res.json().catch(() => ({}))
+      if (res.status === 409) {
+        toast({ title: 'Duplicate phone', description: json.error, variant: 'destructive' })
+      } else {
+        toast({ title: 'Save failed', description: json.error || 'Unknown error', variant: 'destructive' })
+      }
     }
     setSaving(false)
   }
