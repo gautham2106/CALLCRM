@@ -11,6 +11,7 @@ export type LeadStage =
   | 'Contacted'
   | 'Visit Scheduled'
   | 'Visit Done'
+  | 'No Show'
   | 'Application Started'
   | 'Enrolled'
   | 'Cold Lead'
@@ -93,6 +94,7 @@ export interface Database {
           city: string | null
           school_name: string | null
           course_interest: string | null
+          course_id: string | null
           source_id: string | null
           source_name: string | null
           current_lead_stage: LeadStage
@@ -115,6 +117,7 @@ export interface Database {
           city?: string | null
           school_name?: string | null
           course_interest?: string | null
+          course_id?: string | null
           source_id?: string | null
           source_name?: string | null
           current_lead_stage?: LeadStage
@@ -279,6 +282,8 @@ export interface LeadWithDetails {
   city: string | null
   school_name: string | null
   course_interest: string | null
+  course_id: string | null
+  source_id: string | null
   source_name: string | null
   current_lead_stage: LeadStage
   current_call_stage: CallStage | null

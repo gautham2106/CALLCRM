@@ -52,7 +52,29 @@ async function handler(
   }
 
   // Buffer the response so we can safely manipulate headers.
-  const resBody = await response.arrayBuffer()
+  let resBody: ArrayBuffer
+  try {
+    resBody = await response.arrayBuffer()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[supabase-proxy] Failed to buffer response from ${targetUrl}:`, message)
+    return NextResponse.json(
+      { error: `Proxy buffer failed: ${message}` },
+      { status: 502 }
+    )
+  }
+
+  // Log non-2xx responses from Supabase to help diagnose production issues.
+  if (response.status >= 400) {
+    try {
+      const errText = new TextDecoder().decode(resBody)
+      console.error(
+        `[supabase-proxy] Supabase returned ${response.status} for ${req.method} ${targetUrl} — body: ${errText}`
+      )
+    } catch {
+      // ignore decode errors
+    }
+  }
 
   // Build clean response headers — strip anything that leaks Supabase identity
   // or causes content-decoding issues on the browser side.
