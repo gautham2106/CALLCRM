@@ -79,9 +79,12 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
     }
   }
 
-  const totalAssigned  = counsellorStats.reduce((s, c) => s + c.assigned,      0)
-  const totalEnrolled  = counsellorStats.reduce((s, c) => s + c.enrolled,      0)
-  const totalFollowUps = counsellorStats.reduce((s, c) => s + c.followUpsToday, 0)
+  const totalAssigned        = counsellorStats.reduce((s, c) => s + c.assigned,        0)
+  const totalEnrolled        = counsellorStats.reduce((s, c) => s + c.enrolled,        0)
+  const totalFollowUps       = counsellorStats.reduce((s, c) => s + c.followUpsToday,  0)
+  const totalMissedFollowups = counsellorStats.reduce((s, c) => s + c.missedFollowups, 0)
+  const totalVisitsOverdue   = counsellorStats.reduce((s, c) => s + c.visitsOverdue,   0)
+  const totalNoShow          = counsellorStats.reduce((s, c) => s + c.noShow,          0)
   const teamConversion = totalAssigned > 0 ? Math.round((totalEnrolled / totalAssigned) * 100) : 0
 
   const handleSort = (key: SortKey) => {
@@ -185,6 +188,66 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
             <p className="text-2xl font-bold text-gray-900">{totalFollowUps}</p>
           </div>
         </div>
+
+        {/* What Needs Attention — team-level aggregate alerts */}
+        {(totalMissedFollowups > 0 || totalVisitsOverdue > 0 || totalNoShow > 0) && (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-gray-500 shrink-0" />
+              <span className="text-sm font-semibold text-gray-700">What Needs Attention Right Now</span>
+              {totalMissedFollowups === 0 && totalVisitsOverdue === 0 && totalNoShow === 0 && (
+                <span className="ml-auto text-xs text-green-600 font-medium">All clear — nothing urgent</span>
+              )}
+            </div>
+            <div className="divide-y divide-gray-100">
+              {totalMissedFollowups > 0 && (
+                <Link
+                  href="/admin/leads?tab=followups"
+                  className="flex items-start gap-3 px-5 py-3.5 border-l-4 border-red-400 bg-red-50 hover:opacity-80 transition-opacity"
+                >
+                  <span className="mt-1.5 h-2 w-2 rounded-full shrink-0 bg-red-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-red-800">
+                      {totalMissedFollowups} missed follow-up{totalMissedFollowups > 1 ? 's' : ''} across your team
+                    </p>
+                    <p className="text-xs mt-0.5 text-red-600 opacity-80">Action: Check which counsellors have overdue follow-ups and follow up now</p>
+                  </div>
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-red-400" />
+                </Link>
+              )}
+              {totalVisitsOverdue > 0 && (
+                <Link
+                  href="/admin/leads?tab=visits"
+                  className="flex items-start gap-3 px-5 py-3.5 border-l-4 border-red-400 bg-red-50 hover:opacity-80 transition-opacity"
+                >
+                  <span className="mt-1.5 h-2 w-2 rounded-full shrink-0 bg-red-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-red-800">
+                      {totalVisitsOverdue} overdue visit{totalVisitsOverdue > 1 ? 's' : ''} — campus visit date has passed
+                    </p>
+                    <p className="text-xs mt-0.5 text-red-600 opacity-80">Action: Counsel counsellors to reschedule or mark these as Visit Done / No Show</p>
+                  </div>
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-red-400" />
+                </Link>
+              )}
+              {totalNoShow > 0 && (
+                <Link
+                  href="/admin/leads?stage=No+Show"
+                  className="flex items-start gap-3 px-5 py-3.5 border-l-4 border-orange-400 bg-orange-50 hover:opacity-80 transition-opacity"
+                >
+                  <span className="mt-1.5 h-2 w-2 rounded-full shrink-0 bg-orange-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-orange-800">
+                      {totalNoShow} no-show{totalNoShow > 1 ? 's' : ''} need rescheduling
+                    </p>
+                    <p className="text-xs mt-0.5 text-orange-600 opacity-80">Action: Ask counsellors to reschedule these students</p>
+                  </div>
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-orange-400" />
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Attention Needed */}
         {needsAttention.length > 0 && (
@@ -309,9 +372,11 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                       </td>
                       <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{c.called}</td>
                       <td className="px-4 py-3.5 text-right tabular-nums">
-                        <span className={c.notCalled > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
-                          {c.notCalled}
-                        </span>
+                        {c.notCalled > 0 ? (
+                          <Link href={leadsUrl(c.id)} className="text-red-600 font-medium hover:underline">
+                            {c.notCalled}
+                          </Link>
+                        ) : <span className="text-gray-400">0</span>}
                       </td>
                       <td className="px-4 py-3.5 text-right tabular-nums">
                         {c.interested > 0 ? (
@@ -340,9 +405,11 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-right tabular-nums">
-                        <span className={c.followUpsToday > 0 ? 'text-orange-600 font-medium' : 'text-gray-400'}>
-                          {c.followUpsToday}
-                        </span>
+                        {c.followUpsToday > 0 ? (
+                          <Link href={leadsUrl(c.id, 'tab=followups')} className="text-orange-600 font-medium hover:underline">
+                            {c.followUpsToday}
+                          </Link>
+                        ) : <span className="text-gray-400">0</span>}
                       </td>
                       <td className="px-4 py-3.5 text-right tabular-nums">
                         {c.missedFollowups > 0 ? (
@@ -404,8 +471,17 @@ export function TeamLeaderDashboardClient({ teamLeaderName, counsellorStats: ini
                       <p className="text-[10px] text-gray-400 mt-0.5">Called</p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-2">
-                      <p className={`text-base font-bold ${c.notCalled > 0 ? 'text-red-600' : 'text-gray-400'}`}>{c.notCalled}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">Not Called</p>
+                      {c.notCalled > 0 ? (
+                        <Link href={leadsUrl(c.id)} className="block">
+                          <p className="text-base font-bold text-red-600 hover:underline">{c.notCalled}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Not Called</p>
+                        </Link>
+                      ) : (
+                        <>
+                          <p className="text-base font-bold text-gray-400">0</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Not Called</p>
+                        </>
+                      )}
                     </div>
                     <div className="bg-gray-50 rounded-lg p-2">
                       {c.interested > 0 ? (

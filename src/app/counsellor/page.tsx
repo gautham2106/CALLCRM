@@ -97,12 +97,30 @@ export default async function CounsellorDashboard() {
               {missedFollowups === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
             </Link>
 
-            {/* Step 2 — Today's follow-ups */}
+            {/* Step 2 — Visit overdue (URGENT) */}
+            <Link
+              href="/counsellor/leads?filter=visit-overdue"
+              className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${visitsOverdue > 0 ? 'hover:bg-red-50' : 'opacity-50 pointer-events-none'}`}
+            >
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${visitsOverdue > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-400'}`}>2</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${visitsOverdue > 0 ? 'text-red-700' : 'text-gray-400'}`}>
+                  {visitsOverdue > 0 ? `Fix ${visitsOverdue} overdue visit${visitsOverdue > 1 ? 's' : ''}` : 'No overdue visits'}
+                  {visitsOverdue > 0 && <span className="ml-1.5 text-xs font-normal text-red-500">— campus visit date has passed</span>}
+                </p>
+              </div>
+              {visitsOverdue > 0 && (
+                <span className="shrink-0 text-xs font-bold text-red-600 bg-red-100 px-2.5 py-1 rounded-full">URGENT</span>
+              )}
+              {visitsOverdue === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
+            </Link>
+
+            {/* Step 3 — Today's follow-ups */}
             <Link
               href="/counsellor/leads?filter=today"
               className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${todayFollowUps.length > 0 ? 'hover:bg-orange-50' : 'opacity-50 pointer-events-none'}`}
             >
-              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${todayFollowUps.length > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>2</span>
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${todayFollowUps.length > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>3</span>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-semibold ${todayFollowUps.length > 0 ? 'text-orange-700' : 'text-gray-400'}`}>
                   {todayFollowUps.length > 0 ? `Call ${todayFollowUps.length} follow-up${todayFollowUps.length > 1 ? 's' : ''} scheduled for today` : 'No follow-ups today'}
@@ -112,28 +130,27 @@ export default async function CounsellorDashboard() {
               {todayFollowUps.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
             </Link>
 
-            {/* Step 3 — Today's visits */}
+            {/* Step 4 — Today's visits */}
             <Link
               href="/counsellor/leads?filter=visits"
               className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${todayVisits.length > 0 ? 'hover:bg-purple-50' : 'opacity-50 pointer-events-none'}`}
             >
-              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${todayVisits.length > 0 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-400'}`}>3</span>
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${todayVisits.length > 0 ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-400'}`}>4</span>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-semibold ${todayVisits.length > 0 ? 'text-purple-700' : 'text-gray-400'}`}>
                   {todayVisits.length > 0 ? `Handle ${todayVisits.length} campus visit${todayVisits.length > 1 ? 's' : ''} today` : 'No campus visits today'}
-                  {visitsOverdue > 0 && <span className="ml-1.5 text-xs font-normal text-red-500">+ {visitsOverdue} overdue visit{visitsOverdue > 1 ? 's' : ''}</span>}
                 </p>
               </div>
-              {(todayVisits.length > 0 || visitsOverdue > 0) && <ArrowUpRight className="h-4 w-4 text-purple-500 shrink-0" />}
-              {todayVisits.length === 0 && visitsOverdue === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
+              {todayVisits.length > 0 && <ArrowUpRight className="h-4 w-4 text-purple-500 shrink-0" />}
+              {todayVisits.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
             </Link>
 
-            {/* Step 4 — New leads not called */}
+            {/* Step 5 — New leads not called */}
             <Link
               href="/counsellor/leads?filter=not-called"
               className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${notCalled.length > 0 ? 'hover:bg-blue-50' : 'opacity-50 pointer-events-none'}`}
             >
-              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${notCalled.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>4</span>
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${notCalled.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>5</span>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-semibold ${notCalled.length > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
                   {notCalled.length > 0 ? `Call ${notCalled.length} new lead${notCalled.length > 1 ? 's' : ''} you haven't contacted yet` : 'All leads contacted'}
@@ -143,12 +160,12 @@ export default async function CounsellorDashboard() {
               {notCalled.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />}
             </Link>
 
-            {/* Step 5 — No-shows to reschedule */}
+            {/* Step 6 — No-shows to reschedule */}
             <Link
               href="/counsellor/leads?filter=no-show"
               className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${noShow > 0 ? 'hover:bg-amber-50' : 'opacity-50 pointer-events-none'}`}
             >
-              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${noShow > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>5</span>
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${noShow > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>6</span>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-semibold ${noShow > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
                   {noShow > 0 ? `Reschedule ${noShow} no-show${noShow > 1 ? 's' : ''}` : 'No no-shows to reschedule'}
