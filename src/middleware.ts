@@ -5,9 +5,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Short-circuit before touching Supabase for paths that are always public.
-  // /api/supabase is the Supabase proxy rewrite — it must pass through
-  // untouched so Next.js can forward it to the real Supabase endpoint.
-  if (pathname.startsWith('/api/cron') || pathname.startsWith('/api/supabase')) {
+  if (pathname.startsWith('/api/cron')) {
     return NextResponse.next()
   }
 
