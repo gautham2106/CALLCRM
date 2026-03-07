@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { sendBrevoEmail } from '@/lib/brevo'
 
 // POST /api/admin/assign — assign or reassign leads to a counsellor
 export async function POST(request: NextRequest) {
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
   // Validate the counsellor belongs to the same college as this admin
   const { data: counsellor } = await admin
     .from('users')
-    .select('id, college_id')
+    .select('id, name, email, college_id')
     .eq('id', counsellorId)
     .single()
   if (!counsellor || counsellor.college_id !== profile.college_id) {

@@ -1,14 +1,92 @@
 /**
- * Brevo event tracking integration.
+ * Brevo integration — event tracking and transactional email.
  *
- * Fires contact interaction events to Brevo via POST /v3/events.
- * The BREVO_API_KEY environment variable must be set; if it is absent the
- * calls are silently skipped so the rest of the application is unaffected.
+ * Requires BREVO_API_KEY. Calls are silently skipped when the key is absent
+ * so the rest of the application is unaffected.
  *
- * Reference: https://developers.brevo.com/reference/create-event
+ * References:
+ *   Events: https://developers.brevo.com/reference/create-event
+ *   Email:  https://developers.brevo.com/reference/send-transac-email
  */
 
-const BREVO_API_URL = 'https://api.brevo.com/v3/events'
+const BREVO_EVENTS_URL = 'https://api.brevo.com/v3/events'
+const BREVO_EMAIL_URL  = 'https://api.brevo.com/v3/smtp/email'
+
+// ---------------------------------------------------------------------------
+// Transactional email
+// ---------------------------------------------------------------------------
+
+export interface BrevoEmailRecipient {
+  email: string
+  name?: string
+}
+
+export interface BrevoEmailOptions {
+  to: BrevoEmailRecipient[]
+  subject: string
+  /** Inline HTML body. Use this OR templateId, not both. */
+  htmlContent?: string
+  /** Plain-text body. Use this OR templateId, not both. */
+  textContent?: string
+  /** ID of a Brevo Drag & Drop template. Use this OR htmlContent/textContent. */
+  templateId?: number
+  /** Variables injected into the template via {{params.KEY}} */
+  params?: Record<string, string | number>
+}
+
+/**
+ * Send a transactional email via Brevo.
+ *
+ * Sender is read from BREVO_SENDER_EMAIL / BREVO_SENDER_NAME env vars.
+ * Errors are caught and logged — never throws so callers are unaffected.
+ */
+export async function sendBrevoEmail(options: BrevoEmailOptions): Promise<void> {
+  const apiKey     = process.env.BREVO_API_KEY
+  const senderEmail = process.env.BREVO_SENDER_EMAIL
+  const senderName  = process.env.BREVO_SENDER_NAME || 'CallCRM'
+
+  if (!apiKey || !senderEmail) return
+
+  const payload: Record<string, unknown> = {
+    sender: { name: senderName, email: senderEmail },
+    to: options.to,
+    subject: options.subject,
+  }
+
+  if (options.templateId != null) {
+    payload.templateId = options.templateId
+    if (options.params) payload.params = options.params
+  } else if (options.htmlContent) {
+    payload.htmlContent = options.htmlContent
+  } else if (options.textContent) {
+    payload.textContent = options.textContent
+  }
+
+  try {
+    const res = await fetch(BREVO_EMAIL_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'accept': 'application/json',
+        'api-key': apiKey,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.error(`[brevo] sendBrevoEmail failed (${res.status}):`, text)
+    }
+  } catch (err) {
+    console.error('[brevo] sendBrevoEmail network error:', err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event tracking
+// ---------------------------------------------------------------------------
+
+const BREVO_API_URL = BREVO_EVENTS_URL
 
 export interface BrevoEventIdentifiers {
   email_id?: string
