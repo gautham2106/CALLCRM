@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { trackBrevoEvent } from '@/lib/brevo'
 
 // PATCH /api/leads/[id] — update a single lead's fields and custom field values.
 // Used by LeadDetailClient and LeadSlidePanel instead of direct Supabase PATCH
@@ -31,10 +32,11 @@ export async function PATCH(
 
   const admin = createAdminClient()
 
-  // Verify the lead belongs to this college (and for counsellors, is assigned to them)
+  // Verify the lead belongs to this college (and for counsellors, is assigned to them).
+  // Also fetch fields needed for Brevo event tracking.
   const leadQuery = admin
     .from('leads')
-    .select('id, phone, college_id, assigned_to')
+    .select('id, name, phone, email, college_id, assigned_to, current_lead_stage')
     .eq('id', id)
     .eq('college_id', profile.college_id)
 
@@ -100,6 +102,27 @@ export async function PATCH(
     .eq('college_id', profile.college_id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Track Brevo events (best-effort, non-blocking)
+  const brevoIdentifiers: Record<string, string> = {}
+  if (existing.phone) brevoIdentifiers.phone_id = existing.phone
+  if (existing.email) brevoIdentifiers.email_id = existing.email
+  if (Object.keys(brevoIdentifiers).length > 0) {
+    const newStage = updatePayload.current_lead_stage as string | undefined
+    if (newStage && newStage !== existing.current_lead_stage) {
+      trackBrevoEvent('lead_stage_changed', brevoIdentifiers, {
+        event_properties: {
+          lead_id: id,
+          previous_stage: existing.current_lead_stage ?? '',
+          new_stage: newStage,
+        },
+      })
+    } else {
+      trackBrevoEvent('lead_updated', brevoIdentifiers, {
+        event_properties: { lead_id: id },
+      })
+    }
+  }
 
   // Upsert custom field values if provided
   const { customFields } = body as { customFields?: Record<string, string | null> }

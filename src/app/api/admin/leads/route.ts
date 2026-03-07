@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { trackBrevoEvent } from '@/lib/brevo'
 
 // GET /api/admin/leads — paginated, server-side filtered lead list
 // Query params:
@@ -325,6 +326,30 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  // Track lead_created event in Brevo (best-effort, non-blocking)
+  if (lead) {
+    const identifiers: Record<string, string> = {}
+    if (lead.phone) identifiers.phone_id = lead.phone
+    if (lead.email) identifiers.email_id = lead.email
+    if (Object.keys(identifiers).length > 0) {
+      trackBrevoEvent('lead_created', identifiers, {
+        event_properties: {
+          lead_id: lead.id,
+          lead_stage: lead.current_lead_stage ?? 'New Enquiry',
+          ...(lead.source_name ? { source: lead.source_name } : {}),
+        },
+        ...(lead.email || lead.phone
+          ? {
+              contact_properties: {
+                ...(lead.name ? { FIRSTNAME: lead.name } : {}),
+              },
+            }
+          : {}),
+      })
+    }
+  }
+
   return NextResponse.json({ lead })
 }
 
