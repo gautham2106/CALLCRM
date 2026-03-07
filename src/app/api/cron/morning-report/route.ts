@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendBrevoEmail } from '@/lib/brevo'
+import { sendBrevoEmail, trackBrevoEvent } from '@/lib/brevo'
 import { todayIST } from '@/lib/utils'
 
 // GET /api/cron/morning-report
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     // 4. Fetch all active leads for this college in one query
     const { data: leads } = await admin
       .from('leads')
-      .select('id, name, assigned_to, follow_up_date, visit_date, current_lead_stage, created_at')
+      .select('id, name, phone, email, source_name, assigned_to, follow_up_date, visit_date, current_lead_stage, created_at')
       .eq('college_id', college.id)
       .eq('is_active', true)
 
@@ -107,7 +107,24 @@ export async function GET(request: NextRequest) {
     const followUpsByCounsellor = groupByCounsellor(todayFollowUps)
     const visitsByCounsellor = groupByCounsellor(todayVisits)
 
-    // 5. Build counsellor rows for the table
+    // 5. Batch-track lead_created events in Brevo for leads created yesterday
+    for (const lead of newYesterday) {
+      const identifiers: Record<string, string> = {}
+      if (lead.phone) identifiers.phone_id = lead.phone
+      if (lead.email) identifiers.email_id = lead.email
+      if (Object.keys(identifiers).length > 0) {
+        trackBrevoEvent('lead_created', identifiers, {
+          event_properties: {
+            lead_id: lead.id,
+            lead_stage: lead.current_lead_stage ?? 'New Enquiry',
+            ...(lead.source_name ? { source: lead.source_name } : {}),
+          },
+          contact_properties: { FIRSTNAME: lead.name },
+        })
+      }
+    }
+
+    // 7. Build counsellor rows for the table
     const allCounsellorIds = new Set([
       ...Object.keys(followUpsByCounsellor),
       ...Object.keys(visitsByCounsellor),
@@ -121,7 +138,7 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.followUps + b.visits - (a.followUps + a.visits))
 
-    // 6. Build HTML email
+    // 8. Build HTML email
     const html = buildReportHtml({
       collegeName: college.name,
       today,
@@ -134,7 +151,7 @@ export async function GET(request: NextRequest) {
       totalActive: leads.length,
     })
 
-    // 7. Send to each admin
+    // 9. Send to each admin
     for (const adminUser of admins) {
       await sendBrevoEmail({
         to: [{ email: adminUser.email, name: adminUser.name }],
