@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPush } from '@/lib/webpush'
 import { todayIST } from '@/lib/utils'
+import { trackBrevoEvent } from '@/lib/brevo'
 
 // GET /api/cron/reminders
 // Called by Vercel Cron 4 times a day.
@@ -52,24 +53,44 @@ export async function GET(request: NextRequest) {
 
   const counsellorIds = Object.keys(byCounsellor)
 
-  // Fetch push subscriptions for all relevant counsellors in one query
-  const { data: allSubs } = await admin
-    .from('push_subscriptions')
-    .select('id, user_id, subscription')
-    .in('user_id', counsellorIds)
+  // Fetch counsellor emails (for Brevo identifiers) and push subscriptions in parallel
+  const [{ data: counsellorUsers }, { data: allSubs }] = await Promise.all([
+    admin
+      .from('users')
+      .select('id, email')
+      .in('id', counsellorIds),
+    admin
+      .from('push_subscriptions')
+      .select('id, user_id, subscription')
+      .in('user_id', counsellorIds),
+  ])
 
-  if (!allSubs?.length) {
-    return NextResponse.json({ sent: 0, message: 'No subscribed counsellors' })
+  // Map counsellor id → email for Brevo event tracking
+  const counsellorEmailMap: Record<string, string> = {}
+  for (const u of counsellorUsers ?? []) {
+    if (u.email) counsellorEmailMap[u.id] = u.email
   }
 
   let totalSent = 0
   const expiredIds: string[] = []
 
   for (const [counsellorId, counts] of Object.entries(byCounsellor)) {
-    const subs = allSubs.filter((s) => s.user_id === counsellorId)
+    // Fire Brevo event for every counsellor with pending tasks, regardless of push status
+    const counsellorEmail = counsellorEmailMap[counsellorId]
+    if (counsellorEmail) {
+      trackBrevoEvent('counsellor_daily_pending', { email_id: counsellorEmail }, {
+        event_properties: {
+          follow_ups_pending: counts.followUps,
+          visits_pending: counts.visits,
+          date: today,
+        },
+      })
+    }
+
+    const subs = (allSubs ?? []).filter((s) => s.user_id === counsellorId)
     if (!subs.length) continue
 
-    // Build message
+    // Build push message
     const parts: string[] = []
     if (counts.followUps > 0) {
       parts.push(`${counts.followUps} follow-up${counts.followUps > 1 ? 's' : ''}`)
