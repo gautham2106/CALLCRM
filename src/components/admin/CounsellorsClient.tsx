@@ -19,6 +19,7 @@ import { todayIST } from '@/lib/utils'
 import {
   UserPlus, Mail, Phone, Eye, Loader2, Users, Upload, Plus,
   Building2, AlertCircle, CheckCircle, ArrowRight, X, FileText, AlertTriangle, ArrowUpDown,
+  Download,
 } from 'lucide-react'
 
 interface CounsellorLead {
@@ -144,6 +145,101 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', pin: '' })
+
+  // Bulk counsellor import state
+  const bulkFileRef = useRef<HTMLInputElement>(null)
+  const [showBulkDialog, setShowBulkDialog] = useState(false)
+  const [bulkStep, setBulkStep] = useState<'upload' | 'preview' | 'done'>('upload')
+  const [bulkRows, setBulkRows] = useState<{ name: string; email: string; pin: string; phone: string; error: string | null }[]>([])
+  const [bulkImporting, setBulkImporting] = useState(false)
+  const [bulkResults, setBulkResults] = useState<{ name: string; email: string; success: boolean; error: string | null }[]>([])
+
+  const BULK_WEAK_PINS = new Set(['000000','111111','222222','333333','444444','555555','666666','777777','888888','999999','123456','654321'])
+
+  function validateBulkRow(name: string, email: string, pin: string): string | null {
+    if (!name.trim()) return 'Name required'
+    if (!email.trim()) return 'Email required'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Invalid email'
+    if (!pin.trim()) return 'PIN required'
+    if (!/^\d{6}$/.test(pin.trim())) return 'PIN must be 6 digits'
+    if (BULK_WEAK_PINS.has(pin.trim())) return 'PIN too weak'
+    return null
+  }
+
+  const resetBulkDialog = () => {
+    setBulkStep('upload')
+    setBulkRows([])
+    setBulkResults([])
+    if (bulkFileRef.current) bulkFileRef.current.value = ''
+  }
+
+  const handleBulkFile = (file: File) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => {
+        const raw = result.data as Record<string, string>[]
+        if (!raw.length) {
+          toast({ title: 'Empty file', description: 'No rows found in the CSV.', variant: 'destructive' })
+          return
+        }
+        const headers = (result.meta.fields || []).map((h) => h.trim().toLowerCase())
+        const nameKey = headers.find((h) => h === 'name' || h.includes('name')) || ''
+        const emailKey = headers.find((h) => h === 'email' || h.includes('email')) || ''
+        const pinKey = headers.find((h) => h === 'pin' || h.includes('pin') || h === 'password') || ''
+        const phoneKey = headers.find((h) => h === 'phone' || h.includes('phone')) || ''
+        const origHeaders = result.meta.fields || []
+        const findCol = (lower: string) => origHeaders.find((h) => h.trim().toLowerCase() === lower) || ''
+
+        const parsed = raw.map((row) => {
+          const name = (row[findCol(nameKey)] || '').trim()
+          const email = (row[findCol(emailKey)] || '').trim()
+          const pin = (row[findCol(pinKey)] || '').trim()
+          const phone = (row[findCol(phoneKey)] || '').trim()
+          return { name, email, pin, phone, error: validateBulkRow(name, email, pin) }
+        })
+        setBulkRows(parsed)
+        setBulkStep('preview')
+      },
+      error: () => toast({ title: 'Parse error', description: 'Could not read the CSV file.', variant: 'destructive' }),
+    })
+  }
+
+  const handleBulkImport = async () => {
+    const valid = bulkRows.filter((r) => !r.error)
+    if (!valid.length) return
+    setBulkImporting(true)
+    try {
+      const res = await fetch('/api/admin/counsellors/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ counsellors: valid.map((r) => ({ name: r.name, email: r.email, pin: r.pin, phone: r.phone || undefined })) }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Import failed')
+      setBulkResults(json.results)
+      const created = json.results.filter((r: { success: boolean }) => r.success).length
+      if (created > 0) {
+        const newCounsellors = json.results
+          .filter((r: { success: boolean; name: string; email: string }) => r.success)
+          .map((r: { name: string; email: string }) => ({
+            id: crypto.randomUUID(),
+            name: r.name,
+            email: r.email,
+            phone: null,
+            is_active: true,
+            created_at: new Date().toISOString(),
+            assigned_leads: [],
+          }))
+        setCounsellors((prev) => [...newCounsellors, ...prev])
+      }
+      setBulkStep('done')
+    } catch (err: unknown) {
+      toast({ title: 'Import failed', description: err instanceof Error ? err.message : 'Something went wrong.', variant: 'destructive' })
+    } finally {
+      setBulkImporting(false)
+    }
+  }
 
   // Add Leads modal state
   const [addLeadsTarget, setAddLeadsTarget] = useState<Counsellor | null>(null)
@@ -588,10 +684,16 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             )}
           </div>
         </div>
-        <Button onClick={() => setShowAddDialog(true)}>
-          <UserPlus className="h-4 w-4" />
-          Add Counsellor
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => { resetBulkDialog(); setShowBulkDialog(true) }}>
+            <Upload className="h-4 w-4" />
+            Bulk Import
+          </Button>
+          <Button onClick={() => setShowAddDialog(true)}>
+            <UserPlus className="h-4 w-4" />
+            Add Counsellor
+          </Button>
+        </div>
       </div>
 
       {/* Sort Controls */}
@@ -1015,6 +1117,201 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Counsellor Import Dialog */}
+      <Dialog open={showBulkDialog} onOpenChange={(open) => { if (!open) setShowBulkDialog(false) }}>
+        <DialogContent className="max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-blue-600" />
+              Bulk Import Counsellors
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Step indicator */}
+          <div className="flex items-center gap-1.5 text-xs shrink-0">
+            {(['upload', 'preview', 'done'] as const).map((s, idx, arr) => (
+              <div key={s} className="flex items-center gap-1.5">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                  bulkStep === s ? 'bg-blue-600 text-white' :
+                  arr.indexOf(s) < arr.indexOf(bulkStep) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>{idx + 1}</div>
+                <span className={bulkStep === s ? 'text-blue-600 font-medium' : 'text-gray-400 capitalize'}>{s}</span>
+                {idx < arr.length - 1 && <ArrowRight className="h-3 w-3 text-gray-300" />}
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-y-auto flex-1 space-y-4 mt-2">
+
+            {/* Step 1: Upload */}
+            {bulkStep === 'upload' && (
+              <div className="space-y-4">
+                <div
+                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const f = e.dataTransfer.files[0]
+                    if (f?.name.toLowerCase().endsWith('.csv')) handleBulkFile(f)
+                    else toast({ title: 'CSV only', description: 'Please upload a .csv file.', variant: 'destructive' })
+                  }}
+                  onClick={() => bulkFileRef.current?.click()}
+                >
+                  <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-600 font-medium text-sm">Drop CSV file here or click to browse</p>
+                  <p className="text-gray-400 text-xs mt-1">Supports .csv only</p>
+                </div>
+                <input
+                  ref={bulkFileRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && handleBulkFile(e.target.files[0])}
+                />
+
+                {/* Format guide */}
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Required CSV Format</p>
+                    <button
+                      onClick={() => {
+                        const csv = 'name,email,pin,phone\nPriya Sharma,priya@college.edu,481920,9876543210\nRahul Mehta,rahul@college.edu,739201,9123456789'
+                        const blob = new Blob([csv], { type: 'text/csv' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url; a.download = 'counsellors_template.csv'; a.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                    >
+                      <Download className="h-3 w-3" /> Download template
+                    </button>
+                  </div>
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-white">
+                        {['name *', 'email *', 'pin *', 'phone'].map((h) => (
+                          <th key={h} className="border border-gray-200 px-2 py-1 text-left font-semibold text-gray-700">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="border border-gray-200 px-2 py-1 text-gray-500">Priya Sharma</td>
+                        <td className="border border-gray-200 px-2 py-1 text-gray-500">priya@college.edu</td>
+                        <td className="border border-gray-200 px-2 py-1 text-gray-500">481920</td>
+                        <td className="border border-gray-200 px-2 py-1 text-gray-500">9876543210</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <ul className="text-xs text-gray-500 space-y-0.5 mt-1">
+                    <li>• <strong>pin</strong> must be exactly 6 digits (not all same or sequential)</li>
+                    <li>• <strong>phone</strong> column is optional</li>
+                    <li>• Maximum 200 rows per import</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Preview */}
+            {bulkStep === 'preview' && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-green-600 font-semibold">{bulkRows.filter((r) => !r.error).length} valid</span>
+                  {bulkRows.filter((r) => r.error).length > 0 && (
+                    <span className="text-red-500 font-semibold">{bulkRows.filter((r) => r.error).length} with errors (will be skipped)</span>
+                  )}
+                </div>
+                <div className="rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="overflow-y-auto max-h-72">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600 w-6">#</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Name</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Email</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">PIN</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Phone</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkRows.map((row, i) => (
+                          <tr key={i} className={row.error ? 'bg-red-50' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                            <td className="px-3 py-2 text-gray-800 font-medium">{row.name || <span className="text-gray-300 italic">—</span>}</td>
+                            <td className="px-3 py-2 text-gray-600 font-mono">{row.email || <span className="text-gray-300 italic">—</span>}</td>
+                            <td className="px-3 py-2 font-mono text-gray-600">{row.pin ? '••••••' : <span className="text-gray-300 italic">—</span>}</td>
+                            <td className="px-3 py-2 text-gray-500">{row.phone || <span className="text-gray-300 italic">—</span>}</td>
+                            <td className="px-3 py-2">
+                              {row.error
+                                ? <span className="flex items-center gap-1 text-red-600"><AlertCircle className="h-3 w-3 shrink-0" />{row.error}</span>
+                                : <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-3 w-3" />Ready</span>
+                              }
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setBulkStep('upload')}>Back</Button>
+                  <Button
+                    size="sm"
+                    onClick={handleBulkImport}
+                    disabled={bulkImporting || bulkRows.filter((r) => !r.error).length === 0}
+                  >
+                    {bulkImporting
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Creating...</>
+                      : <><UserPlus className="h-3.5 w-3.5 mr-1" />Create {bulkRows.filter((r) => !r.error).length} Counsellors</>
+                    }
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Done */}
+            {bulkStep === 'done' && (
+              <div className="space-y-4">
+                <div className="text-center py-4">
+                  <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                  <p className="text-lg font-bold text-gray-900">Import Complete</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    <span className="text-green-600 font-semibold">{bulkResults.filter((r) => r.success).length} created</span>
+                    {bulkResults.filter((r) => !r.success).length > 0 && (
+                      <> · <span className="text-red-500">{bulkResults.filter((r) => !r.success).length} failed</span></>
+                    )}
+                  </p>
+                </div>
+                {bulkResults.filter((r) => !r.success).length > 0 && (
+                  <div className="rounded-lg border border-red-200 overflow-hidden">
+                    <div className="bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Failed rows</div>
+                    <div className="divide-y divide-red-100 max-h-48 overflow-y-auto">
+                      {bulkResults.filter((r) => !r.success).map((r, i) => (
+                        <div key={i} className="px-3 py-2 text-xs flex items-start gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-medium text-gray-800">{r.name}</span>
+                            <span className="text-gray-500 ml-1">({r.email})</span>
+                            <p className="text-red-600 mt-0.5">{r.error}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button onClick={() => { resetBulkDialog() }} variant="outline" size="sm">Import More</Button>
+                  <Button onClick={() => setShowBulkDialog(false)} size="sm">Done</Button>
+                </div>
+              </div>
+            )}
+
+          </div>
         </DialogContent>
       </Dialog>
 
