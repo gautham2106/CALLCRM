@@ -12,7 +12,6 @@ import {
 } from 'lucide-react'
 
 interface Mapping {
-  id: string
   school_name: string
   counsellor_id: string | null
 }
@@ -43,7 +42,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
   const [newSchool, setNewSchool] = useState('')
   const [newCounsellorId, setNewCounsellorId] = useState('')
   const [adding, setAdding] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingSchool, setDeletingSchool] = useState<string | null>(null)
 
   // CSV import state
   const [activeTab, setActiveTab] = useState<'rules' | 'csv'>('rules')
@@ -74,7 +73,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
       })
       if (!res.ok) throw new Error((await res.json()).error)
       setMappings((prev) =>
-        [...prev, { id: crypto.randomUUID(), school_name: school, counsellor_id: counsellorId }]
+        [...prev.filter((m) => m.school_name !== school), { school_name: school, counsellor_id: counsellorId }]
           .sort((a, b) => a.school_name.localeCompare(b.school_name))
       )
       setNewSchool('')
@@ -95,7 +94,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
       body: JSON.stringify({ mappings: [{ school_name: mapping.school_name, counsellor_id: counsellorId }] }),
     })
     if (res.ok) {
-      setMappings((prev) => prev.map((m) => m.id === mapping.id ? { ...m, counsellor_id: counsellorId } : m))
+      setMappings((prev) => prev.map((m) => m.school_name === mapping.school_name ? { ...m, counsellor_id: counsellorId } : m))
       toast({ title: 'Updated', description: `${mapping.school_name} → ${counsellorName(counsellorId)}`, variant: 'success' })
     } else {
       toast({ title: 'Failed to update', variant: 'destructive' })
@@ -103,16 +102,16 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
   }
 
   const handleDelete = async (mapping: Mapping) => {
-    setDeletingId(mapping.id)
+    setDeletingSchool(mapping.school_name)
     try {
-      const res = await fetch(`/api/admin/school-mapping?id=${mapping.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/admin/school-mapping?school=${encodeURIComponent(mapping.school_name)}`, { method: 'DELETE' })
       if (!res.ok) throw new Error((await res.json()).error)
-      setMappings((prev) => prev.filter((m) => m.id !== mapping.id))
+      setMappings((prev) => prev.filter((m) => m.school_name !== mapping.school_name))
       toast({ title: 'Mapping removed', description: mapping.school_name })
     } catch {
       toast({ title: 'Failed to delete', variant: 'destructive' })
     } finally {
-      setDeletingId(null)
+      setDeletingSchool(null)
     }
   }
 
@@ -177,12 +176,13 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
 
       // Update local state
       setMappings((prev) => {
-        const updated = [...prev]
-        valid.forEach((r) => {
-          const existing = updated.find((m) => m.school_name === r.school_name)
-          if (existing) { existing.counsellor_id = r.counsellor_id }
-          else { updated.push({ id: crypto.randomUUID(), school_name: r.school_name, counsellor_id: r.counsellor_id }) }
+        const updated = prev.map((m) => {
+          const match = valid.find((r) => r.school_name === m.school_name)
+          return match ? { ...m, counsellor_id: match.counsellor_id } : m
         })
+        for (const r of valid.filter((r) => !prev.some((m) => m.school_name === r.school_name))) {
+          updated.push({ school_name: r.school_name, counsellor_id: r.counsellor_id })
+        }
         return updated.sort((a, b) => a.school_name.localeCompare(b.school_name))
       })
 
@@ -259,7 +259,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
             ) : (
               <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
                 {mappings.map((m) => (
-                  <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+                  <div key={m.school_name} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 text-sm truncate">{m.school_name}</p>
                       {schoolCounts[m.school_name] != null && (
@@ -283,7 +283,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
                       size="sm"
                       className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 shrink-0"
                       onClick={() => handleDelete(m)}
-                      disabled={deletingId === m.id}
+                      disabled={deletingSchool === m.school_name}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
