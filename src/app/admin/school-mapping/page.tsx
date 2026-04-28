@@ -14,7 +14,7 @@ export default async function SchoolMappingPage() {
       .order('school_name'),
     supabase
       .from('users')
-      .select('id, name')
+      .select('id, name, email')
       .eq('college_id', user.college_id!)
       .eq('role', 'counsellor')
       .eq('is_active', true)
@@ -42,7 +42,7 @@ export default async function SchoolMappingPage() {
   return (
     <SchoolMappingClient
       initialMappings={(mappings || []) as { id: string; school_name: string; counsellor_id: string | null }[]}
-      counsellors={(counsellors || []) as { id: string; name: string }[]}
+      counsellors={(counsellors || []) as { id: string; name: string; email: string }[]}
       knownSchools={knownSchools}
       schoolCounts={schoolCounts}
     />

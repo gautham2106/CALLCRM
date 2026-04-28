@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useRef } from 'react'
+import Papa from 'papaparse'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/components/ui/use-toast'
-import { School, UserCheck, Trash2, Plus, Info, Users, Search, CheckSquare } from 'lucide-react'
+import {
+  School, UserCheck, Trash2, Plus, Info,
+  Upload, FileText, CheckCircle, AlertCircle, Download, Loader2, ArrowRight,
+} from 'lucide-react'
 
 interface Mapping {
   id: string
@@ -14,11 +17,25 @@ interface Mapping {
   counsellor_id: string | null
 }
 
+interface Counsellor {
+  id: string
+  name: string
+  email: string
+}
+
 interface Props {
   initialMappings: Mapping[]
-  counsellors: { id: string; name: string }[]
+  counsellors: Counsellor[]
   knownSchools: string[]
   schoolCounts: Record<string, number>
+}
+
+interface SchoolCsvRow {
+  school_name: string
+  counsellor_email: string
+  counsellor_id: string | null
+  counsellor_name: string | null
+  error: string | null
 }
 
 export function SchoolMappingClient({ initialMappings, counsellors, knownSchools, schoolCounts }: Props) {
@@ -28,26 +45,16 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
   const [adding, setAdding] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // Bulk assign state
-  const [activeTab, setActiveTab] = useState<'rules' | 'bulk'>('rules')
-  const [bulkCounsellorId, setBulkCounsellorId] = useState('')
-  const [selectedSchools, setSelectedSchools] = useState<Set<string>>(new Set())
-  const [bulkSearch, setBulkSearch] = useState('')
-  const [bulkAssigning, setBulkAssigning] = useState(false)
+  // CSV import state
+  const [activeTab, setActiveTab] = useState<'rules' | 'csv'>('rules')
+  const csvFileRef = useRef<HTMLInputElement>(null)
+  const [csvStep, setCsvStep] = useState<'upload' | 'preview' | 'done'>('upload')
+  const [csvRows, setCsvRows] = useState<SchoolCsvRow[]>([])
+  const [csvImporting, setCsvImporting] = useState(false)
+  const [csvResult, setCsvResult] = useState({ saved: 0, skipped: 0 })
 
   const mappedSchools = new Set(mappings.map((m) => m.school_name))
-
-  // All schools for bulk assign: union of knownSchools + newly mapped ones
-  const allSchools = useMemo(() => {
-    const s = new Set([...knownSchools, ...mappings.map((m) => m.school_name)])
-    return Array.from(s).sort()
-  }, [knownSchools, mappings])
-
-  const filteredBulkSchools = useMemo(() =>
-    allSchools.filter((s) => s.toLowerCase().includes(bulkSearch.toLowerCase())),
-    [allSchools, bulkSearch]
-  )
-
+  const suggestions = knownSchools.filter((s) => !mappedSchools.has(s))
   const counsellorName = (id: string | null) =>
     counsellors.find((c) => c.id === id)?.name || 'Unassigned'
 
@@ -59,17 +66,20 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
     if (!newCounsellorId) { toast({ title: 'Select a counsellor', variant: 'destructive' }); return }
     setAdding(true)
     try {
+      const counsellorId = newCounsellorId === '__none__' ? null : newCounsellorId
       const res = await fetch('/api/admin/school-mapping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mappings: [{ school_name: school, counsellor_id: newCounsellorId === '__none__' ? null : newCounsellorId }] }),
+        body: JSON.stringify({ mappings: [{ school_name: school, counsellor_id: counsellorId }] }),
       })
       if (!res.ok) throw new Error((await res.json()).error)
-      const newMapping: Mapping = { id: crypto.randomUUID(), school_name: school, counsellor_id: newCounsellorId === '__none__' ? null : newCounsellorId }
-      setMappings((prev) => [...prev, newMapping].sort((a, b) => a.school_name.localeCompare(b.school_name)))
+      setMappings((prev) =>
+        [...prev, { id: crypto.randomUUID(), school_name: school, counsellor_id: counsellorId }]
+          .sort((a, b) => a.school_name.localeCompare(b.school_name))
+      )
       setNewSchool('')
       setNewCounsellorId('')
-      toast({ title: 'Mapping saved', description: `${school} → ${counsellorName(newMapping.counsellor_id)}`, variant: 'success' })
+      toast({ title: 'Mapping saved', description: `${school} → ${counsellorName(counsellorId)}`, variant: 'success' })
     } catch (err: unknown) {
       toast({ title: 'Failed', description: err instanceof Error ? err.message : 'Something went wrong.', variant: 'destructive' })
     } finally {
@@ -106,65 +116,86 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
     }
   }
 
-  // ── Bulk assign handlers ──────────────────────────────────────────────────
+  // ── CSV import handlers ───────────────────────────────────────────────────
 
-  const toggleSchool = (school: string) => {
-    setSelectedSchools((prev) => {
-      const next = new Set(prev)
-      next.has(school) ? next.delete(school) : next.add(school)
-      return next
+  const resetCsv = () => {
+    setCsvStep('upload')
+    setCsvRows([])
+    if (csvFileRef.current) csvFileRef.current.value = ''
+  }
+
+  const handleCsvFile = (file: File) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => {
+        const raw = result.data as Record<string, string>[]
+        if (!raw.length) {
+          toast({ title: 'Empty file', description: 'No rows found.', variant: 'destructive' })
+          return
+        }
+        const origHeaders = result.meta.fields || []
+        const lower = origHeaders.map((h) => h.trim().toLowerCase())
+        const schoolCol = origHeaders[lower.findIndex((h) => h === 'school_name' || h.includes('school'))] || ''
+        const emailCol  = origHeaders[lower.findIndex((h) => h === 'counsellor_email' || h.includes('email'))] || ''
+
+        if (!schoolCol || !emailCol) {
+          toast({ title: 'Wrong columns', description: 'CSV must have school_name and counsellor_email columns.', variant: 'destructive' })
+          return
+        }
+
+        const parsed: SchoolCsvRow[] = raw.map((row) => {
+          const school_name      = (row[schoolCol]  || '').trim()
+          const counsellor_email = (row[emailCol]   || '').trim().toLowerCase()
+          if (!school_name)      return { school_name, counsellor_email, counsellor_id: null, counsellor_name: null, error: 'School name required' }
+          if (!counsellor_email) return { school_name, counsellor_email, counsellor_id: null, counsellor_name: null, error: 'Counsellor email required' }
+          const match = counsellors.find((c) => c.email.toLowerCase() === counsellor_email)
+          if (!match)            return { school_name, counsellor_email, counsellor_id: null, counsellor_name: null, error: `No counsellor with email "${counsellor_email}"` }
+          return { school_name, counsellor_email, counsellor_id: match.id, counsellor_name: match.name, error: null }
+        })
+
+        setCsvRows(parsed)
+        setCsvStep('preview')
+      },
+      error: () => toast({ title: 'Parse error', description: 'Could not read the CSV.', variant: 'destructive' }),
     })
   }
 
-  const selectAll = () => setSelectedSchools(new Set(filteredBulkSchools))
-  const selectUnmapped = () => setSelectedSchools(new Set(filteredBulkSchools.filter((s) => !mappedSchools.has(s))))
-  const clearSelection = () => setSelectedSchools(new Set())
-
-  const handleBulkAssign = async () => {
-    if (!bulkCounsellorId) { toast({ title: 'Select a counsellor first', variant: 'destructive' }); return }
-    if (selectedSchools.size === 0) { toast({ title: 'Select at least one school', variant: 'destructive' }); return }
-    setBulkAssigning(true)
+  const handleCsvImport = async () => {
+    const valid = csvRows.filter((r) => !r.error)
+    if (!valid.length) return
+    setCsvImporting(true)
     try {
-      const rows = [...selectedSchools].map((school_name) => ({
-        school_name,
-        counsellor_id: bulkCounsellorId === '__none__' ? null : bulkCounsellorId,
-      }))
       const res = await fetch('/api/admin/school-mapping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mappings: rows }),
+        body: JSON.stringify({
+          mappings: valid.map((r) => ({ school_name: r.school_name, counsellor_id: r.counsellor_id })),
+        }),
       })
       if (!res.ok) throw new Error((await res.json()).error)
 
-      const counsellorId = bulkCounsellorId === '__none__' ? null : bulkCounsellorId
+      // Update local state
       setMappings((prev) => {
         const updated = [...prev]
-        rows.forEach(({ school_name }) => {
-          const existing = updated.find((m) => m.school_name === school_name)
-          if (existing) {
-            existing.counsellor_id = counsellorId
-          } else {
-            updated.push({ id: crypto.randomUUID(), school_name, counsellor_id: counsellorId })
-          }
+        valid.forEach((r) => {
+          const existing = updated.find((m) => m.school_name === r.school_name)
+          if (existing) { existing.counsellor_id = r.counsellor_id }
+          else { updated.push({ id: crypto.randomUUID(), school_name: r.school_name, counsellor_id: r.counsellor_id }) }
         })
         return updated.sort((a, b) => a.school_name.localeCompare(b.school_name))
       })
 
-      toast({
-        title: 'Bulk assign done',
-        description: `${selectedSchools.size} school${selectedSchools.size !== 1 ? 's' : ''} → ${counsellorName(counsellorId)}`,
-        variant: 'success',
-      })
-      setSelectedSchools(new Set())
+      setCsvResult({ saved: valid.length, skipped: csvRows.length - valid.length })
+      setCsvStep('done')
     } catch (err: unknown) {
-      toast({ title: 'Bulk assign failed', description: err instanceof Error ? err.message : 'Something went wrong.', variant: 'destructive' })
+      toast({ title: 'Import failed', description: err instanceof Error ? err.message : 'Something went wrong.', variant: 'destructive' })
     } finally {
-      setBulkAssigning(false)
+      setCsvImporting(false)
     }
   }
 
-  // ── Suggestions for single add ────────────────────────────────────────────
-  const suggestions = knownSchools.filter((s) => !mappedSchools.has(s))
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
@@ -175,19 +206,21 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
           School → Counsellor Mapping
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Set these rules once. When you import leads with a <code className="bg-gray-100 px-1 rounded text-xs">school_name</code> column, leads are auto-assigned — no manual step every time.
+          Set these rules once. When you import leads with a{' '}
+          <code className="bg-gray-100 px-1 rounded text-xs">school_name</code> column,
+          leads are auto-assigned — no manual step every time.
         </p>
       </div>
 
-      {/* How it works */}
+      {/* How it works banner */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 text-sm text-blue-800">
         <Info className="h-4 w-4 shrink-0 mt-0.5 text-blue-500" />
         <div>
-          <p className="font-semibold mb-1">How it works during CSV import</p>
+          <p className="font-semibold mb-1">How it works during lead CSV import</p>
           <ul className="space-y-0.5 text-xs text-blue-700">
-            <li>• All schools in your CSV that match a rule here are <strong>auto-assigned instantly</strong></li>
+            <li>• Add a <strong>school_name</strong> column to your leads CSV</li>
+            <li>• Schools that match a rule here are <strong>auto-assigned instantly</strong></li>
             <li>• Schools with no rule still ask you to assign manually (just for that batch)</li>
-            <li>• You can always override by editing the rule below</li>
           </ul>
         </div>
       </div>
@@ -201,18 +234,17 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
           Saved Rules ({mappings.length})
         </button>
         <button
-          onClick={() => setActiveTab('bulk')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'bulk' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          onClick={() => { setActiveTab('csv'); resetCsv() }}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'csv' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          <Users className="h-3.5 w-3.5" />
-          Bulk Assign
+          <Upload className="h-3.5 w-3.5" />
+          Import Schools CSV
         </button>
       </div>
 
       {/* ── Tab: Saved Rules ── */}
       {activeTab === 'rules' && (
         <>
-          {/* Existing mappings table */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">{mappings.length} saved rule{mappings.length !== 1 ? 's' : ''}</p>
@@ -222,10 +254,10 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
             {mappings.length === 0 ? (
               <div className="py-12 text-center text-gray-400">
                 <School className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                <p className="text-sm">No mappings yet. Add a rule below or use Bulk Assign.</p>
+                <p className="text-sm">No mappings yet. Add a rule below or import a CSV.</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
                 {mappings.map((m) => (
                   <div key={m.id} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
@@ -269,7 +301,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
 
             {suggestions.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs text-gray-500 font-medium">Schools in your leads without a rule yet:</p>
+                <p className="text-xs text-gray-500 font-medium">Schools from your leads without a rule yet:</p>
                 <div className="flex flex-wrap gap-2">
                   {suggestions.slice(0, 12).map((s) => (
                     <button
@@ -281,8 +313,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
                           : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-blue-400 hover:text-blue-600'
                       }`}
                     >
-                      {s}
-                      {schoolCounts[s] != null && <span className="ml-1 opacity-60">({schoolCounts[s]})</span>}
+                      {s}{schoolCounts[s] != null && <span className="ml-1 opacity-60">({schoolCounts[s]})</span>}
                     </button>
                   ))}
                 </div>
@@ -303,9 +334,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
               <div className="w-48 space-y-1 shrink-0">
                 <label className="text-xs text-gray-500 font-medium">Assign To</label>
                 <Select value={newCounsellorId} onValueChange={setNewCounsellorId}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Select counsellor..." />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select counsellor..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— Unassigned —</SelectItem>
                     {counsellors.map((c) => (
@@ -315,120 +344,188 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
                 </Select>
               </div>
               <Button onClick={handleAdd} disabled={adding} className="h-9 shrink-0">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Rule
+                <Plus className="h-4 w-4 mr-1" />Add Rule
               </Button>
             </div>
           </div>
         </>
       )}
 
-      {/* ── Tab: Bulk Assign ── */}
-      {activeTab === 'bulk' && (
+      {/* ── Tab: Import Schools CSV ── */}
+      {activeTab === 'csv' && (
         <div className="space-y-4">
-          {/* Counsellor picker + action bar */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-semibold text-gray-700">Assign selected schools to one counsellor</p>
-            <div className="flex gap-2 items-center flex-wrap sm:flex-nowrap">
-              <div className="w-56 shrink-0 space-y-1">
-                <label className="text-xs text-gray-500 font-medium">Counsellor</label>
-                <Select value={bulkCounsellorId} onValueChange={setBulkCounsellorId}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Select counsellor..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Unassigned —</SelectItem>
-                    {counsellors.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* Step indicator */}
+          <div className="flex items-center gap-1.5 text-xs">
+            {(['upload', 'preview', 'done'] as const).map((s, idx, arr) => (
+              <div key={s} className="flex items-center gap-1.5">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                  csvStep === s ? 'bg-blue-600 text-white' :
+                  arr.indexOf(s) < arr.indexOf(csvStep) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>{idx + 1}</div>
+                <span className={csvStep === s ? 'text-blue-600 font-medium capitalize' : 'text-gray-400 capitalize'}>{s}</span>
+                {idx < arr.length - 1 && <ArrowRight className="h-3 w-3 text-gray-300" />}
               </div>
-              <div className="flex gap-2 mt-4 sm:mt-0 flex-wrap">
+            ))}
+          </div>
+
+          {/* Step 1: Upload */}
+          {csvStep === 'upload' && (
+            <div className="space-y-4">
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const f = e.dataTransfer.files[0]
+                  if (f?.name.toLowerCase().endsWith('.csv')) handleCsvFile(f)
+                  else toast({ title: 'CSV only', variant: 'destructive' })
+                }}
+                onClick={() => csvFileRef.current?.click()}
+              >
+                <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-600 font-medium text-sm">Drop CSV or click to browse</p>
+                <p className="text-gray-400 text-xs mt-1">.csv only</p>
+              </div>
+              <input
+                ref={csvFileRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleCsvFile(e.target.files[0])}
+              />
+
+              {/* Format guide */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">CSV Format</p>
+                  <button
+                    onClick={() => {
+                      const emails = counsellors.slice(0, 2).map((c) => c.email)
+                      const csv = [
+                        'school_name,counsellor_email',
+                        `Delhi Public School,${emails[0] || 'priya@college.edu'}`,
+                        `Loreto Convent,${emails[0] || 'priya@college.edu'}`,
+                        `Cathedral & John Connon,${emails[1] || 'rahul@college.edu'}`,
+                      ].join('\n')
+                      const blob = new Blob([csv], { type: 'text/csv' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url; a.download = 'school_mapping_template.csv'; a.click()
+                      URL.revokeObjectURL(url)
+                    }}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                  >
+                    <Download className="h-3 w-3" /> Download template
+                  </button>
+                </div>
+
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-white">
+                      <th className="border border-gray-200 px-2 py-1 text-left font-semibold text-gray-700">school_name *</th>
+                      <th className="border border-gray-200 px-2 py-1 text-left font-semibold text-gray-700">counsellor_email *</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-gray-200 px-2 py-1 text-gray-500">Delhi Public School</td>
+                      <td className="border border-gray-200 px-2 py-1 text-gray-500">priya@college.edu</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-200 px-2 py-1 text-gray-500">Loreto Convent</td>
+                      <td className="border border-gray-200 px-2 py-1 text-gray-500">priya@college.edu</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-200 px-2 py-1 text-gray-500">Cathedral & John Connon</td>
+                      <td className="border border-gray-200 px-2 py-1 text-gray-500">rahul@college.edu</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <ul className="text-xs text-gray-500 space-y-0.5">
+                  <li>• One row per school — multiple schools can point to the same counsellor email</li>
+                  <li>• Email must match an active counsellor in this college</li>
+                  <li>• Existing rules for the same school are overwritten</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Preview */}
+          {csvStep === 'preview' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-green-600 font-semibold">{csvRows.filter((r) => !r.error).length} valid</span>
+                {csvRows.filter((r) => r.error).length > 0 && (
+                  <span className="text-red-500 font-semibold">{csvRows.filter((r) => r.error).length} with errors (will be skipped)</span>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <div className="max-h-96 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600 w-6">#</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">School Name</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Counsellor Email</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Resolved As</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvRows.map((row, i) => (
+                        <tr key={i} className={row.error ? 'bg-red-50' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                          <td className="px-3 py-2 font-medium text-gray-900">{row.school_name || <span className="text-gray-300 italic">—</span>}</td>
+                          <td className="px-3 py-2 font-mono text-gray-600">{row.counsellor_email || <span className="text-gray-300 italic">—</span>}</td>
+                          <td className="px-3 py-2 text-gray-700">{row.counsellor_name || <span className="text-gray-300 italic">—</span>}</td>
+                          <td className="px-3 py-2">
+                            {row.error
+                              ? <span className="flex items-center gap-1 text-red-600"><AlertCircle className="h-3 w-3 shrink-0" />{row.error}</span>
+                              : <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-3 w-3" />Ready</span>
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setCsvStep('upload')}>Back</Button>
                 <Button
-                  onClick={handleBulkAssign}
-                  disabled={bulkAssigning || selectedSchools.size === 0 || !bulkCounsellorId}
-                  className="h-9"
+                  size="sm"
+                  onClick={handleCsvImport}
+                  disabled={csvImporting || csvRows.filter((r) => !r.error).length === 0}
                 >
-                  <CheckSquare className="h-4 w-4 mr-1" />
-                  Assign {selectedSchools.size > 0 ? `${selectedSchools.size} school${selectedSchools.size !== 1 ? 's' : ''}` : 'selected'}
+                  {csvImporting
+                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Saving...</>
+                    : <>Save {csvRows.filter((r) => !r.error).length} rules</>
+                  }
                 </Button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* School list with checkboxes */}
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            {/* Search + quick-select toolbar */}
-            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center gap-2">
-              <div className="relative flex-1 w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                <Input
-                  value={bulkSearch}
-                  onChange={(e) => setBulkSearch(e.target.value)}
-                  placeholder="Search schools..."
-                  className="pl-8 h-8 text-xs w-full"
-                />
+          {/* Step 3: Done */}
+          {csvStep === 'done' && (
+            <div className="text-center py-8 space-y-3">
+              <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+              <div>
+                <p className="text-lg font-bold text-gray-900">Import Complete</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  <span className="text-green-600 font-semibold">{csvResult.saved} rules saved</span>
+                  {csvResult.skipped > 0 && <> · <span className="text-orange-500">{csvResult.skipped} rows skipped</span></>}
+                </p>
               </div>
-              <div className="flex items-center gap-2 text-xs shrink-0">
-                <button onClick={selectAll} className="text-blue-600 hover:underline font-medium">Select all</button>
-                <span className="text-gray-300">·</span>
-                <button onClick={selectUnmapped} className="text-orange-600 hover:underline font-medium">Unmapped only</button>
-                <span className="text-gray-300">·</span>
-                <button onClick={clearSelection} className="text-gray-500 hover:underline">Clear</button>
-                {selectedSchools.size > 0 && (
-                  <span className="ml-1 bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                    {selectedSchools.size}
-                  </span>
-                )}
+              <div className="flex gap-2 justify-center">
+                <Button variant="outline" size="sm" onClick={resetCsv}>Import another</Button>
+                <Button size="sm" onClick={() => setActiveTab('rules')}>View saved rules</Button>
               </div>
             </div>
-
-            {allSchools.length === 0 ? (
-              <div className="py-12 text-center text-gray-400 text-sm">
-                No schools found. Import some leads with a school_name column first.
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
-                {filteredBulkSchools.map((school) => {
-                  const currentMapping = mappings.find((m) => m.school_name === school)
-                  const isSelected = selectedSchools.has(school)
-                  return (
-                    <label
-                      key={school}
-                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                    >
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleSchool(school)}
-                        className="shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{school}</p>
-                        {schoolCounts[school] != null && (
-                          <p className="text-xs text-gray-400">{schoolCounts[school]} leads</p>
-                        )}
-                      </div>
-                      <div className="shrink-0 text-right">
-                        {currentMapping ? (
-                          <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                            {counsellorName(currentMapping.counsellor_id)}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
-                            Unmapped
-                          </span>
-                        )}
-                      </div>
-                    </label>
-                  )
-                })}
-                {filteredBulkSchools.length === 0 && (
-                  <div className="py-8 text-center text-gray-400 text-sm">No schools match your search.</div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       )}
     </div>
