@@ -464,7 +464,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     }
   }
 
-  const proceedFromMap = () => {
+  const proceedFromMap = async () => {
     const nameCol = columnMap['name']
     const phoneCol = columnMap['phone']
     if (!nameCol || !phoneCol) {
@@ -473,16 +473,44 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     }
     const schoolCol = columnMap['school_name']
     if (schoolCol) {
-      // Extract unique schools and show school-assign step
+      // Extract unique schools from CSV
       const schools = new Map<string, number>()
       csvRows.forEach((row) => {
         const school = (row[schoolCol] || '').trim()
         if (school) schools.set(school, (schools.get(school) || 0) + 1)
       })
+
+      // Fetch saved school → counsellor mappings from the server
+      let savedMap: Record<string, string | null> = {}
+      try {
+        const res = await fetch('/api/admin/school-mapping')
+        if (res.ok) {
+          const { mappings } = await res.json()
+          ;(mappings || []).forEach((m: { school_name: string; counsellor_id: string | null }) => {
+            savedMap[m.school_name] = m.counsellor_id
+          })
+        }
+      } catch { /* non-fatal — fall through to manual step */ }
+
+      // Build the map: use saved rule if available, else default to target counsellor
       const initialMap: Record<string, string> = {}
-      schools.forEach((_, school) => { initialMap[school] = addLeadsTarget?.id || '__none__' })
+      schools.forEach((_, school) => {
+        if (savedMap[school] !== undefined) {
+          initialMap[school] = savedMap[school] || '__none__'
+        } else {
+          initialMap[school] = addLeadsTarget?.id || '__none__'
+        }
+      })
       setSchoolCounsellorMap(initialMap)
-      setCsvStep('school-assign')
+
+      // If every school in this CSV has a saved rule, skip the manual step entirely
+      const allAutoMapped = [...schools.keys()].every((s) => savedMap[s] !== undefined)
+      if (allAutoMapped) {
+        toast({ title: 'Auto-assigned from saved mapping', description: `${schools.size} school${schools.size !== 1 ? 's' : ''} matched your saved rules.`, variant: 'success' })
+        generateCsvPreview()
+      } else {
+        setCsvStep('school-assign')
+      }
     } else {
       generateCsvPreview()
     }
@@ -1625,8 +1653,28 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                         )
                       })}
                   </div>
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-2 flex-wrap">
                     <Button variant="outline" size="sm" onClick={() => setCsvStep('map')}>Back</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const rows = Object.entries(schoolCounsellorMap).map(([school_name, counsellor_id]) => ({
+                          school_name,
+                          counsellor_id: counsellor_id === '__none__' ? null : counsellor_id,
+                        }))
+                        const res = await fetch('/api/admin/school-mapping', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ mappings: rows }),
+                        })
+                        if (res.ok) toast({ title: 'Mappings saved', description: 'These school assignments are now your default rules.', variant: 'success' })
+                        else toast({ title: 'Save failed', variant: 'destructive' })
+                      }}
+                      className="gap-1"
+                    >
+                      Save as default
+                    </Button>
                     <Button size="sm" onClick={generateCsvPreview}>
                       Preview <ArrowRight className="h-3.5 w-3.5 ml-1" />
                     </Button>

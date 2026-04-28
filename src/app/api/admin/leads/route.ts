@@ -326,9 +326,6 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  // lead_created Brevo events are batched in the morning report cron
-  // to avoid firing one API call per lead on creation.
-
   return NextResponse.json({ lead })
 }
 

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   BookOpen,
   Shield,
+  School,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -29,6 +30,7 @@ const ALL_NAV_ITEMS = [
   { href: '/admin/super-fields', label: 'Custom Fields', icon: Sliders, roles: ['admin'], group: 'config' },
   { href: '/admin/sources', label: 'Lead Sources', icon: Tags, roles: ['admin'], group: 'config' },
   { href: '/admin/courses', label: 'Courses', icon: BookOpen, roles: ['admin'], group: 'config' },
+  { href: '/admin/school-mapping', label: 'School Mapping', icon: School, roles: ['admin'], group: 'config' },
   { href: '/admin/settings', label: 'Settings', icon: Settings, roles: ['admin'], group: 'config' },
 ]
 
