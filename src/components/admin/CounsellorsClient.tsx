@@ -150,7 +150,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   const bulkFileRef = useRef<HTMLInputElement>(null)
   const [showBulkDialog, setShowBulkDialog] = useState(false)
   const [bulkStep, setBulkStep] = useState<'upload' | 'preview' | 'done'>('upload')
-  const [bulkRows, setBulkRows] = useState<{ name: string; email: string; pin: string; phone: string; error: string | null }[]>([])
+  const [bulkRows, setBulkRows] = useState<{ name: string; email: string; pin: string; phone: string; school_name: string; error: string | null }[]>([])
   const [bulkImporting, setBulkImporting] = useState(false)
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; success: boolean; error: string | null }[]>([])
 
@@ -188,6 +188,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
         const emailKey = headers.find((h) => h === 'email' || h.includes('email')) || ''
         const pinKey = headers.find((h) => h === 'pin' || h.includes('pin') || h === 'password') || ''
         const phoneKey = headers.find((h) => h === 'phone' || h.includes('phone')) || ''
+        const schoolKey = headers.find((h) => h === 'school_name' || h === 'school' || h.includes('school')) || ''
         const origHeaders = result.meta.fields || []
         const findCol = (lower: string) => origHeaders.find((h) => h.trim().toLowerCase() === lower) || ''
 
@@ -196,7 +197,8 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
           const email = (row[findCol(emailKey)] || '').trim()
           const pin = (row[findCol(pinKey)] || '').trim()
           const phone = (row[findCol(phoneKey)] || '').trim()
-          return { name, email, pin, phone, error: validateBulkRow(name, email, pin) }
+          const school_name = (row[findCol(schoolKey)] || '').trim()
+          return { name, email, pin, phone, school_name, error: validateBulkRow(name, email, pin) }
         })
         setBulkRows(parsed)
         setBulkStep('preview')
@@ -213,7 +215,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
       const res = await fetch('/api/admin/counsellors/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ counsellors: valid.map((r) => ({ name: r.name, email: r.email, pin: r.pin, phone: r.phone || undefined })) }),
+        body: JSON.stringify({ counsellors: valid.map((r) => ({ name: r.name, email: r.email, pin: r.pin, phone: r.phone || undefined, school_name: r.school_name || undefined })) }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Import failed')
@@ -1206,7 +1208,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Required CSV Format</p>
                     <button
                       onClick={() => {
-                        const csv = 'name,email,pin,phone\nPriya Sharma,priya@college.edu,481920,9876543210\nRahul Mehta,rahul@college.edu,739201,9123456789'
+                        const csv = 'name,email,pin,phone,school_name\nPriya Sharma,priya@college.edu,481920,9876543210,Delhi Public School\nRahul Mehta,rahul@college.edu,739201,,Loreto Convent'
                         const blob = new Blob([csv], { type: 'text/csv' })
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement('a')
@@ -1221,7 +1223,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                   <table className="w-full text-xs border-collapse">
                     <thead>
                       <tr className="bg-white">
-                        {['name *', 'email *', 'pin *', 'phone'].map((h) => (
+                        {['name *', 'email *', 'pin *', 'phone', 'school_name'].map((h) => (
                           <th key={h} className="border border-gray-200 px-2 py-1 text-left font-semibold text-gray-700">{h}</th>
                         ))}
                       </tr>
@@ -1232,12 +1234,14 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                         <td className="border border-gray-200 px-2 py-1 text-gray-500">priya@college.edu</td>
                         <td className="border border-gray-200 px-2 py-1 text-gray-500">481920</td>
                         <td className="border border-gray-200 px-2 py-1 text-gray-500">9876543210</td>
+                        <td className="border border-gray-200 px-2 py-1 text-gray-500">Delhi Public School</td>
                       </tr>
                     </tbody>
                   </table>
                   <ul className="text-xs text-gray-500 space-y-0.5 mt-1">
                     <li>• <strong>pin</strong> must be exactly 6 digits (not all same or sequential)</li>
-                    <li>• <strong>phone</strong> column is optional</li>
+                    <li>• <strong>phone</strong> and <strong>school_name</strong> are optional</li>
+                    <li>• <strong>school_name</strong> auto-saves the school → counsellor mapping rule</li>
                     <li>• Maximum 200 rows per import</li>
                   </ul>
                 </div>
@@ -1263,6 +1267,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                           <th className="px-3 py-2 text-left font-semibold text-gray-600">Email</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-600">PIN</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-600">Phone</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">School</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-600">Status</th>
                         </tr>
                       </thead>
@@ -1274,6 +1279,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                             <td className="px-3 py-2 text-gray-600 font-mono">{row.email || <span className="text-gray-300 italic">—</span>}</td>
                             <td className="px-3 py-2 font-mono text-gray-600">{row.pin ? '••••••' : <span className="text-gray-300 italic">—</span>}</td>
                             <td className="px-3 py-2 text-gray-500">{row.phone || <span className="text-gray-300 italic">—</span>}</td>
+                            <td className="px-3 py-2 text-gray-500">{row.school_name || <span className="text-gray-300 italic">—</span>}</td>
                             <td className="px-3 py-2">
                               {row.error
                                 ? <span className="flex items-center gap-1 text-red-600"><AlertCircle className="h-3 w-3 shrink-0" />{row.error}</span>

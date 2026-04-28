@@ -12,6 +12,7 @@ interface CounsellorRow {
   email: string
   pin: string
   phone?: string
+  school_name?: string
 }
 
 function validateRow(row: CounsellorRow): string | null {
@@ -54,13 +55,14 @@ export async function POST(request: NextRequest) {
     counsellors.map(async (row) => {
       const validationError = validateRow(row)
       if (validationError) {
-        return { name: row.name || '', email: row.email || '', success: false, error: validationError }
+        return { name: row.name || '', email: row.email || '', id: null, school_name: row.school_name || null, success: false, error: validationError }
       }
 
       const name = row.name.trim()
       const email = row.email.trim().toLowerCase()
       const pin = row.pin.trim()
       const phone = row.phone?.trim() || null
+      const school_name = row.school_name?.trim() || null
 
       const { data: authData, error: authError } = await admin.auth.admin.createUser({
         email,
@@ -69,10 +71,10 @@ export async function POST(request: NextRequest) {
       })
 
       if (authError) {
-        return { name, email, success: false, error: authError.message }
+        return { name, email, id: null, school_name, success: false, error: authError.message }
       }
 
-      const { error: dbError } = await admin
+      const { data: newUser, error: dbError } = await admin
         .from('users')
         .insert({
           name,
@@ -83,13 +85,25 @@ export async function POST(request: NextRequest) {
           auth_id: authData.user.id,
           is_active: true,
         })
+        .select('id')
+        .single()
 
       if (dbError) {
         await admin.auth.admin.deleteUser(authData.user.id)
-        return { name, email, success: false, error: dbError.message }
+        return { name, email, id: null, school_name, success: false, error: dbError.message }
       }
 
-      return { name, email, success: true, error: null }
+      // Save school mapping if provided
+      if (school_name && newUser?.id) {
+        await admin
+          .from('school_counsellor_mappings')
+          .upsert(
+            { college_id: profile.college_id, school_name, counsellor_id: newUser.id },
+            { onConflict: 'college_id,school_name' }
+          )
+      }
+
+      return { name, email, id: newUser?.id ?? null, school_name, success: true, error: null }
     })
   )
 
