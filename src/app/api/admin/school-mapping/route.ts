@@ -14,7 +14,7 @@ async function getAdminProfile() {
   return { supabase, profile: profile as { role: string; college_id: string } }
 }
 
-// GET /api/admin/school-mapping — flatten users.schools[] into {school_name, counsellor_id} pairs
+// GET — flatten users.schools[] into {school_name, counsellor_id} pairs
 export async function GET() {
   const ctx = await getAdminProfile()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -34,59 +34,46 @@ export async function GET() {
       mappings.push({ school_name: school, counsellor_id: c.id })
     }
   }
-  mappings.sort((a, b) => a.school_name.localeCompare(b.school_name))
 
-  return NextResponse.json({ mappings })
+  return NextResponse.json({ mappings: mappings.sort((a, b) => a.school_name.localeCompare(b.school_name)) })
 }
 
-// POST /api/admin/school-mapping — upsert mappings
-// Body: { mappings: { school_name, counsellor_id | null }[] }
-// Each school is moved exclusively to the specified counsellor (removed from any previous owner).
+// POST — add schools to a counsellor
+// Body: { mappings: { school_name, counsellor_id }[] }
 export async function POST(request: NextRequest) {
   const ctx = await getAdminProfile()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { supabase, profile } = ctx
-  const body = await request.json()
-  const rows: { school_name: string; counsellor_id: string | null }[] = body.mappings
+  const { mappings } = await request.json() as { mappings: { school_name: string; counsellor_id: string }[] }
 
-  if (!Array.isArray(rows) || rows.length === 0) {
+  if (!Array.isArray(mappings) || mappings.length === 0) {
     return NextResponse.json({ error: 'mappings array is required' }, { status: 400 })
   }
 
-  const { data: allCounsellors, error: fetchError } = await supabase
-    .from('users')
-    .select('id, schools')
-    .eq('college_id', profile.college_id)
-    .eq('role', 'counsellor')
-
-  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 400 })
-
-  // Build mutable map of id → schools[]
-  const schoolsMap = new Map<string, string[]>(
-    (allCounsellors || []).map((c) => [c.id, c.schools || []])
-  )
-
-  for (const row of rows) {
-    const school = row.school_name?.trim()
-    if (!school) continue
-
-    // Remove school from whoever currently owns it
-    for (const [id, schools] of schoolsMap) {
-      if (schools.includes(school)) schoolsMap.set(id, schools.filter((s) => s !== school))
-    }
-
-    // Add school to the new owner
-    if (row.counsellor_id) {
-      const current = schoolsMap.get(row.counsellor_id) || []
-      if (!current.includes(school)) schoolsMap.set(row.counsellor_id, [...current, school])
-    }
+  // Group schools by counsellor
+  const byCounsellor = new Map<string, string[]>()
+  for (const { school_name, counsellor_id } of mappings) {
+    const school = school_name?.trim()
+    if (!school || !counsellor_id) continue
+    const list = byCounsellor.get(counsellor_id) || []
+    list.push(school)
+    byCounsellor.set(counsellor_id, list)
   }
 
+  // For each counsellor, append the new schools to their existing array
   const results = await Promise.all(
-    [...schoolsMap.entries()].map(([id, schools]) =>
-      supabase.from('users').update({ schools }).eq('id', id)
-    )
+    [...byCounsellor.entries()].map(async ([counsellorId, newSchools]) => {
+      const { data } = await supabase
+        .from('users')
+        .select('schools')
+        .eq('id', counsellorId)
+        .eq('college_id', profile.college_id)
+        .single()
+
+      const merged = Array.from(new Set([...(data?.schools || []), ...newSchools]))
+      return supabase.from('users').update({ schools: merged }).eq('id', counsellorId)
+    })
   )
 
   const failed = results.find((r) => r.error)
@@ -95,7 +82,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true })
 }
 
-// DELETE /api/admin/school-mapping?school=<name> — remove a school rule
+// DELETE — remove a school from whoever has it
+// ?school=<name>
 export async function DELETE(request: NextRequest) {
   const ctx = await getAdminProfile()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -104,22 +92,18 @@ export async function DELETE(request: NextRequest) {
   const school = request.nextUrl.searchParams.get('school')
   if (!school) return NextResponse.json({ error: 'school param required' }, { status: 400 })
 
-  const { data: counsellors, error: fetchError } = await supabase
+  const { data } = await supabase
     .from('users')
     .select('id, schools')
     .eq('college_id', profile.college_id)
     .eq('role', 'counsellor')
 
-  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 400 })
-
-  const affected = (counsellors || []).filter((c) => (c.schools || []).includes(school))
   await Promise.all(
-    affected.map((c) =>
-      supabase
-        .from('users')
-        .update({ schools: (c.schools || []).filter((s: string) => s !== school) })
-        .eq('id', c.id)
-    )
+    (data || [])
+      .filter((c) => (c.schools || []).includes(school))
+      .map((c) =>
+        supabase.from('users').update({ schools: (c.schools || []).filter((s: string) => s !== school) }).eq('id', c.id)
+      )
   )
 
   return NextResponse.json({ ok: true })
