@@ -17,7 +17,6 @@ export default async function SchoolMappingPage() {
       .select('id, name, email')
       .eq('college_id', user.college_id!)
       .eq('role', 'counsellor')
-      .eq('is_active', true)
       .order('name'),
     supabase
       .from('leads')

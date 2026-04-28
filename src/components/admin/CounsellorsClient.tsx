@@ -73,25 +73,27 @@ const STATIC_CSV_FIELDS = [
 const EMPTY_SINGLE = { name: '', phone: '', email: '', city: '', course_id: '', source_id: '', notes: '' }
 
 type SortKey =
-  'enrolled' | 'conversion' | 'assigned' | 'called' | 'notCalled' |
+  'name' | 'enrolled' | 'conversion' | 'assigned' | 'called' | 'notCalled' |
   'interested' | 'notInterested' | 'followUpsToday' | 'missedFollowups' | 'visitsOverdue' | 'noShow'
 
 const SORT_OPTIONS: { key: SortKey; label: string; desc: string }[] = [
-  { key: 'enrolled',       label: 'Enrolled',         desc: 'Results' },
-  { key: 'conversion',     label: 'Conversion %',     desc: 'Efficiency' },
-  { key: 'assigned',       label: 'Assigned',         desc: 'Workload' },
-  { key: 'notCalled',      label: 'Not Called',       desc: 'At Risk' },
-  { key: 'interested',     label: 'Interested',       desc: 'Warm Pipeline' },
-  { key: 'notInterested',  label: 'Not Interested',   desc: 'Review Needed' },
-  { key: 'missedFollowups', label: 'Missed F/U',      desc: 'Overdue' },
-  { key: 'visitsOverdue',  label: 'Visit Overdue',    desc: 'Overdue Visits' },
-  { key: 'noShow',         label: 'No Show',          desc: 'No Shows' },
+  { key: 'name',            label: 'Name A→Z',        desc: 'Alphabetical' },
+  { key: 'enrolled',        label: 'Enrolled',         desc: 'Results' },
+  { key: 'conversion',      label: 'Conversion %',     desc: 'Efficiency' },
+  { key: 'assigned',        label: 'Assigned',         desc: 'Workload' },
+  { key: 'notCalled',       label: 'Not Called',       desc: 'At Risk' },
+  { key: 'interested',      label: 'Interested',       desc: 'Warm Pipeline' },
+  { key: 'notInterested',   label: 'Not Interested',   desc: 'Review Needed' },
+  { key: 'missedFollowups', label: 'Missed F/U',       desc: 'Overdue' },
+  { key: 'visitsOverdue',   label: 'Visit Overdue',    desc: 'Overdue Visits' },
+  { key: 'noShow',          label: 'No Show',          desc: 'No Shows' },
 ]
 
 function getCounsellorSortValue(c: Counsellor, key: SortKey, today: string): number {
   const leads = (c.assigned_leads || []).filter((l) => l.is_active !== false)
   const enrolled = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
   switch (key) {
+    case 'name':            return 0  // handled by string comparison
     case 'enrolled':        return enrolled
     case 'conversion':      return leads.length > 0 ? enrolled / leads.length : 0
     case 'assigned':        return leads.length
@@ -130,8 +132,9 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
   ]
 
   const [counsellors, setCounsellors] = useState(initialCounsellors)
-  const [sortBy, setSortBy] = useState<SortKey>('missedFollowups')
-  const [sortAsc, setSortAsc] = useState(false)
+  const [counsellorSearch, setCounsellorSearch] = useState('')
+  const [sortBy, setSortBy] = useState<SortKey>('name')
+  const [sortAsc, setSortAsc] = useState(true)
   const [tableView, setTableView] = useState<'performance' | 'action'>('performance')
 
   const handleColSort = (key: SortKey) => {
@@ -686,6 +689,16 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
     }
   }
 
+  // Filtered + sorted list used in both mobile and desktop render
+  const displayedCounsellors = counsellors
+    .filter((c) => !counsellorSearch || c.name.toLowerCase().includes(counsellorSearch.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+      return sortAsc
+        ? getCounsellorSortValue(a, sortBy, today) - getCounsellorSortValue(b, sortBy, today)
+        : getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today)
+    })
+
   // Computed before JSX — avoids IIFE anti-pattern inside render
   const totalUrgent = counsellors.reduce((sum, c) => {
     const leads = (c.assigned_leads || []).filter((l) => l.is_active !== false)
@@ -703,7 +716,12 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Counsellors</h1>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <p className="text-gray-500 text-sm">{counsellors.length} counsellors</p>
+            <p className="text-gray-500 text-sm">
+              {counsellorSearch
+                ? <><span className="font-semibold text-gray-800">{displayedCounsellors.length}</span> of {counsellors.length} counsellors</>
+                : <><span className="font-semibold text-gray-800">{counsellors.length}</span> counsellors</>
+              }
+            </p>
             {unassignedCount > 0 && (
               <span className="flex items-center gap-1 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
                 <AlertCircle className="h-3 w-3" />
@@ -712,7 +730,24 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <input
+              type="text"
+              value={counsellorSearch}
+              onChange={(e) => setCounsellorSearch(e.target.value)}
+              placeholder="Search by name..."
+              className="h-9 pl-3 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-48"
+            />
+            {counsellorSearch && (
+              <button
+                onClick={() => setCounsellorSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           <Button variant="outline" onClick={() => { resetBulkDialog(); setShowBulkDialog(true) }}>
             <Upload className="h-4 w-4" />
             Bulk Import
@@ -757,15 +792,17 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
           <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
           <p>No counsellors yet. Add your first counsellor.</p>
         </div>
+      ) : displayedCounsellors.length === 0 ? (
+        <div className="text-center py-16 text-gray-400 bg-white border border-gray-200 rounded-xl">
+          <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p>No counsellors match &quot;{counsellorSearch}&quot;</p>
+          <button onClick={() => setCounsellorSearch('')} className="mt-2 text-sm text-blue-600 hover:underline">Clear search</button>
+        </div>
       ) : (
         <>
           {/* Mobile cards */}
           <div className="sm:hidden space-y-3">
-            {[...counsellors]
-              .sort((a, b) => sortAsc
-                ? getCounsellorSortValue(a, sortBy, today) - getCounsellorSortValue(b, sortBy, today)
-                : getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today))
-              .map((c) => {
+            {displayedCounsellors.map((c) => {
                 const leads          = (c.assigned_leads || []).filter((l) => l.is_active !== false)
                 const total          = leads.length
                 const enrolled       = leads.filter((l) => l.current_lead_stage === 'Enrolled').length
@@ -1011,11 +1048,7 @@ export function CounsellorsClient({ initialCounsellors, collegeId, adminId, sour
                 </thead>
 
                 <tbody className="divide-y divide-gray-100">
-                  {[...counsellors]
-                    .sort((a, b) => sortAsc
-                      ? getCounsellorSortValue(a, sortBy, today) - getCounsellorSortValue(b, sortBy, today)
-                      : getCounsellorSortValue(b, sortBy, today) - getCounsellorSortValue(a, sortBy, today))
-                    .map((c) => {
+                  {displayedCounsellors.map((c) => {
                       const leads           = (c.assigned_leads || []).filter((l) => l.is_active !== false)
                       const total           = leads.length
                       const called          = leads.filter((l) => l.current_call_stage !== null).length
