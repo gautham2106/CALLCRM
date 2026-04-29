@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Papa from 'papaparse'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,10 +23,7 @@ interface Counsellor {
 }
 
 interface Props {
-  initialMappings: Mapping[]
   counsellors: Counsellor[]
-  knownSchools: string[]
-  schoolCounts: Record<string, number>
 }
 
 interface SchoolCsvRow {
@@ -37,8 +34,10 @@ interface SchoolCsvRow {
   error: string | null
 }
 
-export function SchoolMappingClient({ initialMappings, counsellors, knownSchools, schoolCounts }: Props) {
-  const [mappings, setMappings] = useState<Mapping[]>(initialMappings)
+export function SchoolMappingClient({ counsellors }: Props) {
+  const [mappings, setMappings] = useState<Mapping[]>([])
+  const [knownSchools, setKnownSchools] = useState<string[]>([])
+  const [schoolCounts] = useState<Record<string, number>>({})
   const [newSchool, setNewSchool] = useState('')
   const [newCounsellorId, setNewCounsellorId] = useState('')
   const [adding, setAdding] = useState(false)
@@ -51,6 +50,17 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
   const [csvRows, setCsvRows] = useState<SchoolCsvRow[]>([])
   const [csvImporting, setCsvImporting] = useState(false)
   const [csvResult, setCsvResult] = useState({ saved: 0, skipped: 0 })
+
+  useEffect(() => {
+    fetch('/api/admin/school-mapping')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.mappings) {
+          setMappings(d.mappings)
+          setKnownSchools(d.mappings.map((m: Mapping) => m.school_name))
+        }
+      })
+  }, [])
 
   const mappedSchools = new Set(mappings.map((m) => m.school_name))
   const suggestions = knownSchools.filter((s) => !mappedSchools.has(s))
