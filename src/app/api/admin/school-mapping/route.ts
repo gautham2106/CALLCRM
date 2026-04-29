@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 async function getAdminProfile() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data: profile } = await supabase
+  const adminSupabase = createAdminClient()
+  const { data: profile } = await adminSupabase
     .from('users')
     .select('role, college_id')
     .eq('auth_id', user.id)
     .single()
   if (profile?.role !== 'admin') return null
-  return { supabase, profile: profile as { role: string; college_id: string } }
+  return { supabase: adminSupabase, profile: profile as { role: string; college_id: string } }
 }
 
 // GET — return counsellors and their assigned schools

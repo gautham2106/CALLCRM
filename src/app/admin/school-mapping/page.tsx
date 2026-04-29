@@ -1,10 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/auth'
 import { SchoolMappingClient } from '@/components/admin/SchoolMappingClient'
 
 export default async function SchoolMappingPage() {
   const user = await requireAdmin()
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data: counsellorRows } = await supabase
     .from('users')
