@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/components/ui/use-toast'
 import {
-  School, UserCheck, Trash2, Plus, Info,
+  School, UserCheck, Trash2, Plus, Info, Pencil, Check, X,
   Upload, FileText, CheckCircle, Download, Loader2, ArrowRight,
 } from 'lucide-react'
 
@@ -42,6 +42,8 @@ export function SchoolMappingClient({ counsellors }: Props) {
   const [newCounsellorId, setNewCounsellorId] = useState('')
   const [adding, setAdding] = useState(false)
   const [deletingSchool, setDeletingSchool] = useState<string | null>(null)
+  const [editingSchool, setEditingSchool] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
 
   // CSV import state
   const [activeTab, setActiveTab] = useState<'rules' | 'csv'>('rules')
@@ -122,6 +124,27 @@ export function SchoolMappingClient({ counsellors }: Props) {
       toast({ title: 'Failed to delete', variant: 'destructive' })
     } finally {
       setDeletingSchool(null)
+    }
+  }
+
+  const handleRename = async (mapping: Mapping) => {
+    const newName = editName.trim()
+    if (!newName || newName === mapping.school_name) { setEditingSchool(null); return }
+    try {
+      await fetch(`/api/admin/school-mapping?school=${encodeURIComponent(mapping.school_name)}`, { method: 'DELETE' })
+      if (mapping.counsellor_id) {
+        await fetch('/api/admin/school-mapping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mappings: [{ school_name: newName, counsellor_id: mapping.counsellor_id }] }),
+        })
+      }
+      setMappings((prev) => prev.map((m) => m.school_name === mapping.school_name ? { ...m, school_name: newName } : m))
+      toast({ title: 'School renamed', variant: 'success' })
+    } catch {
+      toast({ title: 'Failed to rename', variant: 'destructive' })
+    } finally {
+      setEditingSchool(null)
     }
   }
 
@@ -270,32 +293,61 @@ export function SchoolMappingClient({ counsellors }: Props) {
                 {mappings.map((m) => (
                   <div key={m.school_name} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate">{m.school_name}</p>
-                      {schoolCounts[m.school_name] != null && (
-                        <p className="text-xs text-gray-400">{schoolCounts[m.school_name]} leads in system</p>
+                      {editingSchool === m.school_name ? (
+                        <Input
+                          autoFocus
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleRename(m)
+                            if (e.key === 'Escape') setEditingSchool(null)
+                          }}
+                          className="h-7 text-sm px-2"
+                        />
+                      ) : (
+                        <p className="font-medium text-gray-900 text-sm truncate">{m.school_name}</p>
                       )}
                     </div>
-                    <UserCheck className="h-4 w-4 text-gray-300 shrink-0" />
-                    <Select value={m.counsellor_id || '__none__'} onValueChange={(v) => handleChangeCounsellor(m, v)}>
-                      <SelectTrigger className="h-8 text-xs w-44">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— Unassigned —</SelectItem>
-                        {counsellors.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 shrink-0"
-                      onClick={() => handleDelete(m)}
-                      disabled={deletingSchool === m.school_name}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {editingSchool === m.school_name ? (
+                      <>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-green-600" onClick={() => handleRename(m)}>
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400" onClick={() => setEditingSchool(null)}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="ghost" size="sm"
+                          className="h-8 w-8 p-0 text-gray-400 hover:text-blue-600 shrink-0"
+                          onClick={() => { setEditingSchool(m.school_name); setEditName(m.school_name) }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <UserCheck className="h-4 w-4 text-gray-300 shrink-0" />
+                        <Select value={m.counsellor_id || '__none__'} onValueChange={(v) => handleChangeCounsellor(m, v)}>
+                          <SelectTrigger className="h-8 text-xs w-44">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— Unassigned —</SelectItem>
+                            {counsellors.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="ghost" size="sm"
+                          className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 shrink-0"
+                          onClick={() => handleDelete(m)}
+                          disabled={deletingSchool === m.school_name}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
