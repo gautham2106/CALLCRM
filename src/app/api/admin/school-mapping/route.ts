@@ -14,7 +14,7 @@ async function getAdminProfile() {
   return { supabase, profile: profile as { role: string; college_id: string } }
 }
 
-// GET — flatten users.schools[] into {school_name, counsellor_id} pairs
+// GET — return counsellors and their assigned schools
 export async function GET() {
   const ctx = await getAdminProfile()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -22,11 +22,14 @@ export async function GET() {
   const { supabase, profile } = ctx
   const { data, error } = await supabase
     .from('users')
-    .select('id, schools')
+    .select('id, name, email, schools')
     .eq('college_id', profile.college_id)
     .eq('role', 'counsellor')
+    .order('name')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  const counsellors = (data || []).map((c) => ({ id: c.id, name: c.name, email: c.email }))
 
   const mappings: { school_name: string; counsellor_id: string }[] = []
   for (const c of data || []) {
@@ -35,7 +38,7 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ mappings: mappings.sort((a, b) => a.school_name.localeCompare(b.school_name)) })
+  return NextResponse.json({ counsellors, mappings: mappings.sort((a, b) => a.school_name.localeCompare(b.school_name)) })
 }
 
 // POST — add schools to a counsellor
