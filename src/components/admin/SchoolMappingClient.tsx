@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/components/ui/use-toast'
 import {
   School, UserCheck, Trash2, Plus, Info,
-  Upload, FileText, CheckCircle, AlertCircle, Download, Loader2, ArrowRight,
+  Upload, FileText, CheckCircle, Download, Loader2, ArrowRight,
 } from 'lucide-react'
 
 interface Mapping {
@@ -143,15 +143,16 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
           return
         }
 
-        const parsed: SchoolCsvRow[] = raw.map((row) => {
-          const school_name      = (row[schoolCol]  || '').trim()
-          const counsellor_email = (row[emailCol]   || '').trim().toLowerCase()
-          if (!school_name)      return { school_name, counsellor_email, counsellor_id: null, counsellor_name: null, error: 'School name required' }
-          if (!counsellor_email) return { school_name, counsellor_email, counsellor_id: null, counsellor_name: null, error: 'Counsellor email required' }
-          const match = counsellors.find((c) => c.email.toLowerCase() === counsellor_email)
-          if (!match)            return { school_name, counsellor_email, counsellor_id: null, counsellor_name: null, error: `No counsellor with email "${counsellor_email}"` }
-          return { school_name, counsellor_email, counsellor_id: match.id, counsellor_name: match.name, error: null }
-        })
+        const parsed: SchoolCsvRow[] = raw
+          .map((row) => {
+            const school_name      = (row[schoolCol] || '').trim()
+            const counsellor_email = (row[emailCol]  || '').trim().toLowerCase()
+            if (!school_name || !counsellor_email) return null
+            const match = counsellors.find((c) => c.email.toLowerCase() === counsellor_email)
+            if (!match) return null  // skip unrecognised emails silently
+            return { school_name, counsellor_email, counsellor_id: match.id, counsellor_name: match.name, error: null }
+          })
+          .filter(Boolean) as SchoolCsvRow[]
 
         setCsvRows(parsed)
         setCsvStep('preview')
@@ -161,32 +162,30 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
   }
 
   const handleCsvImport = async () => {
-    const valid = csvRows.filter((r) => !r.error)
-    if (!valid.length) return
+    if (!csvRows.length) return
     setCsvImporting(true)
     try {
       const res = await fetch('/api/admin/school-mapping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mappings: valid.map((r) => ({ school_name: r.school_name, counsellor_id: r.counsellor_id })),
+          mappings: csvRows.map((r) => ({ school_name: r.school_name, counsellor_id: r.counsellor_id })),
         }),
       })
       if (!res.ok) throw new Error((await res.json()).error)
 
-      // Update local state
       setMappings((prev) => {
         const updated = prev.map((m) => {
-          const match = valid.find((r) => r.school_name === m.school_name)
+          const match = csvRows.find((r) => r.school_name === m.school_name)
           return match ? { ...m, counsellor_id: match.counsellor_id } : m
         })
-        for (const r of valid.filter((r) => !prev.some((m) => m.school_name === r.school_name))) {
+        for (const r of csvRows.filter((r) => !prev.some((m) => m.school_name === r.school_name))) {
           updated.push({ school_name: r.school_name, counsellor_id: r.counsellor_id })
         }
         return updated.sort((a, b) => a.school_name.localeCompare(b.school_name))
       })
 
-      setCsvResult({ saved: valid.length, skipped: csvRows.length - valid.length })
+      setCsvResult({ saved: csvRows.length, skipped: 0 })
       setCsvStep('done')
     } catch (err: unknown) {
       toast({ title: 'Import failed', description: err instanceof Error ? err.message : 'Something went wrong.', variant: 'destructive' })
@@ -455,10 +454,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
           {csvStep === 'preview' && (
             <div className="space-y-3">
               <div className="flex items-center gap-3 text-sm">
-                <span className="text-green-600 font-semibold">{csvRows.filter((r) => !r.error).length} valid</span>
-                {csvRows.filter((r) => r.error).length > 0 && (
-                  <span className="text-red-500 font-semibold">{csvRows.filter((r) => r.error).length} with errors (will be skipped)</span>
-                )}
+                <span className="text-green-600 font-semibold">{csvRows.length} ready to save</span>
               </div>
 
               <div className="rounded-lg border border-gray-200 overflow-hidden">
@@ -469,8 +465,7 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
                         <th className="px-3 py-2 text-left font-semibold text-gray-600 w-6">#</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-600">School Name</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Counsellor Email</th>
-                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Resolved As</th>
-                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Status</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Counsellor Name</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -478,14 +473,8 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
                         <tr key={i} className={row.error ? 'bg-red-50' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                           <td className="px-3 py-2 font-medium text-gray-900">{row.school_name || <span className="text-gray-300 italic">—</span>}</td>
-                          <td className="px-3 py-2 font-mono text-gray-600">{row.counsellor_email || <span className="text-gray-300 italic">—</span>}</td>
-                          <td className="px-3 py-2 text-gray-700">{row.counsellor_name || <span className="text-gray-300 italic">—</span>}</td>
-                          <td className="px-3 py-2">
-                            {row.error
-                              ? <span className="flex items-center gap-1 text-red-600"><AlertCircle className="h-3 w-3 shrink-0" />{row.error}</span>
-                              : <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-3 w-3" />Ready</span>
-                            }
-                          </td>
+                          <td className="px-3 py-2 font-mono text-gray-600">{row.counsellor_email}</td>
+                          <td className="px-3 py-2 text-gray-700">{row.counsellor_name}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -498,11 +487,11 @@ export function SchoolMappingClient({ initialMappings, counsellors, knownSchools
                 <Button
                   size="sm"
                   onClick={handleCsvImport}
-                  disabled={csvImporting || csvRows.filter((r) => !r.error).length === 0}
+                  disabled={csvImporting || csvRows.length === 0}
                 >
                   {csvImporting
                     ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Saving...</>
-                    : <>Save {csvRows.filter((r) => !r.error).length} rules</>
+                    : <>Save {csvRows.length} rules</>
                   }
                 </Button>
               </div>
